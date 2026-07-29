@@ -27,3 +27,117 @@ exports.ROLE_GROUP = {
   MANAGEMENT: [exports.ROLES.ADMIN, exports.ROLES.MANAGER],
   STAFF: [exports.ROLES.ADMIN, exports.ROLES.MANAGER, exports.ROLES.STAFF],
 };
+
+/**
+ * Audit-д бүртгэгдэх объектын төрлүүд — introduction.md §9.2
+ */
+exports.AUDIT_ENTITY = {
+  PACKAGE: 'package',
+  PAYMENT: 'payment',
+  CUSTOMER: 'customer',
+  USER: 'user',
+  BRANCH: 'branch',
+  LOCATION: 'location',
+  CARGO_TYPE: 'cargo_type',
+  TARIFF: 'tariff',
+  SETTINGS: 'settings',
+};
+
+/**
+ * Audit-д бүртгэгдэх үйлдлүүд.
+ *
+ * Нэршил: `<entity>.<action>`. Шинэ үйлдэл нэмэхдээ ЗААВАЛ энд бүртгэнэ —
+ * дурын мөр дамжуулбал тайлан, шүүлт задарна.
+ */
+exports.AUDIT_ACTION = {
+  // Ачаа (Phase 2)
+  PACKAGE_CREATE: 'package.create',
+  PACKAGE_PRICE_OVERRIDE: 'package.price_override',
+  PACKAGE_STATUS_CHANGE: 'package.status_change',
+  PACKAGE_LOCATION_MOVE: 'package.location_move',
+  PACKAGE_CANCEL: 'package.cancel',
+  PACKAGE_DELETE: 'package.delete',
+  PACKAGE_DUPLICATE_APPROVED: 'package.duplicate_approved',
+
+  // Төлбөр (Phase 3)
+  PAYMENT_CREATE: 'payment.create',
+  PAYMENT_VOID: 'payment.void',
+
+  // Харилцагч
+  CUSTOMER_CREATE: 'customer.create',
+  CUSTOMER_UPDATE: 'customer.update',
+  CUSTOMER_LOYALTY_ADJUST: 'customer.loyalty_adjust',
+
+  // Ажилтан
+  USER_CREATE: 'user.create',
+  USER_UPDATE: 'user.update',
+  USER_ROLE_CHANGE: 'user.role_change',
+  USER_DISABLE: 'user.disable',
+
+  // Лавлах өгөгдөл
+  BRANCH_CREATE: 'branch.create',
+  BRANCH_UPDATE: 'branch.update',
+  LOCATION_CREATE: 'location.create',
+  LOCATION_UPDATE: 'location.update',
+  CARGO_TYPE_CREATE: 'cargo_type.create',
+  CARGO_TYPE_UPDATE: 'cargo_type.update',
+
+  // Тохиргоо
+  TARIFF_CHANGE: 'settings.tariff_change',
+  LOYALTY_CHANGE: 'settings.loyalty_change',
+  SETTINGS_UPDATE: 'settings.update',
+};
+
+exports.AUDIT_ACTION_LIST = Object.values(exports.AUDIT_ACTION);
+
+/**
+ * Ачааны төлөвүүд — introduction.md §1.5.
+ * Шилжилтийн дүрмийг Phase 2-т `src/domain/package-state.js` тодорхойлно.
+ */
+exports.PACKAGE_STATUS = {
+  REGISTERED: 'registered',
+  IN_TRANSIT: 'in_transit',
+  ARRIVED: 'arrived',
+  NOTIFIED: 'notified',
+  AWAITING_PAYMENT: 'awaiting_payment',
+  PAID: 'paid',
+  OUT_FOR_DELIVERY: 'out_for_delivery',
+  PICKED_UP: 'picked_up',
+  DELIVERED: 'delivered',
+  RETURNED: 'returned',
+  CANCELLED: 'cancelled',
+};
+
+/**
+ * Үнэ аль хэмжигдэхүүнээр тодорхойлогдсоныг заана — §1.2
+ */
+exports.PRICE_SOURCE = {
+  WEIGHT: 'weight',
+  VOLUME: 'volume',
+  MINIMUM: 'minimum',
+};
+
+/**
+ * Урамшууллын түвшин — §4
+ */
+exports.LOYALTY_TIER = {
+  BRONZE: 'bronze',
+  SILVER: 'silver',
+  GOLD: 'gold',
+};
+
+/**
+ * Тохиргооны түлхүүрүүд (`settings` коллекц).
+ * Утга нь бизнесийн шийдвэр тул кодод хатуу бичихгүй, DB-д хадгална.
+ */
+exports.SETTING_KEY = {
+  PRICING_OVERRIDE_LIMIT_PERCENT: 'pricing.override_limit_percent',
+  PACKAGE_DELETE_WINDOW_HOURS: 'package.delete_window_hours',
+  WAREHOUSE_SUGGEST_ENABLED: 'warehouse.suggest_enabled',
+};
+
+exports.SETTING_DEFAULTS = {
+  [exports.SETTING_KEY.PRICING_OVERRIDE_LIMIT_PERCENT]: 20,
+  [exports.SETTING_KEY.PACKAGE_DELETE_WINDOW_HOURS]: 24,
+  [exports.SETTING_KEY.WAREHOUSE_SUGGEST_ENABLED]: true,
+};

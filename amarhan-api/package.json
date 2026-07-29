@@ -11,6 +11,8 @@
     "format": "prettier --write \"src/**/*.{js,jsx}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx}\"",
     "seed:admin": "node scripts/seed-admin.js",
+    "seed:reference": "node scripts/seed-reference-data.js",
+    "seed:locations": "node scripts/seed-locations.js",
     "migrate": "node scripts/migrate.js"
   },
   "keywords": [],

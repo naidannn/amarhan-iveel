@@ -73,3 +73,63 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/**
+ * ХЭВЛЭХ — introduction.md §1.10
+ *
+ * Зарчим: `.print-area` доторх агуулга л хэвлэгдэнэ, бусад бүхэн (sidebar,
+ * navbar, товч, модалын хүрээ) далдлагдана. Ингэснээр хэвлэх тусдаа хуудас
+ * үүсгэх, шинэ цонх нээх шаардлагагүй — popup blocker, фонт ачаалагдаагүй
+ * байх зэрэг эмзэг байдлаас зайлсхийнэ.
+ *
+ * `@layer`-ээс ГАДНА байгаа шалтгаан: эдгээр дүрэм Tailwind-ын utility
+ * классуудыг (`bg-*`, `shadow-*`) дарж бичих ёстой. Layer дотор байвал
+ * дарааллын хувьд илүү нарийн классад дарагдана.
+ */
+@media print {
+  /* Хэвлэхэд хэрэггүй бүх зүйл */
+  .no-print,
+  aside,
+  header nav,
+  button:not(.print-area button) {
+    display: none !important;
+  }
+
+  /* Модалын дэвсгэр, хүрээг арилгаж, агуулгыг хуудсанд нийцүүлнэ */
+  body {
+    background: #fff !important;
+  }
+
+  [role='dialog'] {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+  }
+
+  .print-area {
+    border: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Шошго хуудасны дундуур ХЭСЭГЧЛЭГДЭХГҮЙ — тасарсан зураасан код
+     скайнерт уншигдахгүй */
+  .print-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Хэвлэхэд өнгө хэмнэх зорилгоор өнгө хасагдвал зураасан код уншигдахгүй */
+  svg,
+  svg rect {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

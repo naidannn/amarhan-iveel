@@ -101,9 +101,21 @@ export const useAuthStore = defineStore('auth', {
           localStorage.setItem('auth_user', JSON.stringify(this.user))
         }
         return true
-      } catch {
-        this.clearAuth()
-        return false
+      } catch (e: any) {
+        // ЗӨВХӨН эрхийн алдаанд гаргана. Сүлжээний тасалдал, серверийн 500,
+        // эсвэл програмын алдаа (`$axios` бэлэн болоогүй гэх мэт) нь токен
+        // хүчингүй гэсэн үг БИШ — тэр бүрт гаргавал ажилтан ажлын дундуур
+        // санамсаргүй гарч, §1.4-ийн бүртгэлийн урсгал тасална.
+        const status = e?.response?.status
+        if (status === 401 || status === 403) {
+          this.clearAuth()
+          return false
+        }
+
+        // Локалаас сэргээсэн төлөвөө үлдээнэ. Токен үнэхээр хүчингүй бол
+        // дараагийн хүсэлтэд axios-ийн 401 interceptor барина.
+        console.warn('[auth] Токен баталгаажуулж чадсангүй, локал төлөвөөр үргэлжилнэ', e?.message)
+        return true
       }
     },
 

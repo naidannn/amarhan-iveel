@@ -1,0 +1,702 @@
+<script setup lang="ts">
+import {
+  ArrowLeft,
+  Printer,
+  Pencil,
+  Ban,
+  Trash2,
+  MapPin,
+  ArrowRight,
+  History,
+  ShieldCheck,
+  AlertTriangle,
+} from 'lucide-vue-next'
+import { ERROR_CODE, type CargoPackage, type PackageStatusValue } from '~/composables/usePackages'
+
+/**
+ * Ачааны дэлгэрэнгүй — introduction.md §1
+ *
+ * Нэг хуудсанд: мэдээлэл · үнэ · төлбөр · байршил · төлөвийн түүх · audit.
+ * Backend бүгдийг НЭГ хүсэлтээр буцаана (`GET /packages/:id`) — олон хүсэлт
+ * хийвэл хуудас алаг ачаалагдаж, ажилтан хагас өгөгдөл хардаг.
+ *
+ * Ямар үйлдэл боломжтойг BACKEND шийднэ (`allowedTransitions`) — UI өөрөө
+ * тооцвол шилжилтийн дүрэм хоёр газар байж зөрнө (BR-07).
+ */
+definePageMeta({ layout: 'admin', middleware: 'auth' })
+
+const route = useRoute()
+const api = usePackages()
+const toast = useToast()
+const status = usePackageStatus()
+const auth = useAuthStore()
+
+const id = computed(() => String(route.params.id))
+
+const pkg = ref<CargoPackage | null>(null)
+const auditLogs = ref<any[]>([])
+const allowedTransitions = ref<PackageStatusValue[]>([])
+const loading = ref(true)
+
+const isManagement = computed(() => ['admin', 'manager'].includes(auth.user?.role ?? ''))
+const isAdmin = computed(() => auth.user?.role === 'admin')
+
+useHead(() => ({
+  title: pkg.value ? `${pkg.value.trackingNumber} — Ивээл Карго` : 'Ачаа — Ивээл Карго',
+}))
+
+async function load() {
+  loading.value = true
+  try {
+    const result = await api.detail(id.value)
+    pkg.value = result.package
+    auditLogs.value = result.auditLogs ?? []
+    allowedTransitions.value = result.allowedTransitions ?? []
+  } catch (e: any) {
+    toast.error('Ачаа ачаалагдсангүй', { description: e.message })
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+
+// ── Харуулах туслахууд ───────────────────────────────────────────────────
+const customer = computed(() => {
+  const c = pkg.value?.customerId
+  return typeof c === 'object' && c !== null ? c : null
+})
+
+const cargoType = computed(() => {
+  const t = pkg.value?.cargoTypeId
+  return typeof t === 'object' && t !== null ? t : null
+})
+
+const registeredByName = computed(() => {
+  const r = pkg.value?.registeredBy
+  if (!r || typeof r !== 'object') return '—'
+  return `${r.firstname ?? ''} ${r.lastname ?? ''}`.trim() || '—'
+})
+
+/** Audit-ийн үйлдлийн монгол нэр — §9.2-ийн бүртгэлийг уншихад */
+const AUDIT_LABELS: Record<string, string> = {
+  'package.create': 'Ачаа бүртгэв',
+  'package.update': 'Мэдээлэл засав',
+  'package.price_override': 'Үнэ гараар өөрчлөв',
+  'package.status_change': 'Төлөв өөрчлөв',
+  'package.location_move': 'Байршил шилжүүлэв',
+  'package.cancel': 'Хүчингүй болгов',
+  'package.delete': 'Бүрмөсөн устгав',
+  'package.duplicate_approved': 'Давхар бүртгэхийг зөвшөөрөв',
+}
+
+function auditLabel(action: string) {
+  return AUDIT_LABELS[action] ?? action
+}
+
+/**
+ * Audit бичлэгийн before/after нь скаляр (харуулж болохуйц) эсэх.
+ * Объект утгыг (бүртгэлийн snapshot, устгасан ачааны бүх талбар) хүснэгт
+ * хэлбэрээр харуулах нь энэ хуудсын зорилго биш.
+ */
+function scalarChange(log: { before: any; after: any }) {
+  const isScalar = (v: any) => v !== null && v !== undefined && typeof v !== 'object'
+  return isScalar(log.before) || isScalar(log.after)
+}
+
+function formatDateTime(value: string | Date) {
+  return new Date(value).toLocaleString('mn-MN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// ── Төлөв өөрчлөх ────────────────────────────────────────────────────────
+const statusOpen = ref(false)
+const nextStatus = ref<string | null>(null)
+const statusReason = ref('')
+const busy = ref(false)
+
+const transitionOptions = computed(() =>
+  allowedTransitions.value
+    // Хүчингүй болгох нь тусдаа урсгал (BR-11) — доорх товчоор
+    .filter(s => s !== 'cancelled')
+    .map(s => ({ value: s, label: status.label(s) }))
+)
+
+async function applyStatus() {
+  if (!nextStatus.value) return
+  busy.value = true
+  try {
+    await api.changeStatus(id.value, nextStatus.value, statusReason.value.trim() || undefined)
+    toast.success(`Төлөв "${status.label(nextStatus.value)}" болов`)
+    statusOpen.value = false
+    nextStatus.value = null
+    statusReason.value = ''
+    await load()
+  } catch (e: any) {
+    // BR-07 — зөвшөөрөгдөөгүй шилжилтийг тодорхой хэлнэ
+    const title =
+      e.code === ERROR_CODE.INVALID_STATUS_TRANSITION
+        ? 'Энэ шилжилт зөвшөөрөгдөхгүй'
+        : 'Төлөв өөрчлөгдсөнгүй'
+    toast.error(title, { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+// ── Үнэ override (BR-04) ─────────────────────────────────────────────────
+const priceOpen = ref(false)
+const newPrice = ref<number | null>(null)
+const priceReason = ref('')
+
+function openPrice() {
+  newPrice.value = pkg.value?.finalPrice ?? null
+  priceReason.value = ''
+  priceOpen.value = true
+}
+
+async function applyPrice() {
+  if (newPrice.value == null || !priceReason.value.trim()) {
+    toast.error('Үнэ ба шалтгааныг оруулна уу')
+    return
+  }
+  busy.value = true
+  try {
+    await api.overridePrice(id.value, newPrice.value, priceReason.value.trim())
+    toast.success('Үнэ өөрчлөгдлөө')
+    priceOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Үнэ өөрчлөгдсөнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+// ── Байршил шилжүүлэх (BR-25) ────────────────────────────────────────────
+const locationOpen = ref(false)
+const newLocation = ref('')
+const locationReason = ref('')
+
+async function applyLocation() {
+  if (!newLocation.value.trim()) {
+    toast.error('Байршлын кодыг оруулна уу')
+    return
+  }
+  busy.value = true
+  try {
+    const result = await api.moveLocation(
+      id.value,
+      newLocation.value.trim().toUpperCase(),
+      locationReason.value.trim() || undefined
+    )
+    toast.success(`Байршил ${result.package.locationCode} болов`)
+    for (const warning of result.warnings ?? []) toast.warning(warning)
+    locationOpen.value = false
+    newLocation.value = ''
+    locationReason.value = ''
+    await load()
+  } catch (e: any) {
+    toast.error('Байршил шилжсэнгүй', { description: e.message })
+  } finally {
+    busy.value = false
+  }
+}
+
+// ── Хүчингүй болгох ба устгах (§1.6) ─────────────────────────────────────
+const cancelOpen = ref(false)
+const cancelReason = ref('')
+
+async function applyCancel() {
+  if (!cancelReason.value.trim()) {
+    toast.error('Хүчингүй болгох шалтгааныг бичнэ үү')
+    return
+  }
+  busy.value = true
+  try {
+    await api.cancel(id.value, cancelReason.value.trim())
+    toast.success('Ачаа хүчингүй болов')
+    cancelOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Хүчингүй болгож чадсангүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+const deleteOpen = ref(false)
+const deleteReason = ref('')
+
+async function applyDelete() {
+  if (!deleteReason.value.trim()) {
+    toast.error('Устгах шалтгааныг бичнэ үү')
+    return
+  }
+  busy.value = true
+  try {
+    await api.remove(id.value, deleteReason.value.trim())
+    toast.success('Ачаа бүрмөсөн устлаа')
+    await navigateTo('/admin/packages')
+  } catch (e: any) {
+    // BR-10 — нөхцөл биелээгүй бол "Хүчингүй" болгохыг санал болгоно
+    if (e.code === ERROR_CODE.DELETE_NOT_ALLOWED) {
+      deleteOpen.value = false
+      toast.error('Устгах боломжгүй', { description: e.message, duration: 9000 })
+      cancelOpen.value = true
+      return
+    }
+    toast.error('Устгаж чадсангүй', { description: e.message })
+  } finally {
+    busy.value = false
+  }
+}
+
+const printOpen = ref(false)
+</script>
+
+<template>
+  <div>
+    <!-- Ачаалж буй -->
+    <div v-if="loading" class="space-y-4">
+      <div class="h-8 w-64 animate-pulse rounded bg-surface-hover" />
+      <div class="h-48 animate-pulse rounded-card bg-surface-hover" />
+    </div>
+
+    <div v-else-if="!pkg" class="card text-center">
+      <p class="text-body text-content-secondary">Ачаа олдсонгүй.</p>
+      <UiBtn class="mt-4" variant="secondary" :icon="ArrowLeft" to="/admin/packages">
+        Жагсаалт руу
+      </UiBtn>
+    </div>
+
+    <template v-else>
+      <UiPageHeader :title="pkg.trackingNumber">
+        <template #actions>
+          <UiBtn variant="ghost" :icon="ArrowLeft" to="/admin/packages">Жагсаалт</UiBtn>
+          <UiBtn variant="secondary" :icon="Printer" @click="printOpen = true">Хэвлэх</UiBtn>
+          <UiBtn
+            v-if="transitionOptions.length"
+            :icon-right="ArrowRight"
+            @click="statusOpen = true"
+          >
+            Төлөв өөрчлөх
+          </UiBtn>
+        </template>
+      </UiPageHeader>
+
+      <!-- Хүчингүй болсон ачаа — хамгийн дээр анхааруулна -->
+      <div
+        v-if="pkg.status === 'cancelled'"
+        class="mb-6 flex items-start gap-3 rounded-card bg-error/5 p-4"
+      >
+        <Ban :size="20" class="mt-0.5 shrink-0 text-error" />
+        <div class="text-body">
+          <p class="font-semibold text-content">Энэ ачаа хүчингүй болсон</p>
+          <p class="mt-0.5 text-content-secondary">
+            {{ pkg.cancelledAt ? formatDateTime(pkg.cancelledAt) : '' }} ·
+            {{ pkg.cancelReason }}
+          </p>
+        </div>
+      </div>
+
+      <div
+        v-if="pkg.isDuplicateApproved"
+        class="mb-6 flex items-start gap-3 rounded-card bg-warning/5 p-4"
+      >
+        <AlertTriangle :size="20" class="mt-0.5 shrink-0 text-warning" />
+        <p class="text-body text-content">
+          Давхар бүртгэл — Менежер зөвшөөрсөн. Ижил дугаартай өөр ачаа байна.
+        </p>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <!-- ── Зүүн: мэдээлэл ба түүх ──────────────────────────────────── -->
+        <div class="space-y-6">
+          <!-- Үндсэн мэдээлэл -->
+          <div class="card">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <h2 class="text-h4 text-content">Ачааны мэдээлэл</h2>
+              <UiStatusBadge :status="pkg.status" />
+            </div>
+
+            <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+              <div>
+                <dt class="text-body-sm text-content-secondary">Харилцагч</dt>
+                <dd class="tabular mt-0.5 text-body font-medium text-content">
+                  {{ customer?.phone ?? pkg.customerPhone }}
+                  <span v-if="customer?.name" class="font-normal text-content-secondary">
+                    · {{ customer.name }}
+                  </span>
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-body-sm text-content-secondary">Ачааны төрөл</dt>
+                <dd class="mt-0.5 text-body font-medium text-content">
+                  {{ cargoType?.name ?? '—' }}
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-body-sm text-content-secondary">Тоо хэмжээ</dt>
+                <dd class="tabular mt-0.5 text-body font-medium text-content">
+                  {{ pkg.quantity }} шир
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-body-sm text-content-secondary">Жин / Эзлэхүүн</dt>
+                <dd class="tabular mt-0.5 text-body font-medium text-content">
+                  {{ pkg.weightKg != null ? `${pkg.weightKg} кг` : '—' }}
+                  <span v-if="pkg.volumeM3 != null"> · {{ pkg.volumeM3 }} м³</span>
+                </dd>
+              </div>
+
+              <div v-if="pkg.dimensions">
+                <dt class="text-body-sm text-content-secondary">Хэмжээс</dt>
+                <dd class="tabular mt-0.5 text-body font-medium text-content">
+                  {{ pkg.dimensions.lengthCm }}×{{ pkg.dimensions.widthCm }}×{{
+                    pkg.dimensions.heightCm
+                  }}
+                  см
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-body-sm text-content-secondary">Ирсэн огноо</dt>
+                <dd class="tabular mt-0.5 text-body font-medium text-content">
+                  {{ new Date(pkg.arrivedAt).toLocaleDateString('mn-MN') }}
+                </dd>
+              </div>
+
+              <div>
+                <dt class="text-body-sm text-content-secondary">Бүртгэсэн</dt>
+                <dd class="mt-0.5 text-body font-medium text-content">
+                  {{ registeredByName }}
+                  <span class="tabular font-normal text-content-secondary">
+                    · {{ formatDateTime(pkg.createdAt) }}
+                  </span>
+                </dd>
+              </div>
+
+              <div v-if="pkg.note" class="sm:col-span-2">
+                <dt class="text-body-sm text-content-secondary">Тайлбар</dt>
+                <dd class="mt-0.5 text-body text-content">{{ pkg.note }}</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Төлөвийн түүх (§1.5) -->
+          <div class="card">
+            <h2 class="mb-4 flex items-center gap-2 text-h4 text-content">
+              <History :size="19" class="text-content-secondary" />
+              Төлөвийн түүх
+            </h2>
+
+            <ol class="space-y-4">
+              <li
+                v-for="(entry, index) in [...pkg.statusHistory].reverse()"
+                :key="index"
+                class="flex gap-3"
+              >
+                <div class="flex flex-col items-center">
+                  <span
+                    class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                    :style="{ backgroundColor: status.style(entry.to).color }"
+                  />
+                  <span
+                    v-if="index < pkg.statusHistory.length - 1"
+                    class="mt-1 w-px flex-1 bg-surface-border"
+                  />
+                </div>
+
+                <div class="min-w-0 pb-1">
+                  <p class="text-body font-medium text-content">
+                    {{ status.label(entry.to) }}
+                    <span v-if="entry.from" class="font-normal text-content-secondary">
+                      ← {{ status.label(entry.from) }}
+                    </span>
+                  </p>
+                  <p class="tabular text-body-sm text-content-secondary">
+                    {{ formatDateTime(entry.at) }}
+                    <span v-if="entry.byName"> · {{ entry.byName }}</span>
+                  </p>
+                  <p v-if="entry.reason" class="mt-0.5 text-body-sm text-content">
+                    {{ entry.reason }}
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Audit (§9.2) — зөвхөн Менежер/Админд харагдана -->
+          <div v-if="isManagement" class="card">
+            <h2 class="mb-4 flex items-center gap-2 text-h4 text-content">
+              <ShieldCheck :size="19" class="text-content-secondary" />
+              Хяналтын бүртгэл
+              <span class="tabular text-body font-normal text-content-secondary">
+                ({{ auditLogs.length }})
+              </span>
+            </h2>
+
+            <p v-if="auditLogs.length === 0" class="text-body text-content-secondary">
+              Бүртгэл байхгүй.
+            </p>
+
+            <ul v-else class="divide-y divide-surface-border">
+              <li v-for="log in auditLogs" :key="log.id" class="py-3 first:pt-0 last:pb-0">
+                <div class="flex flex-wrap items-baseline gap-x-2">
+                  <p class="text-body font-medium text-content">{{ auditLabel(log.action) }}</p>
+                  <p v-if="log.field" class="text-body-sm text-content-secondary">
+                    · {{ log.field }}
+                  </p>
+                  <p class="tabular ml-auto text-body-sm text-content-secondary">
+                    {{ formatDateTime(log.createdAt) }}
+                  </p>
+                </div>
+
+                <p class="text-body-sm text-content-secondary">{{ log.actorName }}</p>
+
+                <!-- Зөвхөн ХАРУУЛАХ БОЛОМЖТОЙ (скаляр) өөрчлөлтийг зурна.
+                     `package.create` гэх мэт бичлэгийн `after` нь бүтэн объект
+                     тул "…" гэж харуулах нь мэдээлэл биш, зөвхөн шуугиан. -->
+                <p v-if="scalarChange(log)" class="tabular mt-1 text-body-sm text-content">
+                  <span v-if="log.before !== null" class="text-content-secondary line-through">
+                    {{ log.before }}
+                  </span>
+                  <span v-if="log.before !== null && log.after !== null"> → </span>
+                  <span v-if="log.after !== null" class="font-medium">{{ log.after }}</span>
+                </p>
+
+                <p v-if="log.reason" class="mt-0.5 text-body-sm italic text-content-secondary">
+                  «{{ log.reason }}»
+                </p>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- ── Баруун: үнэ, байршил, үйлдэл ────────────────────────────── -->
+        <div class="space-y-6">
+          <!-- Үнэ ба төлбөр -->
+          <div class="card">
+            <h2 class="mb-4 text-h4 text-content">Үнэ ба төлбөр</h2>
+
+            <p class="tabular text-h2 font-bold text-content">
+              {{ formatCurrency(pkg.finalPrice) }}
+            </p>
+
+            <p v-if="pkg.priceOverridden" class="mt-1 text-body-sm text-warning">
+              Гараар өөрчилсөн (бодогдсон: {{ formatCurrency(pkg.computedPrice) }})
+            </p>
+            <p v-else class="mt-1 text-body-sm text-content-secondary">
+              {{
+                pkg.priceSource === 'weight'
+                  ? 'Жингээр бодогдсон'
+                  : pkg.priceSource === 'volume'
+                    ? 'Эзлэхүүнээр бодогдсон'
+                    : 'Доод хэмжээгээр'
+              }}
+            </p>
+
+            <p v-if="pkg.priceOverrideReason" class="mt-1 text-body-sm italic text-content-secondary">
+              «{{ pkg.priceOverrideReason }}»
+            </p>
+
+            <dl class="mt-4 space-y-2 border-t border-surface-border pt-4 text-body">
+              <div class="flex justify-between">
+                <dt class="text-content-secondary">Төлөгдсөн</dt>
+                <dd class="tabular font-medium text-content">
+                  {{ formatCurrency(pkg.paidAmount) }}
+                </dd>
+              </div>
+              <div class="flex justify-between">
+                <dt class="text-content-secondary">Үлдэгдэл</dt>
+                <dd
+                  class="tabular font-semibold"
+                  :class="pkg.balance > 0 ? 'text-error' : 'text-success'"
+                >
+                  {{ formatCurrency(pkg.balance) }}
+                </dd>
+              </div>
+            </dl>
+
+            <UiBtn
+              v-if="pkg.status !== 'cancelled'"
+              class="mt-4"
+              variant="secondary"
+              :icon="Pencil"
+              block
+              @click="openPrice"
+            >
+              Үнэ өөрчлөх
+            </UiBtn>
+          </div>
+
+          <!-- Байршил -->
+          <div class="card">
+            <h2 class="mb-3 flex items-center gap-2 text-h4 text-content">
+              <MapPin :size="19" class="text-content-secondary" />
+              Байршил
+            </h2>
+
+            <p class="tabular text-h3 font-bold text-content">{{ pkg.locationCode || '—' }}</p>
+
+            <UiBtn
+              v-if="pkg.status !== 'cancelled'"
+              class="mt-4"
+              variant="secondary"
+              block
+              @click="locationOpen = true"
+            >
+              Байршил шилжүүлэх
+            </UiBtn>
+          </div>
+
+          <!-- §1.6 — эмзэг үйлдлүүд. Эрхийг backend шалгана, UI зөвхөн нуудаг. -->
+          <div v-if="isManagement && pkg.status !== 'cancelled'" class="card">
+            <h2 class="mb-3 text-h4 text-content">Эмзэг үйлдэл</h2>
+
+            <div class="space-y-2">
+              <UiBtn variant="secondary" :icon="Ban" block @click="cancelOpen = true">
+                Хүчингүй болгох
+              </UiBtn>
+
+              <UiBtn v-if="isAdmin" variant="danger" :icon="Trash2" block @click="deleteOpen = true">
+                Бүрмөсөн устгах
+              </UiBtn>
+            </div>
+
+            <p class="mt-3 text-body-sm text-content-secondary">
+              Бүрмөсөн устгах нь зөвхөн төлбөргүй, 24 цагийн дотор бүртгэгдсэн ачаанд
+              боломжтой. Бусад тохиолдолд «Хүчингүй» болгоно.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Модалууд ────────────────────────────────────────────────── -->
+      <UiModal v-model="statusOpen" title="Төлөв өөрчлөх">
+        <div class="space-y-4">
+          <p class="text-body text-content-secondary">
+            Одоогийн төлөв: <span class="font-medium text-content">{{ status.label(pkg.status) }}</span>
+          </p>
+
+          <UiField label="Шинэ төлөв" required>
+            <UiSelectInput
+              v-model="nextStatus"
+              :options="transitionOptions"
+              placeholder="Төлөв сонгоно уу"
+            />
+          </UiField>
+
+          <UiField label="Шалтгаан" hint="Сонголтоор — түүх ба audit-д бичигдэнэ">
+            <UiTextArea v-model="statusReason" :rows="2" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="statusOpen = false">Болих</UiBtn>
+          <UiBtn :loading="busy" @click="applyStatus">Өөрчлөх</UiBtn>
+        </template>
+      </UiModal>
+
+      <UiModal v-model="priceOpen" title="Үнэ гараар өөрчлөх">
+        <div class="space-y-4">
+          <p class="text-body text-content-secondary">
+            Системийн бодсон үнэ:
+            <span class="tabular font-medium text-content">
+              {{ formatCurrency(pkg.computedPrice) }}
+            </span>
+          </p>
+
+          <UiField label="Шинэ үнэ" required>
+            <UiTextInput v-model="newPrice" type="number" suffix="₮" tabular />
+          </UiField>
+
+          <UiField
+            label="Шалтгаан"
+            required
+            hint="Заавал. Хуучин дүн, шинэ дүн, шалтгаан audit-д бүртгэгдэнэ."
+          >
+            <UiTextArea v-model="priceReason" :rows="2" placeholder="Жишээ: гэрээт үнэ" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="priceOpen = false">Болих</UiBtn>
+          <UiBtn :loading="busy" @click="applyPrice">Хадгалах</UiBtn>
+        </template>
+      </UiModal>
+
+      <UiModal v-model="locationOpen" title="Байршил шилжүүлэх">
+        <div class="space-y-4">
+          <p class="tabular text-body text-content-secondary">
+            Одоогийн байршил:
+            <span class="font-medium text-content">{{ pkg.locationCode || '—' }}</span>
+          </p>
+
+          <UiField label="Шинэ байршлын код" required>
+            <UiTextInput v-model="newLocation" :icon="MapPin" placeholder="ER-02-B-15" tabular />
+          </UiField>
+
+          <UiField label="Шалтгаан" hint="Сонголтоор — audit-д бичигдэнэ">
+            <UiTextInput v-model="locationReason" placeholder="Жишээ: тавиур цэвэрлэв" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="locationOpen = false">Болих</UiBtn>
+          <UiBtn :loading="busy" @click="applyLocation">Шилжүүлэх</UiBtn>
+        </template>
+      </UiModal>
+
+      <UiModal v-model="cancelOpen" title="Ачааг хүчингүй болгох" size="sm">
+        <div class="space-y-4">
+          <p class="text-body text-content">
+            Ачаа устахгүй — «Хүчингүй» төлөвт шилжиж, түүх бүрэн хадгалагдана.
+            Дугаар чөлөөлөгдөж дахин бүртгэх боломжтой болно.
+          </p>
+
+          <UiField label="Шалтгаан" required>
+            <UiTextArea v-model="cancelReason" :rows="3" placeholder="Хүчингүй болгох шалтгаан" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="cancelOpen = false">Болих</UiBtn>
+          <UiBtn variant="danger" :loading="busy" @click="applyCancel">Хүчингүй болгох</UiBtn>
+        </template>
+      </UiModal>
+
+      <UiModal v-model="deleteOpen" title="Ачааг бүрмөсөн устгах" size="sm" persistent>
+        <div class="space-y-4">
+          <div class="flex items-start gap-3 rounded-card bg-error/5 p-4">
+            <AlertTriangle :size="20" class="mt-0.5 shrink-0 text-error" />
+            <p class="text-body text-content">
+              Энэ үйлдэл БУЦААГДАХГҮЙ. Ачааны бүх мэдээлэл устана — зөвхөн хяналтын
+              бүртгэлд snapshot үлдэнэ.
+            </p>
+          </div>
+
+          <UiField label="Шалтгаан" required>
+            <UiTextArea v-model="deleteReason" :rows="3" placeholder="Устгах шалтгаан" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="deleteOpen = false">Болих</UiBtn>
+          <UiBtn variant="danger" :loading="busy" @click="applyDelete">Устгах</UiBtn>
+        </template>
+      </UiModal>
+
+      <PackagePrintSheet v-model="printOpen" :packages="[pkg]" />
+    </template>
+  </div>
+</template>

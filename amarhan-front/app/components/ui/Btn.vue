@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
+// `resolveComponent('NuxtLink')` БИШ: тэр функц `<script setup>`-ийн scope-д
+// байхгүй тул template-ээс дуудахад "Failed to resolve component" гарч, `to`
+// prop-той товч бүр эвдэрдэг. `#components`-ээс шууд импортлох нь тодорхой.
+import { NuxtLink } from '#components'
 
 /**
  * Товч — Design System v1
@@ -43,7 +47,7 @@ const iconSize = computed(() => (props.size === 'sm' ? 15 : 17))
 
 <template>
   <component
-    :is="to && !isDisabled ? resolveComponent('NuxtLink') : 'button'"
+    :is="to && !isDisabled ? NuxtLink : 'button'"
     :to="to && !isDisabled ? to : undefined"
     :type="to ? undefined : type"
     :disabled="to ? undefined : isDisabled"

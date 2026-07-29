@@ -52,6 +52,7 @@ exports.AUDIT_ENTITY = {
 exports.AUDIT_ACTION = {
   // Ачаа (Phase 2)
   PACKAGE_CREATE: 'package.create',
+  PACKAGE_UPDATE: 'package.update',
   PACKAGE_PRICE_OVERRIDE: 'package.price_override',
   PACKAGE_STATUS_CHANGE: 'package.status_change',
   PACKAGE_LOCATION_MOVE: 'package.location_move',
@@ -92,7 +93,7 @@ exports.AUDIT_ACTION_LIST = Object.values(exports.AUDIT_ACTION);
 
 /**
  * Ачааны төлөвүүд — introduction.md §1.5.
- * Шилжилтийн дүрмийг Phase 2-т `src/domain/package-state.js` тодорхойлно.
+ * Шилжилтийн дүрмийг `src/domain/package-state.js` тодорхойлно (BR-07).
  */
 exports.PACKAGE_STATUS = {
   REGISTERED: 'registered',
@@ -106,6 +107,35 @@ exports.PACKAGE_STATUS = {
   DELIVERED: 'delivered',
   RETURNED: 'returned',
   CANCELLED: 'cancelled',
+};
+
+exports.PACKAGE_STATUS_LIST = Object.values(exports.PACKAGE_STATUS);
+
+/**
+ * Ачааны төлбөрийн төлөв — §1.8, BR-14.
+ *
+ * `packages.paidAmount` / `balance`-аас ГАРАЛТАЙ утга. Зөвхөн Phase 3-ийн
+ * `payment.service.js` транзакц дотор шинэчилнэ.
+ */
+exports.PAYMENT_STATUS = {
+  UNPAID: 'unpaid',
+  PARTIAL: 'partial',
+  PAID: 'paid',
+};
+
+exports.PAYMENT_STATUS_LIST = Object.values(exports.PAYMENT_STATUS);
+
+/**
+ * Frontend-д програмчлан шалгах шаардлагатай алдааны кодууд.
+ *
+ * Мессежийн ТЕКСТЭД frontend хамаарах ёсгүй (текст өөрчлөгдөж болно) —
+ * ийм тохиолдолд кодоор ялгана.
+ */
+exports.ERROR_CODE = {
+  DUPLICATE_TRACKING_NUMBER: 'DUPLICATE_TRACKING_NUMBER',
+  OVERRIDE_LIMIT_EXCEEDED: 'OVERRIDE_LIMIT_EXCEEDED',
+  INVALID_STATUS_TRANSITION: 'INVALID_STATUS_TRANSITION',
+  DELETE_NOT_ALLOWED: 'DELETE_NOT_ALLOWED',
 };
 
 /**

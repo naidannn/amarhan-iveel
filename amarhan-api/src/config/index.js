@@ -39,6 +39,9 @@ module.exports = {
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-    max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+    // 100 байсныг 1,000 болгов: салбарын бүх ажилтан нэг IP-аас ханддаг тул
+    // §1.4-ийн бүртгэлийн урсгалыг хааж байсан. Дэлгэрэнгүй тайлбар:
+    // src/middlewares/rate-limit.js
+    max: parseInt(process.env.RATE_LIMIT_MAX) || 1000,
   },
 };

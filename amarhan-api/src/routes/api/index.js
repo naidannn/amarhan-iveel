@@ -9,6 +9,7 @@ const warehouseLocationRouter = require('./warehouse-location.route');
 const tariffRouter = require('./tariff.route');
 const customerRouter = require('./customer.route');
 const auditRouter = require('./audit.route');
+const packageRouter = require('./package.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -25,5 +26,8 @@ router.use('/v1/warehouse-locations', warehouseLocationRouter);
 router.use('/v1/tariffs', tariffRouter);
 router.use('/v1/customers', customerRouter);
 router.use('/v1/audit-logs', auditRouter);
+
+// Phase 2 — ачааны модуль (§1)
+router.use('/v1/packages', packageRouter);
 
 module.exports = router;

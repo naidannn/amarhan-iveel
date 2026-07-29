@@ -186,7 +186,8 @@ notifications, settings  (бие даасан)
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
-| `trackingNumber` | String | §1.3 — доорх unique дүрэм харах |
+| `trackingNumber` | String | §1.3. Нормчлогдсон (зай арилсан, том үсэг) — `domain/tracking-number.js` |
+| `activeTrackingNumber` | String \| null | Давхардлыг хориглох түлхүүр — доорх unique дүрэм харах |
 | `customerId` | ObjectId → `customers` | |
 | `customerPhone` | String | Хайлтад зориулж хуулбарласан (denormalized) |
 | `branchId` | ObjectId → `branches` | Бүртгэсэн салбар |
@@ -196,7 +197,7 @@ notifications, settings  (бие даасан)
 | `volumeM3` | Number \| null | 4 орны нарийвчлал |
 | `dimensions` | { lengthCm, widthCm, heightCm } \| null | Оруулбал `volumeM3` автоматаар бодогдоно |
 | **Үнэ** | | |
-| `pricingSnapshot` | { pricePerKg, pricePerM3, minimumCharge, tariffVersionId } | Бүртгэх үеийн тариф |
+| `pricingSnapshot` | { weightBrackets[], pricePerKgAbove, pricePerM3, minimumCharge, tariffVersionId } | Бүртгэх үеийн тариф (BR-02). Ачааг **засахад ч** энэ тарифаар дахин бодогдоно |
 | `computedPrice` | Number (₮) | Автоматаар бодогдсон дүн |
 | `priceSource` | Enum: `weight` \| `volume` \| `minimum` | Аль нь давамгайлсан |
 | `finalPrice` | Number (₮) | Бодит төлөх дүн (override-ийн дараа) |
@@ -208,7 +209,7 @@ notifications, settings  (бие даасан)
 | `paymentStatus` | Enum: `unpaid` \| `partial` \| `paid` | |
 | **Төлөв** | | |
 | `status` | Enum (доор) | §1.5 |
-| `statusHistory` | [{ from, to, at, by, reason }] | Embedded |
+| `statusHistory` | [{ from, to, at, by, byName, reason }] | Embedded. `byName` — ажилтан устсан ч түүхэнд нэр үлдэнэ |
 | **Байршил** | | |
 | `locationId` | ObjectId → `warehouse_locations` \| null | |
 | `locationCode` | String \| null | Хайлтад зориулж хуулбарласан |
@@ -238,19 +239,42 @@ notifications, settings  (бие даасан)
 ### Индекс (§9.3 — 1M+ мөр, < 1 сек)
 
 ```js
-// Давхардлыг хориглох — гэхдээ Менежерийн зөвшөөрсөн давхардлыг зөвшөөрнө (§1.3)
+// Давхардлыг хориглох — §1.3, BR-05/BR-06
 schema.index(
-  { trackingNumber: 1 },
-  { unique: true, partialFilterExpression: { isDuplicateApproved: false } }
+  { activeTrackingNumber: 1 },
+  { unique: true, partialFilterExpression: { activeTrackingNumber: { $type: 'string' } } }
 );
 
+schema.index({ trackingNumber: 1, createdAt: -1 });
 schema.index({ customerPhone: 1, createdAt: -1 });
+schema.index({ customerId: 1, createdAt: -1 });
 schema.index({ status: 1, createdAt: -1 });
 schema.index({ locationCode: 1 });
+schema.index({ locationId: 1, status: 1 });
 schema.index({ branchId: 1, status: 1, createdAt: -1 });
 schema.index({ createdAt: -1 });
 schema.index({ paymentStatus: 1, status: 1 });
 ```
+
+### `activeTrackingNumber` — яагаад тусдаа талбар вэ
+
+Давхардлын дүрэм (§1.3) нь **гурван** нөхцөлийг зэрэг хангах ёстой:
+
+| Ачаа | Дугаарыг эзэмших эсэх |
+|---|---|
+| Ердийн, идэвхтэй | **Эзэмшинэ** — өөр ачаа тэр дугаараар орж чадахгүй |
+| Менежер зөвшөөрсөн давхардал (BR-06) | Эзэмшихгүй |
+| Хүчингүй болсон (BR-05) | Эзэмшихгүй — ажилтан алдаагаа засаад дахин бүртгэнэ |
+
+Индексийг `{ trackingNumber: 1 }` дээр `partialFilterExpression: { isDuplicateApproved: false }`-оор
+тавих нь **гуравдугаар мөрийг зөрчинө**: хүчингүй болсон ачаа дугаараа үүрд хааж,
+ажилтан алдаагаа засах боломжгүй болно. MongoDB-ийн `partialFilterExpression`
+нь `$ne`, `$in`-ыг дэмждэггүй тул "хүчингүй биш" гэсэн нөхцөлийг индексээр
+илэрхийлэх боломжгүй.
+
+Тиймээс "эзэмшил"-ийг тодорхой талбараар илэрхийлэв: `activeTrackingNumber`
+нь дугаарыг эзэмшиж байвал `trackingNumber`-тэй тэнцүү, эс бөгөөс `null`.
+Хүчингүй болгох үйлдэл түүнийг `null` болгож дугаарыг чөлөөлнө.
 
 > **`balance`-ийн бүрэн бүтэн байдал:** `paidAmount` ба `balance` нь хуулбарласан утга.
 > Тэдгээрийг **зөвхөн** `payment.service.js` транзакц дотор шинэчилнэ. Өдөр бүр

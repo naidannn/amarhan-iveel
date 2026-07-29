@@ -72,8 +72,15 @@ final    = MAX(computed, tariff.minimumCharge)
 ### BR-05 — Ажилтан давхардуулж чадахгүй
 
 Одоо байгаа, `cancelled` биш ачаанд ижил `trackingNumber` бүртгэх оролдлого →
-`409 DUPLICATE_TRACKING_NUMBER`. Хариултад оршин буй ачааны ID, бүртгэсэн огноо,
-ажилтны нэр багтана.
+`409`, хариултын `code: 'DUPLICATE_TRACKING_NUMBER'`. Хариултын `details`-д оршин
+буй ачааны ID, бүртгэсэн огноо, ажилтны нэр, төлөв, харилцагчийн утас багтана.
+
+**Хүчингүй болсон ачааны дугаар чөлөөлөгдөнө** — ажилтан алдаж бүртгээд хүчингүй
+болгосон дугаарыг дахин бүртгэх нь бодит, зөв хэрэгцээ. Хэрэгжүүлэлт:
+[`data-model.md` §7 — `activeTrackingNumber`](data-model.md).
+
+Давхардлыг ажилтан бичсэн ХЭЛБЭРЭЭС үл хамааран шалгана: `"abc 123"` ба `"ABC123"`
+нь ижил дугаар (`domain/tracking-number.js`).
 
 ### BR-06 — Менежер/Админ зөвшөөрч болно
 
@@ -81,8 +88,9 @@ final    = MAX(computed, tariff.minimumCharge)
 `package.duplicate_approved` бичигдэнэ.
 
 > Хэрэгжүүлэлт: `trackingNumber` дээрх unique index нь
-> `partialFilterExpression: { isDuplicateApproved: false }` — зөвшөөрөгдсөн давхардлыг л
-> хүлээн авна ([`data-model.md` §7](data-model.md)).
+> `partialFilterExpression`-ийг `activeTrackingNumber` дээр тавьсан. Зөвшөөрөгдсөн
+> давхардал дугаарыг эзэмшихгүй тул индекст нөлөөлөхгүй
+> ([`data-model.md` §7](data-model.md)).
 
 ---
 
@@ -101,16 +109,41 @@ out_for_delivery → returned → (out_for_delivery | picked_up)
 registered..awaiting_payment → cancelled
 ```
 
-Жагсаалтад байхгүй шилжилт → `409`.
+Жагсаалтад байхгүй шилжилт → `409`, `code: 'INVALID_STATUS_TRANSITION'`.
+`delivered` ба `cancelled` нь **төгсгөлийн** төлөв — хаашаа ч шилжихгүй.
+
+Хүснэгт `src/domain/package-state.js`-д ганц газар байрлана. Тест нь enum ба
+хүснэгтийн бүрэн бүтэн байдлыг шалгадаг тул шинэ төлөв нэмэхэд хоёуланг
+шинэчлэхээ мартах боломжгүй.
 
 ### BR-08 — Төлөв өөрчлөх ганц зам
 
 `packageService.changeStatus(id, next, ctx)`. Кодын өөр хаана ч `pkg.status = ...` шууд
 оноохыг хориглоно. Шилжилт бүр `statusHistory`-д болон audit-д бичигдэнэ.
 
+Хоёр үл хамаарах тохиолдол мөн энэ функцээр дамжина:
+`cancelled` → `packageService.cancel()` (эрх + шалтгаан шаардана, BR-11),
+`paid` → зөвхөн `{ system: true }` контексттэй (BR-09).
+
 ### BR-09 — `paid` төлөв автоматаар
 
 `balance` нь `0` болмогц ачаа `paid` төлөвт автоматаар шилжинэ (гараар биш).
+`paid` төлөвийг гараар оноох оролдлого → `409`. Ажилтан "төлөгдсөн" гэж гараар
+тэмдэглэж чадвал бүртгэгдээгүй мөнгө үүсч, санхүүгийн тэнцэл эвдэрнэ.
+
+### BR-09a — Байршил эзлэх төлөвүүд
+
+`warehouse_locations.currentCount / currentM3` нь ЗӨВХӨН агуулахад физикээр
+байгаа ачааг тоолно:
+
+| Эзэлнэ | Эзлэхгүй |
+|---|---|
+| `registered`, `arrived`, `notified`, `awaiting_payment`, `paid`, `returned` | `in_transit`, `out_for_delivery`, `picked_up`, `delivered`, `cancelled` |
+
+Тодорхойлолт `src/domain/package-state.js` (`OCCUPIES_LOCATION`)-д ганц газар
+байрлана — ачаалал нэмэх/хорогдуулах логик ба зөрүү шалгах cron хоёул ижил
+эх сурвалж хэрэглэнэ. Төлөв шилжихэд эзэмшил ӨӨРЧЛӨГДӨХӨД л ачаалал хөдөлнө:
+`arrived → notified` гэх мэт агуулах дотор үлдэх шилжилт ачааллыг хөдөлгөхгүй.
 
 ---
 

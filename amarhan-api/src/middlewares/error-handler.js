@@ -32,6 +32,10 @@ exports.handleError = (err, req, res, _next) => {
     message: err.message || 'Дотоод алдаа гарлаа',
   };
 
+  // APIError-ийн машинд уншигдах код ба нэмэлт өгөгдөл (жишээ: давхардсан ачаа)
+  if (err.code && typeof err.code === 'string') response.code = err.code;
+  if (err.details) response.details = err.details;
+
   // Mongoose CastError (invalid ObjectId)
   if (err.name === 'CastError') {
     response.message = 'Invalid ID format';

@@ -152,9 +152,10 @@ git түүхээс (`chore/p0-cleanup` салаа) харна уу. Гол өө�
 `users` өгөгдлийн ролийг хөрвүүлнэ. Backup хийж, `npm run migrate -- --dry` шалгасны
 дараа ажиллуулна.
 
-> ⚠️ **Алдагдсан эрхийг солих шаардлагатай** — репод байсан тул:
-> AWS түлхүүр `YOUR_AWS_ACCESS_KEY_ID`, Slack bot token, QPay `YOUR_QPAY_MERCHANT` эрх,
-> `naidan-main.pem` (одоо `~/.ssh/`-д).
+> ⚠️ **Алдагдсан эрхийг солих шаардлагатай** — эдгээр репод хатуу кодлогдсон байсан:
+> AWS IAM түлхүүр (`s3-upload.js`), Slack bot token (`slack.js`), QPay мерчант эрх
+> (`qpay.js`), SSH private key (`naidan-main.pem`, одоо `~/.ssh/`-д).
+> Утгыг нь энд бичихгүй — солих ажлыг гүйцэтгэсэн эсэхийг эзэмшигчээс лавлана.
 
 ---
 

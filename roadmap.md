@@ -58,7 +58,7 @@
 | # | Даалгавар | Тайлбар |
 |---|---|---|
 | 0.1 | **`naidan-main.pem`-ийг репогоос устгах** | SSH private key commit хийгдсэн. Файлыг устгаж, **түлхүүрийг сольж (rotate)**, `.gitignore`-т `*.pem` нэмнэ. Git түүхээс арилгах эсэхийг шийднэ |
-| 0.2 | **`qpay.js`-ийн хатуу кодлосон эрхийг арилгах** | `YOUR_QPAY_MERCHANT` мерчант эрх өөр төслийнх. Файлыг бүхэлд нь устгаж, Phase 5-д цэвэрээр дахин бичнэ |
+| 0.2 | **`qpay.js`-ийн хатуу кодлосон эрхийг арилгах** | Өөр төслийн QPay мерчант эрх хатуу бичигдсэн. Файлыг бүхэлд нь устгаж, Phase 5-д цэвэрээр дахин бичнэ |
 | 0.3 | **`demoLogin()` fallback-ыг устгах** | `app/stores/auth.ts` — `admin@amarhan.mn/REDACTED_PASSWORD` хатуу кодлогдсон. Production-д нэвтрэх нүх |
 | 0.4 | **Ашиглагдахгүй frontend код устгах** | `useHR`, `useCRM`, `useFinance`, `useInventory`, `useFileManager`, `useProjectManagement`, `stores/auth.ts` (root), холбогдох компонентууд |
 | 0.5 | **Ашиглагдахгүй тест устгах** | `test/hr.test.js`, `test/contact-request.test.js` |

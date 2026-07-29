@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Package, Truck, Wallet, Users, Search, Plus } from 'lucide-vue-next'
+import { Package, Truck, Wallet, Users, Search, Plus, Trash2 } from 'lucide-vue-next'
 import tokens from '~/assets/design-tokens'
+import type { Column } from '~/components/ui/DataTable.vue'
 
 /**
  * Design System-ийн амьд лавлагаа.
@@ -15,6 +16,7 @@ useHead({ title: 'Design System · Ивээл Карго' })
 
 const { all: packageStatuses } = usePackageStatus()
 const { all: deliveryStatuses } = useDeliveryStatus()
+const toast = useToast()
 
 const colorGroups = [
   { name: 'Primary — цэнхэр', desc: 'Үндсэн үйлдэл, идэвхтэй төлөв', scale: tokens.primary },
@@ -38,11 +40,47 @@ const typeScale = [
   { cls: 'text-body-sm', label: 'Body Small — 13px', sample: 'Бүртгэсэн: 2026-07-30' },
 ]
 
-const sampleRows = [
-  { tracking: 'TRK-88213', customer: '9911-2233', status: 'in_transit', weight: '0.85', price: 2000 },
-  { tracking: 'TRK-88214', customer: '9955-4433', status: 'awaiting_payment', weight: '3.20', price: 8000 },
-  { tracking: 'TRK-88215', customer: '8811-9900', status: 'delivered', weight: '0.09', price: 800 },
+// ── Формын жишээ ──
+const form = reactive({
+  tracking: '',
+  phone: '',
+  weight: null as number | null,
+  cargoType: null as string | null,
+})
+
+const cargoTypes = [
+  { value: 'standard', label: 'Энгийн ачаа' },
+  { value: 'bulky', label: 'Гутал / нугалахгүй ачаа' },
 ]
+
+// ── Хүснэгтийн жишээ ──
+interface Row {
+  id: string
+  tracking: string
+  customer: string
+  status: string
+  weight: string
+  price: number
+}
+
+const columns: Column<Row>[] = [
+  { key: 'tracking', label: 'Дугаар', sortable: true },
+  { key: 'customer', label: 'Харилцагч', tabular: true },
+  { key: 'status', label: 'Төлөв' },
+  { key: 'weight', label: 'Жин', align: 'right', tabular: true },
+  { key: 'price', label: 'Үнэ', align: 'right', tabular: true, sortable: true },
+]
+
+const rows: Row[] = [
+  { id: '1', tracking: 'TRK-88213', customer: '9911-2233', status: 'in_transit', weight: '0.85', price: 2000 },
+  { id: '2', tracking: 'TRK-88214', customer: '9955-4433', status: 'awaiting_payment', weight: '3.20', price: 8000 },
+  { id: '3', tracking: 'TRK-88215', customer: '8811-9900', status: 'delivered', weight: '0.09', price: 800 },
+]
+
+const sort = ref<string | null>('-price')
+const selected = ref<string[]>([])
+const page = ref(1)
+const modalOpen = ref(false)
 
 function money(value: number) {
   return `${value.toLocaleString('mn-MN')}₮`
@@ -61,6 +99,9 @@ function money(value: number) {
         <p class="mt-4 text-body text-content-secondary">
           Найдвартай • Хурдан • Энгийн • Орчин үеийн
         </p>
+        <p class="mt-3 text-body-sm text-content-secondary">
+          Гуравдагч UI сангүй — Tailwind + токен + Lucide icon дээр өөрсдөө бүтээсэн.
+        </p>
       </header>
 
       <!-- Өнгө -->
@@ -72,7 +113,10 @@ function money(value: number) {
           <p class="text-body-sm text-content-secondary">{{ group.desc }}</p>
           <div class="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-11">
             <div v-for="(hex, key) in group.scale" :key="key">
-              <div class="h-12 rounded-lg border border-surface-border" :style="{ background: hex }" />
+              <div
+                class="h-12 rounded-lg border border-surface-border"
+                :style="{ background: hex }"
+              />
               <p class="mt-1 text-center text-[11px] text-content-secondary">{{ key }}</p>
             </div>
           </div>
@@ -111,20 +155,20 @@ function money(value: number) {
         <p class="mt-1 text-body text-content-secondary">Өндөр 40px · radius 12px</p>
 
         <div class="mt-5 flex flex-wrap gap-3">
-          <Button label="Ачаа бүртгэх" />
-          <Button label="Хадгалах" severity="secondary" outlined />
-          <Button label="Устгах" severity="danger" />
-          <Button label="Баталгаажуулах" severity="success" />
-          <Button label="Нэмэх" :disabled="true" />
+          <UiBtn>Ачаа бүртгэх</UiBtn>
+          <UiBtn variant="secondary">Хадгалах</UiBtn>
+          <UiBtn variant="danger" :icon="Trash2">Устгах</UiBtn>
+          <UiBtn variant="success">Баталгаажуулах</UiBtn>
+          <UiBtn variant="ghost">Болих</UiBtn>
+          <UiBtn disabled>Идэвхгүй</UiBtn>
         </div>
 
-        <div class="mt-4 flex flex-wrap gap-3">
-          <Button label="Шинэ ачаа">
-            <template #icon><Plus :size="17" :stroke-width="2.2" /></template>
-          </Button>
-          <Button label="Хайх" severity="secondary" outlined>
-            <template #icon><Search :size="17" :stroke-width="2.2" /></template>
-          </Button>
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <UiBtn :icon="Plus">Шинэ ачаа</UiBtn>
+          <UiBtn variant="secondary" :icon="Search">Хайх</UiBtn>
+          <UiBtn loading>Хадгалж байна</UiBtn>
+          <UiBtn size="sm">Жижиг</UiBtn>
+          <UiBtn size="sm" variant="secondary">Жижиг secondary</UiBtn>
         </div>
       </section>
 
@@ -134,22 +178,33 @@ function money(value: number) {
         <p class="mt-1 text-body text-content-secondary">Өндөр 40px · radius 10px</p>
 
         <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label class="mb-1.5 block text-body font-medium text-content">Ачааны дугаар</label>
-            <InputText class="w-full" placeholder="TRK-88213" />
-          </div>
-          <div>
-            <label class="mb-1.5 block text-body font-medium text-content">Утасны дугаар</label>
-            <InputText class="w-full" placeholder="9911-2233" />
-          </div>
-          <div>
-            <label class="mb-1.5 block text-body font-medium text-content">Жин (кг)</label>
-            <InputText class="w-full" placeholder="0.85" />
-          </div>
-          <div>
-            <label class="mb-1.5 block text-body font-medium text-content">Идэвхгүй</label>
-            <InputText class="w-full" placeholder="Засах боломжгүй" disabled />
-          </div>
+          <UiField label="Ачааны дугаар" required for="ds-tracking">
+            <UiTextInput id="ds-tracking" v-model="form.tracking" placeholder="TRK-88213" />
+          </UiField>
+
+          <UiField label="Утасны дугаар" required for="ds-phone" hint="8 оронтой">
+            <UiTextInput id="ds-phone" v-model="form.phone" type="tel" placeholder="9911-2233" tabular />
+          </UiField>
+
+          <UiField label="Жин" for="ds-weight">
+            <UiTextInput id="ds-weight" v-model="form.weight" type="number" placeholder="0.85" suffix="кг" tabular />
+          </UiField>
+
+          <UiField label="Ачааны төрөл" required for="ds-type">
+            <UiSelectInput id="ds-type" v-model="form.cargoType" :options="cargoTypes" />
+          </UiField>
+
+          <UiField label="Хайх">
+            <UiTextInput placeholder="Дугаар, утсаар хайх" :icon="Search" />
+          </UiField>
+
+          <UiField label="Алдаатай талбар" error="Энэ дугаар аль хэдийн бүртгэгдсэн">
+            <UiTextInput model-value="TRK-88213" invalid />
+          </UiField>
+
+          <UiField label="Идэвхгүй">
+            <UiTextInput placeholder="Засах боломжгүй" disabled />
+          </UiField>
         </div>
       </section>
 
@@ -159,13 +214,7 @@ function money(value: number) {
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <UiStatCard label="Өнөөдөр бүртгэсэн" :value="125" :icon="Package" accent="#355DFF" />
           <UiStatCard label="Замд явж буй" :value="48" :icon="Truck" accent="#EA580C" />
-          <UiStatCard
-            label="Төлбөр хүлээгдэж буй"
-            :value="12"
-            :icon="Wallet"
-            accent="#B45309"
-            hint="1,240,000₮"
-          />
+          <UiStatCard label="Төлбөр хүлээгдэж буй" :value="12" :icon="Wallet" accent="#B45309" hint="1,240,000₮" />
           <UiStatCard label="Идэвхтэй харилцагч" :value="2140" :icon="Users" accent="#16A34A" />
         </div>
       </section>
@@ -192,42 +241,84 @@ function money(value: number) {
       </section>
 
       <!-- Хүснэгт -->
-      <section class="card">
-        <h2 class="text-h3">Хүснэгт</h2>
-        <p class="mt-1 text-body text-content-secondary">
-          Өндөр мөр · zebra байхгүй · hover өнгөтэй
+      <section>
+        <h2 class="mb-1 text-h3">Хүснэгт</h2>
+        <p class="mb-4 text-body text-content-secondary">
+          Өндөр мөр · zebra байхгүй · hover өнгөтэй · эрэмбэлэлт server талд
         </p>
 
-        <div class="mt-5 -mx-2 overflow-x-auto">
-          <table class="w-full min-w-[600px] text-left">
-            <thead>
-              <tr class="border-b border-surface-border">
-                <th class="px-4 py-3.5 text-body font-medium text-content-secondary">Дугаар</th>
-                <th class="px-4 py-3.5 text-body font-medium text-content-secondary">Харилцагч</th>
-                <th class="px-4 py-3.5 text-body font-medium text-content-secondary">Төлөв</th>
-                <th class="px-4 py-3.5 text-right text-body font-medium text-content-secondary">
-                  Жин
-                </th>
-                <th class="px-4 py-3.5 text-right text-body font-medium text-content-secondary">
-                  Үнэ
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in sampleRows" :key="row.tracking" class="table-row">
-                <td class="px-4 py-4 font-medium text-content">{{ row.tracking }}</td>
-                <td class="tabular px-4 py-4 text-content-secondary">{{ row.customer }}</td>
-                <td class="px-4 py-4"><UiStatusBadge :status="row.status" size="sm" /></td>
-                <td class="tabular px-4 py-4 text-right text-content-secondary">
-                  {{ row.weight }} кг
-                </td>
-                <td class="tabular px-4 py-4 text-right font-semibold text-content">
-                  {{ money(row.price) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <UiDataTable
+          :columns="columns"
+          :rows="rows"
+          v-model:sort="sort"
+          v-model:selected="selected"
+          selectable
+        >
+          <template #toolbar>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="min-w-0 flex-1">
+                <UiTextInput placeholder="Дугаар, утсаар хайх" :icon="Search" />
+              </div>
+              <UiBtn variant="secondary" size="sm">Шүүлт</UiBtn>
+              <UiBtn size="sm" :icon="Plus">Шинэ ачаа</UiBtn>
+            </div>
+          </template>
+
+          <template #cell-status="{ value }">
+            <UiStatusBadge :status="value" size="sm" />
+          </template>
+
+          <template #cell-weight="{ value }">{{ value }} кг</template>
+
+          <template #cell-price="{ value }">
+            <span class="font-semibold">{{ money(value) }}</span>
+          </template>
+
+          <template #footer>
+            <UiPagination v-model:page="page" :pages="8" :total="380" :limit="50" />
+          </template>
+        </UiDataTable>
+
+        <p v-if="selected.length" class="mt-3 text-body text-content-secondary">
+          {{ selected.length }} мөр сонгогдсон
+        </p>
+      </section>
+
+      <!-- Модал ба мэдэгдэл -->
+      <section class="card">
+        <h2 class="text-h3">Модал ба мэдэгдэл</h2>
+        <p class="mt-1 text-body text-content-secondary">
+          Мэдэгдэл ажлыг таслахгүй — alert() ашиглахыг хориглоно (§1.4)
+        </p>
+
+        <div class="mt-5 flex flex-wrap gap-3">
+          <UiBtn variant="secondary" @click="modalOpen = true">Модал нээх</UiBtn>
+          <UiBtn variant="secondary" @click="toast.success('Ачаа бүртгэгдлээ', { description: 'TRK-88213 · ER-02-B-15' })">
+            Амжилт
+          </UiBtn>
+          <UiBtn variant="secondary" @click="toast.error('Төлбөр дутуу байна', { description: '12,000₮ үлдэгдэлтэй' })">
+            Алдаа
+          </UiBtn>
+          <UiBtn variant="secondary" @click="toast.warning('Нүд дүүрсэн байна', { description: 'ER-02-B-15' })">
+            Сануулга
+          </UiBtn>
         </div>
+
+        <UiModal v-model="modalOpen" title="Ачаа хүчингүй болгох" subtitle="TRK-88213">
+          <p class="text-body text-content-secondary">
+            Энэ ачааг хүчингүй болгоход өгөгдөл устахгүй — зөвхөн төлөв өөрчлөгдөнө.
+            Үйлдэл хяналтын бүртгэлд тэмдэглэгдэнэ.
+          </p>
+
+          <UiField class="mt-4" label="Шалтгаан" required>
+            <UiTextInput placeholder="Жишээ: хэрэглэгч татгалзсан" />
+          </UiField>
+
+          <template #footer>
+            <UiBtn variant="secondary" @click="modalOpen = false">Болих</UiBtn>
+            <UiBtn variant="danger" @click="modalOpen = false">Хүчингүй болгох</UiBtn>
+          </template>
+        </UiModal>
       </section>
 
       <!-- Радиус ба сүүдэр -->
@@ -257,5 +348,7 @@ function money(value: number) {
         Токенууд: <code>app/assets/design-tokens.js</code> — өнгө засахдаа зөвхөн энэ файлыг өөрчилнө
       </footer>
     </div>
+
+    <UiToastHost />
   </div>
 </template>

@@ -192,5 +192,8 @@ watch(
         <slot />
       </main>
     </div>
+
+    <!-- Toast-ууд layout бүрт НЭГ удаа -->
+    <UiToastHost />
   </div>
 </template>

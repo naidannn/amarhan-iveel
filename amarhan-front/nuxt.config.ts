@@ -1,6 +1,4 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import IveelPreset from './app/assets/primevue-preset'
-
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
@@ -8,7 +6,6 @@ export default defineNuxtConfig({
   modules: [
     '@nuxtjs/google-fonts',
     '@nuxtjs/tailwindcss',
-    '@primevue/nuxt-module',
     '@pinia/nuxt',
     '@nuxt/image',
     '@formkit/auto-animate/nuxt',
@@ -16,9 +13,7 @@ export default defineNuxtConfig({
   ],
 
   // main.css-ийг ЭНД бүртгэхгүй — @nuxtjs/tailwindcss-ийн `cssPath` хариуцна.
-  // Хоёуланд нь бүртгэвэл Tailwind-ын preflight ХОЁР удаа ачаалагдаж, нэг нь
-  // layer-гүй болно. Layer-гүй загвар нь layer доторхыг үргэлж дардаг тул
-  // PrimeVue компонентын өнгө алга болно.
+  // Хоёуланд нь бүртгэвэл Tailwind-ын preflight ХОЁР удаа ачаалагдана.
 
   devServer: {
     port: 3000,
@@ -61,27 +56,6 @@ export default defineNuxtConfig({
     },
     display: 'swap',
     download: true,
-  },
-
-  primevue: {
-    options: {
-      // Preset шууд ашиглахгүй — брэндийн токеноор дарж бичсэн custom theme
-      theme: {
-        preset: IveelPreset,
-        options: {
-          // Dark mode-ийн бүтэц бэлэн, v1-д идэвхгүй.
-          // Tailwind-ын darkMode: 'class'-тай нийцүүлэв.
-          darkModeSelector: '.dark',
-          cssLayer: {
-            name: 'primevue',
-            // Tailwind-ын utility класс PrimeVue-гийн загварыг дарах ёстой
-            order: 'tailwind-base, primevue, tailwind-utilities',
-          },
-        },
-      },
-      ripple: false,
-    },
-    autoImport: true,
   },
 
   tailwindcss: {

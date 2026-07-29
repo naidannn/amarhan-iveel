@@ -3,22 +3,10 @@
  *
  * Токенууд: app/assets/design-tokens.js
  * Энд hex код шууд бичихгүй — Tailwind-ын классаар дамжуулна.
- *
- * CSS layer-ийн дараалал нь nuxt.config.ts-ийн primevue.cssLayer.order-той
- * ЯГ ТААРАХ ёстой. Ингэснээр Tailwind-ын utility класс (`p-4`, `text-h3` …)
- * PrimeVue компонентын дотоод загварыг дарж чадна — эс тэгвээс `!important`
- * бичих шаардлага гарч, засвар үйлчилгээ хүндэрнэ.
  */
-@layer tailwind-base, primevue, tailwind-utilities;
-
-@layer tailwind-base {
-  @tailwind base;
-}
-
-@layer tailwind-utilities {
-  @tailwind components;
-  @tailwind utilities;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   html {

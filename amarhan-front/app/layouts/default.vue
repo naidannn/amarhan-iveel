@@ -6,5 +6,6 @@
   -->
   <div class="min-h-screen bg-surface-bg">
     <slot />
+    <UiToastHost />
   </div>
 </template>

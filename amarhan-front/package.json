@@ -17,8 +17,6 @@
     "@nuxtjs/mdc": "^0.16.1",
     "@nuxtjs/tailwindcss": "^6.13.1",
     "@pinia/nuxt": "^0.11.3",
-    "@primevue/nuxt-module": "^4.5.5",
-    "@primevue/themes": "^4.5.3",
     "@tailwindcss/typography": "^0.5.19",
     "@vueuse/core": "^13.9.0",
     "axios": "^1.7.9",
@@ -26,7 +24,6 @@
     "lucide-vue-next": "^0.577.0",
     "nuxt": "^4.2.1",
     "pinia": "^3.0.1",
-    "primevue": "^4.5.5",
     "vue": "latest",
     "vue-router": "latest"
   },

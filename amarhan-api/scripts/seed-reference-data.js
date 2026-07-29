@@ -41,31 +41,42 @@ const BRANCHES = [
   },
 ];
 
-// ⚠ Жишээ тариф — бодит утгаар солино уу
+/**
+ * Ивээл Каргогийн БОДИТ тариф (2026-07 байдлаар).
+ *
+ *   1–100 гр ..................... 800₮
+ *   101–500 гр ................... 1,500₮
+ *   501 гр – 1 кг ................ 2,000₮
+ *   Гутал / нугалж жижиглэх боломжгүй ачаа ... 1 кг тутамд 2,500₮
+ *   1 м³ ......................... 400,000₮
+ *
+ * ⚠ ТОДРУУЛГА ХЭРЭГТЭЙ: энгийн ачаа 1 кг-аас хүнд бол ямар үнэтэй вэ гэдэг
+ * тодорхойгүй. Түр `pricePerKgAbove: 2000` (1 кг-ийн үнийг үргэлжлүүлэв) гэж
+ * тавьсан — бодит утгыг баталгаажуулна уу.
+ */
 const CARGO_TYPES = [
   {
     code: 'standard',
     name: 'Энгийн ачаа',
-    description: 'Тусгай нөхцөл шаардахгүй энгийн ачаа',
-    pricePerKg: 4000,
-    pricePerM3: 350000,
-    minimumCharge: 5000,
+    description: 'Жингийн шатлалаар тооцогдох энгийн ачаа',
+    weightBrackets: [
+      { maxGrams: 100, price: 800 },
+      { maxGrams: 500, price: 1500 },
+      { maxGrams: 1000, price: 2000 },
+    ],
+    pricePerKgAbove: 2000, // ⚠ баталгаажуулах шаардлагатай
+    pricePerM3: 400000,
+    minimumCharge: 0, // хамгийн бага шатлал (800₮) өөрөө доод хэмжээ болно
   },
   {
-    code: 'fragile',
-    name: 'Хэврэг ачаа',
-    description: 'Болгоомжтой харьцах шаардлагатай ачаа',
-    pricePerKg: 6000,
-    pricePerM3: 450000,
-    minimumCharge: 10000,
-  },
-  {
-    code: 'oversized',
-    name: 'Том оврын ачаа',
-    description: 'Хэмжээ томтой, тусгай тээвэрлэлт шаардах ачаа',
-    pricePerKg: 5000,
-    pricePerM3: 300000,
-    minimumCharge: 20000,
+    code: 'bulky',
+    name: 'Гутал / нугалахгүй ачаа',
+    description: 'Хайрцагтай гутал болон нугалж жижиглэх боломжгүй ачаа',
+    // Шатлалгүй — эхнээсээ кг тутмаар тооцогдоно
+    weightBrackets: [],
+    pricePerKgAbove: 2500,
+    pricePerM3: 400000,
+    minimumCharge: 0,
   },
 ];
 
@@ -85,7 +96,13 @@ async function seed() {
   }
 
   console.log('\n── Ачааны төрөл ба тариф ──');
-  for (const { pricePerKg, pricePerM3, minimumCharge, ...typeData } of CARGO_TYPES) {
+  for (const {
+    weightBrackets,
+    pricePerKgAbove,
+    pricePerM3,
+    minimumCharge,
+    ...typeData
+  } of CARGO_TYPES) {
     let cargoType = await CargoType.findOne({ code: typeData.code });
 
     if (!cargoType) {
@@ -101,24 +118,28 @@ async function seed() {
     });
 
     if (activeTariff) {
-      console.log(
-        `    тариф аль хэдийн тохируулагдсан (${activeTariff.pricePerKg}₮/кг) — хэвээр үлдээв`
-      );
+      console.log('    тариф аль хэдийн тохируулагдсан — хэвээр үлдээв');
       continue;
     }
 
     await TariffVersion.create({
       cargoTypeId: cargoType._id,
-      pricePerKg,
+      weightBrackets,
+      pricePerKgAbove,
       pricePerM3,
       minimumCharge,
       effectiveFrom: new Date(),
-      note: 'seed-reference-data.js — ЖИШЭЭ утга, бодит тарифаар солино уу',
+      note: 'seed-reference-data.js — бодит тариф (2026-07)',
     });
-    console.log(`    тариф: ${pricePerKg}₮/кг · ${pricePerM3}₮/м³ · доод ${minimumCharge}₮`);
+
+    for (const b of weightBrackets) {
+      console.log(`    ≤${b.maxGrams}гр: ${b.price.toLocaleString()}₮`);
+    }
+    console.log(`    1кг-аас дээш: ${pricePerKgAbove.toLocaleString()}₮/кг`);
+    console.log(`    эзлэхүүн: ${pricePerM3.toLocaleString()}₮/м³`);
   }
 
-  console.log('\n⚠ Тарифын тоон утга нь ЖИШЭЭ. Бодит үнээр солихоо мартуузай.');
+  console.log('\n⚠ Энгийн ачаа 1кг-аас хүнд үед 2,000₮/кг гэж түр тавьсан — баталгаажуулна уу.');
   console.log('  Байршил үүсгэх: npm run seed:locations -- --branch ER --rooms 3 --shelves 5\n');
 
   await mongoose.connection.close();

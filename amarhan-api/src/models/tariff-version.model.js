@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { assertValidBrackets } = require('../domain/pricing');
 const Schema = mongoose.Schema;
 
 /**
@@ -22,7 +23,31 @@ const tariffVersionSchema = new Schema(
       ref: 'CargoType',
       required: true,
     },
-    pricePerKg: {
+
+    /**
+     * Жингийн шатлал — жижиг илгээмжид ТОГТМОЛ үнэ.
+     * Жишээ: [{maxGrams: 100, price: 800}, {maxGrams: 500, price: 1500}]
+     * Хоосон бол ачаа эхнээсээ кг-аар тооцогдоно.
+     * maxGrams өсөх дарааллаар байх ёстой (pre-validate hook шалгана).
+     */
+    weightBrackets: {
+      type: [
+        {
+          maxGrams: { type: Number, required: true, min: 1 },
+          price: {
+            type: Number,
+            required: true,
+            min: 0,
+            validate: { validator: Number.isInteger, message: 'Шатлалын үнэ бүхэл тоо байх ёстой' },
+          },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
+
+    /** Шатлалаас дээш 1 кг тутмын үнэ (кг руу дээш дугуйруулна) */
+    pricePerKgAbove: {
       type: Number,
       required: true,
       min: 0,
@@ -40,9 +65,14 @@ const tariffVersionSchema = new Schema(
         message: '₮/м³ бүхэл тоо байх ёстой',
       },
     },
+    /**
+     * Доод хэмжээний төлбөр. Шатлалтай тарифд ихэвчлэн 0 — хамгийн бага
+     * шатлал өөрөө доод хэмжээний үүргийг гүйцэтгэдэг.
+     */
     minimumCharge: {
       type: Number,
       required: true,
+      default: 0,
       min: 0,
       validate: {
         validator: Number.isInteger,
@@ -84,12 +114,29 @@ tariffVersionSchema.index(
 );
 
 /**
+ * Шатлалын дараалал/давхцлыг ХАДГАЛАХААС ӨМНӨ шалгана.
+ * Буруу дараалалтай шатлал үнийг чимээгүй буруу бодуулна.
+ */
+tariffVersionSchema.pre('validate', function (next) {
+  try {
+    assertValidBrackets(this.weightBrackets ?? []);
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
  * `calculatePrice()`-д дамжуулах цэвэр объект.
  * Домэйн функц Mongoose баримтаас хамаарах ёсгүй.
  */
 tariffVersionSchema.methods.toTariff = function () {
   return {
-    pricePerKg: this.pricePerKg,
+    weightBrackets: (this.weightBrackets ?? []).map(b => ({
+      maxGrams: b.maxGrams,
+      price: b.price,
+    })),
+    pricePerKgAbove: this.pricePerKgAbove,
     pricePerM3: this.pricePerM3,
     minimumCharge: this.minimumCharge,
   };

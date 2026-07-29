@@ -148,12 +148,31 @@ notifications, settings  (бие даасан)
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
 | `cargoTypeId` | ObjectId → `cargo_types` | |
-| `pricePerKg` | Number (₮) | |
+| `weightBrackets` | [{ maxGrams, price }] | Жингийн шатлал, `maxGrams` өсөх дарааллаар. Хоосон = шатлалгүй |
+| `pricePerKgAbove` | Number (₮) | Шатлалаас дээш 1 кг тутмын үнэ |
 | `pricePerM3` | Number (₮) | |
-| `minimumCharge` | Number (₮) | Доод хэмжээ |
+| `minimumCharge` | Number (₮) | Доод хэмжээ. Шатлалтай тарифд ихэвчлэн `0` — хамгийн бага шатлал өөрөө доод хэмжээ болно |
 | `effectiveFrom` | Date | Хүчин төгөлдөр болох огноо |
 | `effectiveTo` | Date \| null | `null` = одоо идэвхтэй |
 | `createdBy` | ObjectId → `users` | |
+
+**Жишээ — энгийн ачаа:**
+
+```js
+{
+  weightBrackets: [
+    { maxGrams: 100,  price: 800 },
+    { maxGrams: 500,  price: 1500 },
+    { maxGrams: 1000, price: 2000 },
+  ],
+  pricePerKgAbove: 2000,
+  pricePerM3: 400000,
+  minimumCharge: 0,
+}
+```
+
+> Шатлалын дараалал/давхцлыг `pre('validate')` hook (`assertValidBrackets`)
+> шалгана — буруу дараалалтай шатлал үнийг **чимээгүй буруу** бодуулна.
 
 **Индекс:** `{ cargoTypeId: 1, effectiveFrom: -1 }`
 

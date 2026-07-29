@@ -49,7 +49,7 @@ class TariffService {
       throw new APIError(`"${data.code}" кодтой ачааны төрөл байна`, httpStatus.CONFLICT);
     }
 
-    const { pricePerKg, pricePerM3, minimumCharge, ...typeData } = data;
+    const { weightBrackets, pricePerKgAbove, pricePerM3, minimumCharge, ...typeData } = data;
 
     return withTransaction(async session => {
       const [cargoType] = await cargoTypeRepository.model.create([typeData], { session });
@@ -57,9 +57,10 @@ class TariffService {
       const tariff = await tariffVersionRepository.createVersion(
         {
           cargoTypeId: cargoType._id,
-          pricePerKg,
+          weightBrackets: weightBrackets ?? [],
+          pricePerKgAbove,
           pricePerM3,
-          minimumCharge,
+          minimumCharge: minimumCharge ?? 0,
           effectiveFrom: new Date(),
           createdBy: actor?._id ?? null,
         },
@@ -73,7 +74,7 @@ class TariffService {
           entity: AUDIT_ENTITY.CARGO_TYPE,
           entityId: cargoType._id,
           entityLabel: cargoType.code,
-          after: { name: cargoType.name, pricePerKg, pricePerM3, minimumCharge },
+          after: { name: cargoType.name, pricePerKgAbove, pricePerM3, minimumCharge },
           req,
         },
         { session }
@@ -145,15 +146,20 @@ class TariffService {
    * Хуучин хувилбарыг ДАРЖ БИЧИХГҮЙ: `effectiveTo`-гоор хааж, шинэ хувилбар
    * үүсгэнэ. Ингэснээр өмнө бүртгэгдсэн ачааны үнэ хэвээр тайлбарлагдана.
    */
-  async changeTariff(cargoTypeId, { pricePerKg, pricePerM3, minimumCharge, note }, actor, req) {
+  async changeTariff(cargoTypeId, payload, actor, req) {
+    const { weightBrackets = [], pricePerKgAbove, pricePerM3, minimumCharge = 0, note } = payload;
+
     const cargoType = await this.getCargoType(cargoTypeId);
     const current = await tariffVersionRepository.findActive(cargoTypeId);
 
+    const bracketsKey = list => JSON.stringify((list ?? []).map(b => [b.maxGrams, b.price]));
+
     const unchanged =
       current &&
-      current.pricePerKg === pricePerKg &&
+      current.pricePerKgAbove === pricePerKgAbove &&
       current.pricePerM3 === pricePerM3 &&
-      current.minimumCharge === minimumCharge;
+      current.minimumCharge === minimumCharge &&
+      bracketsKey(current.weightBrackets) === bracketsKey(weightBrackets);
 
     if (unchanged) {
       throw new APIError('Тариф өөрчлөгдөөгүй байна', httpStatus.BAD_REQUEST);
@@ -169,7 +175,8 @@ class TariffService {
       const created = await tariffVersionRepository.createVersion(
         {
           cargoTypeId,
-          pricePerKg,
+          weightBrackets,
+          pricePerKgAbove,
           pricePerM3,
           minimumCharge,
           effectiveFrom: now,
@@ -190,9 +197,13 @@ class TariffService {
           req,
         },
         {
-          pricePerKg: { before: current?.pricePerKg ?? null, after: pricePerKg },
+          pricePerKgAbove: { before: current?.pricePerKgAbove ?? null, after: pricePerKgAbove },
           pricePerM3: { before: current?.pricePerM3 ?? null, after: pricePerM3 },
           minimumCharge: { before: current?.minimumCharge ?? null, after: minimumCharge },
+          weightBrackets: {
+            before: current ? bracketsKey(current.weightBrackets) : null,
+            after: bracketsKey(weightBrackets),
+          },
         },
         { session }
       );

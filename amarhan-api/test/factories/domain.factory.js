@@ -34,9 +34,14 @@ async function createCargoTypeWithTariff(overrides = {}, tariffOverrides = {}) {
 
   const tariff = await TariffVersion.create({
     cargoTypeId: cargoType._id,
-    pricePerKg: 5000,
-    pricePerM3: 40000,
-    minimumCharge: 5000,
+    weightBrackets: [
+      { maxGrams: 100, price: 800 },
+      { maxGrams: 500, price: 1500 },
+      { maxGrams: 1000, price: 2000 },
+    ],
+    pricePerKgAbove: 2000,
+    pricePerM3: 400000,
+    minimumCharge: 0,
     effectiveFrom: new Date(),
     ...tariffOverrides,
   });

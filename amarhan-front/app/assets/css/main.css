@@ -1,3 +1,87 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities; 
+/**
+ * Ивээл Карго — суурь загвар
+ *
+ * Токенууд: app/assets/design-tokens.js
+ * Энд hex код шууд бичихгүй — Tailwind-ын классаар дамжуулна.
+ *
+ * CSS layer-ийн дараалал нь nuxt.config.ts-ийн primevue.cssLayer.order-той
+ * ЯГ ТААРАХ ёстой. Ингэснээр Tailwind-ын utility класс (`p-4`, `text-h3` …)
+ * PrimeVue компонентын дотоод загварыг дарж чадна — эс тэгвээс `!important`
+ * бичих шаардлага гарч, засвар үйлчилгээ хүндэрнэ.
+ */
+@layer tailwind-base, primevue, tailwind-utilities;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@layer tailwind-utilities {
+  @tailwind components;
+  @tailwind utilities;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface-bg text-content font-sans text-body;
+  }
+
+  h1 {
+    @apply text-h1 text-content;
+  }
+  h2 {
+    @apply text-h2 text-content;
+  }
+  h3 {
+    @apply text-h3 text-content;
+  }
+  h4 {
+    @apply text-h4 text-content;
+  }
+
+  /* Гар утсан дээр input фокуслахад iOS автоматаар томруулахаас сэргийлнэ */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  @screen sm {
+    input,
+    select,
+    textarea {
+      @apply text-body;
+    }
+  }
+
+  /* Брэндийн фокус цагираг — гарын навигацид харагдах ёстой */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-200 ring-offset-0;
+  }
+}
+
+@layer components {
+  /* Дахин давтагдах бүтэц — 3+ газар хэрэглэгдвэл компонент болгоно */
+  .card {
+    @apply rounded-card bg-surface-card p-card shadow-card;
+  }
+
+  .card-interactive {
+    @apply card transition-all duration-200 ease-out hover:shadow-raised;
+  }
+
+  /* Хүснэгт: өндөр мөр, zebra байхгүй, hover өнгөтэй */
+  .table-row {
+    @apply border-b border-surface-border transition-colors duration-200 hover:bg-surface-hover;
+  }
+}
+
+@layer utilities {
+  /* Тоон баганыг зэрэгцүүлэхэд — мөнгө, жин, дугаар */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

@@ -1,58 +1,110 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
+import tokens from './app/assets/design-tokens.js'
+import typography from '@tailwindcss/typography'
+
+/**
+ * Ивээл Карго — Tailwind тохиргоо
+ *
+ * Өнгө, radius, shadow бүгд `app/assets/design-tokens.js`-ээс ирнэ.
+ * Энд hex код ШУУД бичихгүй — токен файлыг л засна.
+ *
+ * @type {import('tailwindcss').Config}
+ */
+export default {
+  // Nuxt 4-т бүх эх код `app/` дотор байна
   content: [
-    "./components/**/*.{js,vue,ts}",
-    "./layouts/**/*.vue",
-    "./pages/**/*.vue",
-    "./plugins/**/*.{js,ts}",
-    "./app.vue",
-    "./error.vue"
+    './app/components/**/*.{js,vue,ts}',
+    './app/layouts/**/*.vue',
+    './app/pages/**/*.vue',
+    './app/plugins/**/*.{js,ts}',
+    './app/composables/**/*.{js,ts}',
+    './app/app.vue',
+    './app/error.vue',
   ],
+
+  // Dark mode-ийн бүтэц бэлэн, гэхдээ v1-д идэвхгүй
   darkMode: 'class',
+
   theme: {
+    screens: tokens.breakpoints,
+
     extend: {
       colors: {
-        // Amarhan brand colors
-        amarhan: {
-          green: '#00C27A',
-          blue: '#4BA3FF',
+        primary: { ...tokens.primary, DEFAULT: tokens.primary[500] },
+        secondary: { ...tokens.secondary, DEFAULT: tokens.secondary[500] },
+
+        success: tokens.semantic.success,
+        warning: tokens.semantic.warning,
+        error: tokens.semantic.error,
+        info: tokens.semantic.info,
+
+        surface: {
+          bg: tokens.surface.background,
+          card: tokens.surface.card,
+          border: tokens.surface.border,
+          hover: tokens.surface.hover,
         },
-        primary: {
-          DEFAULT: '#00C27A',
-          50: '#e6f7f0',
-          100: '#cceee1',
-          200: '#99ddc3',
-          300: '#66cca5',
-          400: '#33bb87',
-          500: '#00C27A',
-          600: '#00a366',
-          700: '#007a4d',
-          800: '#005233',
-          900: '#00291a',
+
+        content: {
+          DEFAULT: tokens.text.primary,
+          secondary: tokens.text.secondary,
+          disabled: tokens.text.disabled,
+          inverse: tokens.text.inverse,
         },
-        secondary: {
-          DEFAULT: '#4BA3FF',
-          50: '#e6f2ff',
-          100: '#cce5ff',
-          200: '#99cbff',
-          300: '#66b1ff',
-          400: '#3397ff',
-          500: '#4BA3FF',
-          600: '#3c82cc',
-          700: '#2d6199',
-          800: '#1e4066',
-          900: '#0f2033',
-        }
       },
+
       fontFamily: {
-        sans: ['Inter', 'Poppins', '"Noto Sans"', 'Comfortaa', 'sans-serif'],
-        noto: ['"Noto Sans"', 'sans-serif'],
-        comfortaa: ['"Comfortaa"', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
-        poppins: ['Poppins', 'sans-serif'],
+        sans: tokens.font.sans,
+      },
+
+      fontSize: {
+        // Heading
+        'h1': ['32px', { lineHeight: '40px', fontWeight: '700' }],
+        'h2': ['28px', { lineHeight: '36px', fontWeight: '700' }],
+        'h3': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+        'h4': ['20px', { lineHeight: '28px', fontWeight: '600' }],
+        // Body
+        'body-lg': ['16px', { lineHeight: '24px' }],
+        'body': ['14px', { lineHeight: '20px' }],
+        'body-sm': ['13px', { lineHeight: '18px' }],
+      },
+
+      borderRadius: {
+        card: tokens.radius.card,
+        btn: tokens.radius.button,
+        input: tokens.radius.input,
+      },
+
+      boxShadow: {
+        card: tokens.shadow.card,
+        raised: tokens.shadow.raised,
+        dropdown: tokens.shadow.dropdown,
+      },
+
+      spacing: {
+        control: tokens.sizing.controlHeight,
+        card: tokens.sizing.cardPadding,
+        sidebar: tokens.sizing.sidebarWidth,
+        navbar: tokens.sizing.navbarHeight,
+      },
+
+      height: {
+        control: tokens.sizing.controlHeight,
+        navbar: tokens.sizing.navbarHeight,
+      },
+
+      width: {
+        sidebar: tokens.sizing.sidebarWidth,
+      },
+
+      transitionDuration: {
+        DEFAULT: tokens.motion.duration,
+      },
+
+      scale: {
+        hover: tokens.motion.hoverScale,
       },
     },
-
   },
-  plugins: [],
-} 
+
+  plugins: [typography],
+};

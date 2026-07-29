@@ -1,77 +1,107 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import IveelPreset from './app/assets/primevue-preset'
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
+
   modules: [
     '@nuxtjs/google-fonts',
     '@nuxtjs/tailwindcss',
-    'nuxt-gtag',
+    '@primevue/nuxt-module',
     '@pinia/nuxt',
     '@nuxt/image',
     '@formkit/auto-animate/nuxt',
     '@nuxtjs/mdc',
   ],
 
+  // main.css-ийг ЭНД бүртгэхгүй — @nuxtjs/tailwindcss-ийн `cssPath` хариуцна.
+  // Хоёуланд нь бүртгэвэл Tailwind-ын preflight ХОЁР удаа ачаалагдаж, нэг нь
+  // layer-гүй болно. Layer-гүй загвар нь layer доторхыг үргэлж дардаг тул
+  // PrimeVue компонентын өнгө алга болно.
+
   devServer: {
     port: 3000,
   },
+
   app: {
     head: {
+      htmlAttrs: { lang: 'mn' },
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
         { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-        { rel: 'manifest', href: '/site.webmanifest' }
+        { rel: 'manifest', href: '/site.webmanifest' },
       ],
       meta: [
-        { name: 'msapplication-TileColor', content: '#000000' },
-        { name: 'theme-color', content: '#00C27A' },
-        { name: 'description', content: 'Таны бизнест тохирсон вэб ба мобайл системийг — хурдан, хямд, амархан бүтээнэ. 7 хоногийн дотор вэб эсвэл мобайл системээ ашиглаж эхэлнэ.' },
-        { property: 'og:title', content: 'Amarhan.mn - Вэб ба мобайл системийн хөгжүүлэгч' },
-        { property: 'og:description', content: 'Таны бизнест тохирсон вэб ба мобайл системийг — хурдан, хямд, амархан бүтээнэ.' },
+        { name: 'theme-color', content: '#355DFF' },
+        { name: 'msapplication-TileColor', content: '#355DFF' },
+        {
+          name: 'description',
+          content:
+            'Ивээл Карго — Хятадаас Монгол руу ачаа тээвэрлэх үйлчилгээ. Ачаагаа онлайнаар хянаж, төлбөрөө төлж, хүргэлт захиална.',
+        },
+        { property: 'og:title', content: 'Ивээл Карго' },
+        {
+          property: 'og:description',
+          content: 'Олон улсын карго тээврийг илүү хялбар, илүү ил тод.',
+        },
         { property: 'og:type', content: 'website' },
-        { property: 'og:url', content: 'https://amarhan.mn' },
-        { property: 'og:image', content: 'https://amarhan.mn/og-image.jpg' },
         { name: 'twitter:card', content: 'summary_large_image' },
-        { name: 'twitter:title', content: 'Amarhan.mn - Вэб ба мобайл системийн хөгжүүлэгч' },
-        { name: 'twitter:description', content: 'Таны бизнест тохирсон вэб ба мобайл системийг — хурдан, хямд, амархан бүтээнэ.' }
-      ]
-    }
-  },
-  googleFonts: {
-    families: {
-      'Noto+Sans': [400, 500, 600, 700],
-      'Comfortaa': [400, 500, 600, 700],
-      'Inter': [400, 500, 600, 700],
-      'Poppins': [400, 500, 600, 700],
+      ],
     },
-    display: 'swap', // Optional: Use 'swap' to improve loading performance
   },
+
+  googleFonts: {
+    // Монгол кирилл дээр Inter/Noto Sans хамгийн уншигдахуйц
+    families: {
+      Inter: [400, 500, 600, 700],
+      'Noto+Sans': [400, 500, 600, 700],
+    },
+    display: 'swap',
+    download: true,
+  },
+
+  primevue: {
+    options: {
+      // Preset шууд ашиглахгүй — брэндийн токеноор дарж бичсэн custom theme
+      theme: {
+        preset: IveelPreset,
+        options: {
+          // Dark mode-ийн бүтэц бэлэн, v1-д идэвхгүй.
+          // Tailwind-ын darkMode: 'class'-тай нийцүүлэв.
+          darkModeSelector: '.dark',
+          cssLayer: {
+            name: 'primevue',
+            // Tailwind-ын utility класс PrimeVue-гийн загварыг дарах ёстой
+            order: 'tailwind-base, primevue, tailwind-utilities',
+          },
+        },
+      },
+      ripple: false,
+    },
+    autoImport: true,
+  },
+
   tailwindcss: {
+    cssPath: '~/assets/css/main.css',
     exposeConfig: true,
-    viewer: true,
-    // and more...
+    viewer: false,
   },
-  // gtag: {
-  //   id: 'G-H6W6F3BHKT'
-  // },
+
   runtimeConfig: {
-    // Private keys
-    // FACEBOOK_ACCESS_TOKEN: "EAAYXyIAMGt4BPUsQyuV1hEQYrlAwIlknp31KauFNlhMA0asAWSVVtJfdMoroHpZCJ4tpaZA41VWr1dQFFoCtMwhRW5igVQZBjT7TrP5AIeDegbokp6CPU1RUWa0MOXcSq0jIOHZAewhsXFrOcLt5DSBt2DqZAyAGvkTIdONlWCGsKWosdp0djXr9EMZBZABWgZDZD",
-    
     public: {
-      // Public keys
-      // FACEBOOK_PIXEL_ID: '790014570168098',
-      apiBase: process.env.NUXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production' ? 'https://rest.amarhan.mn' : 'http://localhost:4000')
-    }
+      apiBase:
+        process.env.NUXT_PUBLIC_API_URL ||
+        (process.env.NODE_ENV === 'production'
+          ? 'https://rest.amarhan.mn'
+          : 'http://localhost:4000'),
+    },
   },
+
   nitro: {
     minify: true,
     compressPublicAssets: true,
-    experimental: {
-      wasm: true
-    }
   },
 })

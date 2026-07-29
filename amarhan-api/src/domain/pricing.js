@@ -9,7 +9,15 @@ const { PRICE_SOURCE } = require('../config/constants');
  * тооцвол компанид алдагдалтай; хүнд боловч жижиг ачааг (төмөр эд анги)
  * эзлэхүүнээр тооцвол мөн адил. Тиймээс хоёуланг бодож ӨНДӨР дүнг сонгоно.
  *
- * Эцсийн үнэ = MAX( жин × ₮/kg , эзлэхүүн × ₮/m³ , доод хэмжээ )
+ *   Эцсийн үнэ = MAX( жингээр , эзлэхүүнээр , доод хэмжээ )
+ *
+ * ЖИНГЭЭР бодох нь ХОЁР хэсэгтэй (бодит тарифын бүтэц):
+ *   1. Жингийн ШАТЛАЛ (bracket) — жижиг илгээмжид ТОГТМОЛ үнэ.
+ *      Жишээ: 1–100гр = 800₮ · 101–500гр = 1,500₮ · 501гр–1кг = 2,000₮
+ *   2. Шатлалаас ДЭЭШ — 1 кг тутамд тогтоосон үнэ (кг руу дээш дугуйруулна).
+ *      Жишээ: гутал/нугалахгүй ачаа = 2,500₮/кг
+ *
+ * Шатлалгүй (`weightBrackets: []`) тариф нь эхнээсээ кг-аар тооцогдоно.
  *
  * Бүх мөнгөн дүн БҮХЭЛ ТОО, нэгж ₮ (docs/data-model.md §0). Float ашиглахгүй —
  * санхүүгийн тооцоонд дугуйруулалтын алдаа хуримтлагдахыг хүлээн зөвшөөрөхгүй.
@@ -18,11 +26,20 @@ const { PRICE_SOURCE } = require('../config/constants');
  * (docs/testing.md §1).
  */
 
+const GRAMS_PER_KG = 1000;
+
+/**
+ * @typedef {object} WeightBracket
+ * @property {number} maxGrams — энэ жин хүртэл (оруулаад)
+ * @property {number} price    — тогтмол үнэ (₮)
+ */
+
 /**
  * @typedef {object} Tariff
- * @property {number} pricePerKg     — ₮/кг
- * @property {number} pricePerM3     — ₮/м³
- * @property {number} minimumCharge  — доод хэмжээний төлбөр (₮)
+ * @property {WeightBracket[]} [weightBrackets] — жингийн шатлал, өсөх дарааллаар
+ * @property {number} pricePerKgAbove — шатлалаас дээш 1 кг тутмын үнэ (₮)
+ * @property {number} pricePerM3      — ₮/м³
+ * @property {number} [minimumCharge] — доод хэмжээний төлбөр (₮), default 0
  */
 
 /**
@@ -32,6 +49,8 @@ const { PRICE_SOURCE } = require('../config/constants');
  * @property {number} computed  — доод хэмжээ хэрэглэхийн ӨМНӨХ дүн
  * @property {number} final     — эцсийн төлөх дүн (₮)
  * @property {'weight'|'volume'|'minimum'} source — аль хэмжигдэхүүн шийдсэн
+ * @property {object|null} appliedBracket — аль шатлал хэрэглэгдсэн (байвал)
+ * @property {number} chargeableKg — кг-аар тооцсон хэсэгт хэрэглэсэн жин
  */
 
 /**
@@ -55,18 +74,61 @@ function calculatePrice({ weightKg, volumeM3, tariff }) {
     throw new Error('Жин эсвэл эзлэхүүний ядаж нэгийг оруулах шаардлагатай');
   }
 
-  const byWeight = Math.round(weight * tariff.pricePerKg);
+  const weightResult = priceByWeight(weight, tariff);
   const byVolume = Math.round(volume * tariff.pricePerM3);
 
-  const computed = Math.max(byWeight, byVolume);
-  const final = Math.max(computed, tariff.minimumCharge);
+  const computed = Math.max(weightResult.price, byVolume);
+  const minimumCharge = tariff.minimumCharge ?? 0;
+  const final = Math.max(computed, minimumCharge);
 
   return {
-    byWeight,
+    byWeight: weightResult.price,
     byVolume,
     computed,
     final,
-    source: resolveSource({ byWeight, byVolume, computed, tariff }),
+    source: resolveSource({
+      byWeight: weightResult.price,
+      byVolume,
+      computed,
+      minimumCharge,
+    }),
+    appliedBracket: weightResult.bracket,
+    chargeableKg: weightResult.chargeableKg,
+  };
+}
+
+/**
+ * Жингээр үнэ бодох — шатлал эсвэл кг тутмын үнэ.
+ *
+ * Шатлалыг өсөх дарааллаар шалгаж, ачааны жин багтах ЭХНИЙ шатлалыг авна.
+ * Аль ч шатлалд багтахгүй (хамгийн их шатлалаас хүнд) бол кг тутмын үнэ.
+ */
+function priceByWeight(weightKg, tariff) {
+  if (weightKg === 0) {
+    return { price: 0, bracket: null, chargeableKg: 0 };
+  }
+
+  const grams = weightKg * GRAMS_PER_KG;
+  const brackets = tariff.weightBrackets ?? [];
+
+  for (const bracket of brackets) {
+    // Хөвөгч таслалын алдаанаас сэргийлж бага зэрэг тэвчээр өгнө
+    // (0.5кг → 500.0000001гр болж 500гр-ийн шатлалаас гарахаас сэргийлнэ)
+    if (grams <= bracket.maxGrams + 1e-6) {
+      return { price: bracket.price, bracket, chargeableKg: 0 };
+    }
+  }
+
+  // Шатлалаас дээш — кг тутмын үнэ. Эхлэлийн цэг нь хамгийн их шатлалын дээд
+  // хязгаар; шатлалгүй тарифд 0-ээс эхэлнэ.
+  //
+  // Дээш дугуйруулна: карго салбарын нийтлэг практик — 1.2кг = 2кг-аар тооцно.
+  const chargeableKg = Math.max(1, Math.ceil(weightKg));
+
+  return {
+    price: Math.round(chargeableKg * tariff.pricePerKgAbove),
+    bracket: null,
+    chargeableKg,
   };
 }
 
@@ -76,8 +138,8 @@ function calculatePrice({ weightKg, volumeM3, tariff }) {
  * Доод хэмжээ давамгайлсан бол `minimum` — энэ нь тайланд "хэдэн ачаа доод
  * хэмжээгээр тооцогдсон" гэдгийг харахад хэрэгтэй.
  */
-function resolveSource({ byWeight, byVolume, computed, tariff }) {
-  if (computed < tariff.minimumCharge) {
+function resolveSource({ byWeight, byVolume, computed, minimumCharge }) {
+  if (computed < minimumCharge) {
     return PRICE_SOURCE.MINIMUM;
   }
   // Тэнцүү үед жинг сонгоно — тогтвортой, урьдчилан таамаглах боломжтой байх ёстой
@@ -122,16 +184,57 @@ function isWithinOverrideLimit(computedPrice, overridePrice, limitPercent) {
   return Math.abs(overridePrice - computedPrice) <= allowed;
 }
 
+/**
+ * Шатлалын жагсаалт зөв эсэхийг шалгана.
+ * Дараалал ба давхцалыг эрт барихгүй бол үнэ чимээгүй буруу бодогдоно.
+ */
+function assertValidBrackets(brackets) {
+  if (!Array.isArray(brackets)) {
+    throw new Error('Жингийн шатлал массив байх ёстой');
+  }
+
+  let previousMax = 0;
+  for (const [index, bracket] of brackets.entries()) {
+    if (!bracket || typeof bracket !== 'object') {
+      throw new Error(`Шатлал #${index + 1} буруу бүтэцтэй`);
+    }
+    if (!Number.isFinite(bracket.maxGrams) || bracket.maxGrams <= 0) {
+      throw new Error(`Шатлал #${index + 1}: maxGrams эерэг тоо байх ёстой`);
+    }
+    if (!Number.isInteger(bracket.price) || bracket.price < 0) {
+      throw new Error(`Шатлал #${index + 1}: price сөрөг бус бүхэл тоо байх ёстой`);
+    }
+    if (bracket.maxGrams <= previousMax) {
+      throw new Error(
+        `Шатлал #${index + 1}: maxGrams (${bracket.maxGrams}) өмнөхөөс (${previousMax}) их байх ёстой`
+      );
+    }
+    previousMax = bracket.maxGrams;
+  }
+}
+
 function assertValidTariff(tariff) {
   if (!tariff) {
     throw new Error('Тариф заагаагүй байна');
   }
-  const fields = ['pricePerKg', 'pricePerM3', 'minimumCharge'];
-  for (const field of fields) {
+
+  for (const field of ['pricePerKgAbove', 'pricePerM3']) {
     const value = tariff[field];
     if (!Number.isFinite(value) || value < 0) {
       throw new Error(`Тарифын "${field}" сөрөг бус тоо байх ёстой: "${value}"`);
     }
+  }
+
+  if (tariff.minimumCharge != null) {
+    if (!Number.isFinite(tariff.minimumCharge) || tariff.minimumCharge < 0) {
+      throw new Error(
+        `Тарифын "minimumCharge" сөрөг бус тоо байх ёстой: "${tariff.minimumCharge}"`
+      );
+    }
+  }
+
+  if (tariff.weightBrackets != null) {
+    assertValidBrackets(tariff.weightBrackets);
   }
 }
 
@@ -153,7 +256,9 @@ function toPositiveNumber(value, label) {
 }
 
 module.exports = {
+  GRAMS_PER_KG,
   calculatePrice,
   calculateVolumeM3,
   isWithinOverrideLimit,
+  assertValidBrackets,
 };

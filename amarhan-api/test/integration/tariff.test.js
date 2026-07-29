@@ -18,9 +18,8 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
     const payload = {
       code: 'test_type',
       name: 'Тест төрөл',
-      pricePerKg: 5000,
-      pricePerM3: 40000,
-      minimumCharge: 5000,
+      pricePerKgAbove: 2000,
+      pricePerM3: 400000,
     };
 
     it('Ажилтан ачааны төрөл үүсгэж чадахгүй', async () => {
@@ -52,7 +51,7 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .send(payload);
       expect(res.status).to.equal(201);
       expect(res.body.data.cargoType.code).to.equal('test_type');
-      expect(res.body.data.tariff.pricePerKg).to.equal(5000);
+      expect(res.body.data.tariff.pricePerKgAbove).to.equal(2000);
     });
 
     it('Ажилтан төрлийн жагсаалтыг харна (ачаа бүртгэхэд хэрэгтэй)', async () => {
@@ -76,9 +75,8 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .post(`/api/v1/tariffs/cargo-types/${cargoType._id}/tariff`)
         .set('Authorization', `Bearer ${token}`)
         .send({
-          pricePerKg: 7000,
-          pricePerM3: 50000,
-          minimumCharge: 8000,
+          pricePerKgAbove: 7000,
+          pricePerM3: 500000,
           note: 'Түлшний үнэ өссөн',
         });
 
@@ -94,10 +92,10 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
       const old = versions.find(v => v._id.toString() === original._id.toString());
       expect(old, 'хуучин хувилбар байх ёстой').to.exist;
       expect(old.effectiveTo, 'хуучин хувилбар хаагдсан байх ёстой').to.not.be.null;
-      expect(old.pricePerKg, 'хуучин үнэ өөрчлөгдөөгүй байх ёстой').to.equal(5000);
+      expect(old.pricePerKgAbove, 'хуучин үнэ өөрчлөгдөөгүй байх ёстой').to.equal(2000);
 
       const active = versions.find(v => v.effectiveTo === null);
-      expect(active.pricePerKg).to.equal(7000);
+      expect(active.pricePerKgAbove).to.equal(7000);
     });
 
     it('ачааны төрөлд идэвхтэй тариф зөвхөн НЭГ байна', async () => {
@@ -109,12 +107,12 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
           .request(app)
           .post(`/api/v1/tariffs/cargo-types/${cargoType._id}/tariff`)
           .set('Authorization', `Bearer ${token}`)
-          .send({ pricePerKg: price, pricePerM3: 40000, minimumCharge: 5000 });
+          .send({ pricePerKgAbove: price, pricePerM3: 400000 });
       }
 
       const active = await TariffVersion.find({ cargoTypeId: cargoType._id, effectiveTo: null });
       expect(active).to.have.lengthOf(1);
-      expect(active[0].pricePerKg).to.equal(8000);
+      expect(active[0].pricePerKgAbove).to.equal(8000);
 
       const all = await TariffVersion.find({ cargoTypeId: cargoType._id });
       expect(all, 'бүх хувилбар хадгалагдсан байх ёстой').to.have.lengthOf(4);
@@ -128,7 +126,15 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .request(app)
         .post(`/api/v1/tariffs/cargo-types/${cargoType._id}/tariff`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ pricePerKg: 5000, pricePerM3: 40000, minimumCharge: 5000 });
+        .send({
+          pricePerKgAbove: 2000,
+          pricePerM3: 400000,
+          weightBrackets: [
+            { maxGrams: 100, price: 800 },
+            { maxGrams: 500, price: 1500 },
+            { maxGrams: 1000, price: 2000 },
+          ],
+        });
 
       expect(res.status).to.equal(400);
     });
@@ -141,7 +147,7 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .request(app)
         .post(`/api/v1/tariffs/cargo-types/${cargoType._id}/tariff`)
         .set('Authorization', `Bearer ${token}`)
-        .send({ pricePerKg: 9000, pricePerM3: 40000, minimumCharge: 5000 });
+        .send({ pricePerKgAbove: 9000, pricePerM3: 400000 });
 
       const res = await chai
         .request(app)
@@ -163,20 +169,23 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .post(`/api/v1/tariffs/cargo-types/${cargoType._id}/tariff`)
         .set('Authorization', `Bearer ${token}`)
         .send({
-          pricePerKg: 7000,
-          pricePerM3: 40000,
-          minimumCharge: 5000,
+          pricePerKgAbove: 7000,
+          pricePerM3: 400000,
           note: 'Түлшний үнэ өссөн',
         });
 
       const logs = await AuditLog.find({ action: AUDIT_ACTION.TARIFF_CHANGE });
 
-      // Зөвхөн pricePerKg өөрчлөгдсөн
-      expect(logs).to.have.lengthOf(1);
-      expect(logs[0].field).to.equal('pricePerKg');
-      expect(logs[0].before).to.equal(5000);
-      expect(logs[0].after).to.equal(7000);
-      expect(logs[0].reason).to.equal('Түлшний үнэ өссөн');
+      // pricePerKgAbove ба weightBrackets хоёулаа өөрчлөгдсөн
+      // (хүсэлтэд шатлал заагаагүй тул хоосорсон)
+      const byField = Object.fromEntries(logs.map(l => [l.field, l]));
+
+      expect(byField.pricePerKgAbove, 'кг тутмын үнэ audit-д').to.exist;
+      expect(byField.pricePerKgAbove.before).to.equal(2000);
+      expect(byField.pricePerKgAbove.after).to.equal(7000);
+      expect(byField.pricePerKgAbove.reason).to.equal('Түлшний үнэ өссөн');
+
+      expect(byField.weightBrackets, 'шатлалын өөрчлөлт audit-д').to.exist;
     });
   });
 
@@ -192,9 +201,9 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .send({ cargoTypeId: cargoType._id, weightKg: 2, volumeM3: 0.5 });
 
       expect(res.status).to.equal(200);
-      expect(res.body.data.byWeight).to.equal(10000);
-      expect(res.body.data.byVolume).to.equal(20000);
-      expect(res.body.data.final).to.equal(20000);
+      expect(res.body.data.byWeight, '2кг → 4,000₮').to.equal(4000);
+      expect(res.body.data.byVolume, '0.5м³ → 200,000₮').to.equal(200000);
+      expect(res.body.data.final).to.equal(200000);
       expect(res.body.data.source).to.equal('volume');
     });
 
@@ -214,8 +223,8 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
 
       expect(res.status).to.equal(200);
       expect(res.body.data.volumeM3).to.equal(1);
-      expect(res.body.data.byVolume).to.equal(40000);
-      expect(res.body.data.final).to.equal(40000);
+      expect(res.body.data.byVolume, '1м³ → 400,000₮').to.equal(400000);
+      expect(res.body.data.final).to.equal(400000);
     });
 
     it('жин, эзлэхүүн, хэмжээс гурвуулаа байхгүй бол 400', async () => {
@@ -257,9 +266,8 @@ describe('Ачааны төрөл ба тариф (§1.2)', () => {
         .send({
           code: 'fractional',
           name: 'Бутархай',
-          pricePerKg: 5000.5,
-          pricePerM3: 40000,
-          minimumCharge: 5000,
+          pricePerKgAbove: 5000.5,
+          pricePerM3: 400000,
         });
       expect(res.status).to.equal(400);
     });

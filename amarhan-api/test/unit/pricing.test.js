@@ -5,116 +5,216 @@ const {
   calculatePrice,
   calculateVolumeM3,
   isWithinOverrideLimit,
+  assertValidBrackets,
 } = require('../../src/domain/pricing');
 
 /**
  * Мөнгөний тооцоолол — алдаа нь шууд алдагдал болно.
  * docs/testing.md §1: энэ файл 100% branch coverage шаардлагатай.
+ *
+ * Тоон утгууд нь Ивээл Каргогийн БОДИТ тариф:
+ *   1–100гр = 800₮ · 101–500гр = 1,500₮ · 501гр–1кг = 2,000₮
+ *   Гутал/нугалахгүй = 2,500₮/кг · 1м³ = 400,000₮
  */
 describe('BR-01 — Ачааны үнэ тооцоолол (§1.2)', () => {
-  // 5,000₮/кг · 40,000₮/м³ · доод хэмжээ 5,000₮
-  const tariff = { pricePerKg: 5000, pricePerM3: 40000, minimumCharge: 5000 };
+  // Энгийн ачаа — жингийн шатлалтай
+  const standard = {
+    weightBrackets: [
+      { maxGrams: 100, price: 800 },
+      { maxGrams: 500, price: 1500 },
+      { maxGrams: 1000, price: 2000 },
+    ],
+    pricePerKgAbove: 2000,
+    pricePerM3: 400000,
+    minimumCharge: 0,
+  };
 
-  describe('Жин ба эзлэхүүнээс өндрийг сонгоно', () => {
-    it('жингээр бодсон дүн их бол түүнийг сонгоно', () => {
-      // 10кг × 5000 = 50,000  |  0.1м³ × 40000 = 4,000
-      const r = calculatePrice({ weightKg: 10, volumeM3: 0.1, tariff });
-      expect(r.byWeight).to.equal(50000);
-      expect(r.byVolume).to.equal(4000);
-      expect(r.final).to.equal(50000);
-      expect(r.source).to.equal('weight');
+  // Гутал / нугалахгүй ачаа — шатлалгүй, эхнээсээ кг тутмаар
+  const bulky = {
+    weightBrackets: [],
+    pricePerKgAbove: 2500,
+    pricePerM3: 400000,
+    minimumCharge: 0,
+  };
+
+  describe('Жингийн шатлал — тогтмол үнэ', () => {
+    const cases = [
+      { grams: 1, expected: 800, label: '1гр' },
+      { grams: 50, expected: 800, label: '50гр' },
+      { grams: 100, expected: 800, label: 'яг 100гр (хилийн утга)' },
+      { grams: 101, expected: 1500, label: '101гр (дараагийн шатлал)' },
+      { grams: 300, expected: 1500, label: '300гр' },
+      { grams: 500, expected: 1500, label: 'яг 500гр (хилийн утга)' },
+      { grams: 501, expected: 2000, label: '501гр' },
+      { grams: 750, expected: 2000, label: '750гр' },
+      { grams: 1000, expected: 2000, label: 'яг 1кг (хилийн утга)' },
+    ];
+
+    cases.forEach(({ grams, expected, label }) => {
+      it(`${label} → ${expected.toLocaleString()}₮`, () => {
+        const r = calculatePrice({ weightKg: grams / 1000, tariff: standard });
+        expect(r.byWeight).to.equal(expected);
+        expect(r.final).to.equal(expected);
+        expect(r.appliedBracket, 'шатлал хэрэглэгдсэн байх ёстой').to.not.be.null;
+      });
     });
 
-    it('эзлэхүүнээр бодсон дүн их бол түүнийг сонгоно', () => {
-      // 2кг × 5000 = 10,000  |  0.5м³ × 40000 = 20,000
-      const r = calculatePrice({ weightKg: 2, volumeM3: 0.5, tariff });
-      expect(r.byWeight).to.equal(10000);
+    it('шатлалын хилийн утга дээр хөвөгч таслалын алдаа гарахгүй', () => {
+      // 0.5 кг = 500 гр яг таарах ёстой, 500.0000001 болж болохгүй
+      const r = calculatePrice({ weightKg: 0.5, tariff: standard });
+      expect(r.byWeight).to.equal(1500);
+    });
+  });
+
+  describe('Шатлалаас дээш — кг тутмын үнэ', () => {
+    it('1кг-аас хүнд бол кг тутмаар тооцно', () => {
+      const r = calculatePrice({ weightKg: 2, tariff: standard });
+      expect(r.byWeight).to.equal(4000); // 2кг × 2,000₮
+      expect(r.appliedBracket, 'шатлал хэрэглэгдэхгүй').to.be.null;
+      expect(r.chargeableKg).to.equal(2);
+    });
+
+    it('бутархай кг-ыг ДЭЭШ дугуйруулна (карго салбарын практик)', () => {
+      // 1.2кг → 2кг-аар тооцно
+      const r = calculatePrice({ weightKg: 1.2, tariff: standard });
+      expect(r.chargeableKg).to.equal(2);
+      expect(r.byWeight).to.equal(4000);
+    });
+
+    it('1.01кг ч 2кг-аар тооцогдоно', () => {
+      const r = calculatePrice({ weightKg: 1.01, tariff: standard });
+      expect(r.byWeight).to.equal(4000);
+    });
+  });
+
+  describe('Шатлалгүй тариф (гутал / нугалахгүй ачаа)', () => {
+    it('жижиг ачааг ч 1кг-аар тооцно', () => {
+      const r = calculatePrice({ weightKg: 0.3, tariff: bulky });
+      expect(r.chargeableKg).to.equal(1);
+      expect(r.byWeight).to.equal(2500);
+    });
+
+    it('3кг гутал = 7,500₮', () => {
+      const r = calculatePrice({ weightKg: 3, tariff: bulky });
+      expect(r.byWeight).to.equal(7500);
+    });
+
+    it('2.4кг → 3кг-аар тооцогдоно', () => {
+      const r = calculatePrice({ weightKg: 2.4, tariff: bulky });
+      expect(r.chargeableKg).to.equal(3);
+      expect(r.byWeight).to.equal(7500);
+    });
+  });
+
+  describe('Эзлэхүүнтэй харьцуулах — өндрийг сонгоно', () => {
+    it('хөнгөн боловч эзлэхүүн ихтэй ачааг эзлэхүүнээр тооцно', () => {
+      // 200гр гутлын хайрцаг (шатлал 1,500₮) боловч 0.05м³ = 20,000₮
+      const r = calculatePrice({ weightKg: 0.2, volumeM3: 0.05, tariff: standard });
+      expect(r.byWeight).to.equal(1500);
       expect(r.byVolume).to.equal(20000);
       expect(r.final).to.equal(20000);
       expect(r.source).to.equal('volume');
     });
 
-    it('хоёулаа тэнцүү бол жинг сонгоно (тогтвортой байдлын үүднээс)', () => {
-      // 4кг × 5000 = 20,000  |  0.5м³ × 40000 = 20,000
-      const r = calculatePrice({ weightKg: 4, volumeM3: 0.5, tariff });
-      expect(r.final).to.equal(20000);
+    it('хүнд боловч жижиг ачааг жингээр тооцно', () => {
+      // 5кг төмөр эд анги = 10,000₮, эзлэхүүн 0.01м³ = 4,000₮
+      const r = calculatePrice({ weightKg: 5, volumeM3: 0.01, tariff: standard });
+      expect(r.byWeight).to.equal(10000);
+      expect(r.byVolume).to.equal(4000);
+      expect(r.final).to.equal(10000);
+      expect(r.source).to.equal('weight');
+    });
+
+    it('1м³ = 400,000₮', () => {
+      const r = calculatePrice({ volumeM3: 1, tariff: standard });
+      expect(r.byVolume).to.equal(400000);
+      expect(r.final).to.equal(400000);
+    });
+
+    it('тэнцүү үед жинг сонгоно (тогтвортой байдлын үүднээс)', () => {
+      // 2кг = 4,000₮  |  0.01м³ = 4,000₮
+      const r = calculatePrice({ weightKg: 2, volumeM3: 0.01, tariff: standard });
+      expect(r.final).to.equal(4000);
       expect(r.source).to.equal('weight');
     });
   });
 
   describe('Зөвхөн нэг хэмжигдэхүүн өгсөн үед', () => {
     it('зөвхөн жин өгвөл жингээр бодно', () => {
-      const r = calculatePrice({ weightKg: 10, volumeM3: null, tariff });
+      const r = calculatePrice({ weightKg: 0.05, volumeM3: null, tariff: standard });
       expect(r.byVolume).to.equal(0);
-      expect(r.final).to.equal(50000);
-      expect(r.source).to.equal('weight');
+      expect(r.final).to.equal(800);
     });
 
     it('зөвхөн эзлэхүүн өгвөл эзлэхүүнээр бодно', () => {
-      const r = calculatePrice({ weightKg: null, volumeM3: 2, tariff });
+      const r = calculatePrice({ weightKg: null, volumeM3: 0.5, tariff: standard });
       expect(r.byWeight).to.equal(0);
-      expect(r.final).to.equal(80000);
+      expect(r.final).to.equal(200000);
       expect(r.source).to.equal('volume');
     });
 
     it('хоосон мөрийг байхгүйтэй адилтгана', () => {
-      const r = calculatePrice({ weightKg: '', volumeM3: 2, tariff });
-      expect(r.final).to.equal(80000);
+      const r = calculatePrice({ weightKg: '', volumeM3: 0.5, tariff: standard });
+      expect(r.final).to.equal(200000);
     });
 
     it('хоёулаа байхгүй бол алдаа өгнө (§1.1)', () => {
-      expect(() => calculatePrice({ weightKg: null, volumeM3: null, tariff })).to.throw(
+      expect(() => calculatePrice({ weightKg: null, volumeM3: null, tariff: standard })).to.throw(
         /ядаж нэгийг/
       );
     });
 
     it('хоёулаа тэг бол алдаа өгнө', () => {
-      expect(() => calculatePrice({ weightKg: 0, volumeM3: 0, tariff })).to.throw(/ядаж нэгийг/);
+      expect(() => calculatePrice({ weightKg: 0, volumeM3: 0, tariff: standard })).to.throw(
+        /ядаж нэгийг/
+      );
     });
   });
 
   describe('Доод хэмжээний төлбөр', () => {
+    const withMinimum = { ...standard, minimumCharge: 5000 };
+
     it('бодсон дүн доод хэмжээнээс бага бол доод хэмжээг ашиглана', () => {
-      // 0.2кг × 5000 = 1,000  |  0.01м³ × 40000 = 400  → доод хэмжээ 5,000
-      const r = calculatePrice({ weightKg: 0.2, volumeM3: 0.01, tariff });
-      expect(r.computed).to.equal(1000);
+      const r = calculatePrice({ weightKg: 0.05, tariff: withMinimum });
+      expect(r.computed).to.equal(800);
       expect(r.final).to.equal(5000);
       expect(r.source).to.equal('minimum');
     });
 
-    it('бодсон дүн доод хэмжээтэй яг тэнцүү бол minimum биш гэж үзнэ', () => {
-      // 1кг × 5000 = 5,000 = доод хэмжээ
-      const r = calculatePrice({ weightKg: 1, volumeM3: null, tariff });
-      expect(r.final).to.equal(5000);
+    it('доод хэмжээтэй яг тэнцүү бол minimum биш гэж үзнэ', () => {
+      // 2.5кг → 3кг × 2,000 = 6,000 > 5,000
+      const r = calculatePrice({ weightKg: 2.5, tariff: withMinimum });
+      expect(r.final).to.equal(6000);
       expect(r.source).to.equal('weight');
     });
 
-    it('доод хэмжээ 0 бол хэзээ ч minimum болохгүй', () => {
-      const zeroMin = { pricePerKg: 5000, pricePerM3: 40000, minimumCharge: 0 };
-      const r = calculatePrice({ weightKg: 0.001, volumeM3: null, tariff: zeroMin });
+    it('доод хэмжээ заагаагүй бол 0 гэж үзнэ', () => {
+      const noMin = { ...standard };
+      delete noMin.minimumCharge;
+      const r = calculatePrice({ weightKg: 0.05, tariff: noMin });
+      expect(r.final).to.equal(800);
       expect(r.source).to.equal('weight');
     });
   });
 
   describe('Дугуйруулалт ба бүхэл тоо', () => {
     it('үр дүн үргэлж бүхэл тоо байна', () => {
-      const r = calculatePrice({ weightKg: 1.234, volumeM3: 0.0567, tariff });
+      const r = calculatePrice({ weightKg: 1.234, volumeM3: 0.0567, tariff: standard });
       expect(r.byWeight % 1).to.equal(0);
       expect(r.byVolume % 1).to.equal(0);
       expect(r.final % 1).to.equal(0);
     });
 
-    it('2 орны нарийвчлалтай жинг зөв бодно', () => {
-      // 1.55кг × 5000 = 7,750
-      const r = calculatePrice({ weightKg: 1.55, volumeM3: null, tariff });
-      expect(r.final).to.equal(7750);
+    it('эзлэхүүний бутархай үржвэрийг зөв дугуйруулна', () => {
+      // 0.0567м³ × 400,000 = 22,680
+      const r = calculatePrice({ volumeM3: 0.0567, tariff: standard });
+      expect(r.byVolume).to.equal(22680);
     });
 
     it('float алдаа гарахгүй (0.1 + 0.2 асуудал)', () => {
-      // 0.3кг × 10000 = 3,000 яг таарах ёстой
-      const t = { pricePerKg: 10000, pricePerM3: 1, minimumCharge: 0 };
-      const r = calculatePrice({ weightKg: 0.1 + 0.2, volumeM3: null, tariff: t });
-      expect(r.final).to.equal(3000);
+      // 0.30000000000000004 кг = 300гр → 1,500₮ шатлал
+      const r = calculatePrice({ weightKg: 0.1 + 0.2, tariff: standard });
+      expect(r.byWeight).to.equal(1500);
     });
   });
 
@@ -123,43 +223,95 @@ describe('BR-01 — Ачааны үнэ тооцоолол (§1.2)', () => {
       expect(() => calculatePrice({ weightKg: 1, tariff: null })).to.throw(/Тариф заагаагүй/);
     });
 
-    it('тарифын талбар сөрөг бол алдаа', () => {
-      const bad = { pricePerKg: -1, pricePerM3: 40000, minimumCharge: 5000 };
-      expect(() => calculatePrice({ weightKg: 1, tariff: bad })).to.throw(/pricePerKg/);
+    it('pricePerKgAbove сөрөг бол алдаа', () => {
+      expect(() =>
+        calculatePrice({ weightKg: 1, tariff: { ...standard, pricePerKgAbove: -1 } })
+      ).to.throw(/pricePerKgAbove/);
     });
 
-    it('тарифын талбар дутуу бол алдаа', () => {
-      const bad = { pricePerKg: 5000, pricePerM3: 40000 };
-      expect(() => calculatePrice({ weightKg: 1, tariff: bad })).to.throw(/minimumCharge/);
+    it('pricePerM3 дутуу бол алдаа', () => {
+      const bad = { ...standard };
+      delete bad.pricePerM3;
+      expect(() => calculatePrice({ weightKg: 1, tariff: bad })).to.throw(/pricePerM3/);
+    });
+
+    it('minimumCharge сөрөг бол алдаа', () => {
+      expect(() =>
+        calculatePrice({ weightKg: 1, tariff: { ...standard, minimumCharge: -5 } })
+      ).to.throw(/minimumCharge/);
     });
 
     it('сөрөг жин бол алдаа', () => {
-      expect(() => calculatePrice({ weightKg: -5, tariff })).to.throw(/Жин/);
+      expect(() => calculatePrice({ weightKg: -5, tariff: standard })).to.throw(/Жин/);
     });
 
     it('тоо биш жин бол алдаа', () => {
-      expect(() => calculatePrice({ weightKg: 'хүнд', tariff })).to.throw(/Жин/);
+      expect(() => calculatePrice({ weightKg: 'хүнд', tariff: standard })).to.throw(/Жин/);
     });
 
     it('сөрөг эзлэхүүн бол алдаа', () => {
-      expect(() => calculatePrice({ weightKg: 1, volumeM3: -1, tariff })).to.throw(/Эзлэхүүн/);
+      expect(() => calculatePrice({ weightKg: 1, volumeM3: -1, tariff: standard })).to.throw(
+        /Эзлэхүүн/
+      );
     });
+  });
+});
+
+describe('Жингийн шатлалын бүтэц', () => {
+  it('зөв шатлалыг хүлээж авна', () => {
+    expect(() =>
+      assertValidBrackets([
+        { maxGrams: 100, price: 800 },
+        { maxGrams: 500, price: 1500 },
+      ])
+    ).to.not.throw();
+  });
+
+  it('хоосон жагсаалтыг зөвшөөрнө (шатлалгүй тариф)', () => {
+    expect(() => assertValidBrackets([])).to.not.throw();
+  });
+
+  it('буурах дараалалтай шатлалыг хориглоно', () => {
+    expect(() =>
+      assertValidBrackets([
+        { maxGrams: 500, price: 1500 },
+        { maxGrams: 100, price: 800 },
+      ])
+    ).to.throw(/их байх ёстой/);
+  });
+
+  it('давхардсан хязгаарыг хориглоно', () => {
+    expect(() =>
+      assertValidBrackets([
+        { maxGrams: 100, price: 800 },
+        { maxGrams: 100, price: 900 },
+      ])
+    ).to.throw(/их байх ёстой/);
+  });
+
+  it('бутархай үнийг хориглоно', () => {
+    expect(() => assertValidBrackets([{ maxGrams: 100, price: 800.5 }])).to.throw(/бүхэл тоо/);
+  });
+
+  it('сөрөг эсвэл тэг maxGrams-ыг хориглоно', () => {
+    expect(() => assertValidBrackets([{ maxGrams: 0, price: 800 }])).to.throw(/maxGrams/);
+  });
+
+  it('массив биш бол алдаа', () => {
+    expect(() => assertValidBrackets('шатлал')).to.throw(/массив/);
   });
 });
 
 describe('BR-03 — Хэмжээснээс эзлэхүүн бодох', () => {
   it('см-ээс м³ рүү зөв хөрвүүлнэ', () => {
-    // 100×100×100 см = 1,000,000 см³ = 1 м³
     expect(calculateVolumeM3({ lengthCm: 100, widthCm: 100, heightCm: 100 })).to.equal(1);
   });
 
   it('жижиг хайрцгийг 4 орны нарийвчлалаар бодно', () => {
-    // 30×20×15 = 9,000 см³ = 0.009 м³
     expect(calculateVolumeM3({ lengthCm: 30, widthCm: 20, heightCm: 15 })).to.equal(0.009);
   });
 
   it('маш жижиг эзлэхүүнийг 4 оронд дугуйруулна', () => {
-    // 10×10×10 = 1,000 см³ = 0.001 м³
     expect(calculateVolumeM3({ lengthCm: 10, widthCm: 10, heightCm: 10 })).to.equal(0.001);
   });
 
@@ -174,7 +326,6 @@ describe('BR-03 — Хэмжээснээс эзлэхүүн бодох', () => {
 
 describe('BR-04 — Override-ийн хязгаар (§1.2, §9.1)', () => {
   it('хязгаарт багтсан хямдралыг зөвшөөрнө', () => {
-    // 20% хязгаар: 30,000-аас 24,000 хүртэл
     expect(isWithinOverrideLimit(30000, 25000, 20)).to.equal(true);
   });
 

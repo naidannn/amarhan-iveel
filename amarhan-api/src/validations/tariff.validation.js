@@ -6,6 +6,26 @@ const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 // Мөнгө үргэлж бүхэл тоо ₮ (docs/data-model.md §0)
 const money = Joi.number().integer().min(0);
 
+/**
+ * Жингийн шатлал — жижиг илгээмжид тогтмол үнэ.
+ * Дараалал/давхцлыг domain/pricing.js-ийн assertValidBrackets нарийн шалгана.
+ */
+const weightBrackets = Joi.array()
+  .items(
+    Joi.object({
+      maxGrams: Joi.number().integer().min(1).required(),
+      price: money.required(),
+    })
+  )
+  .default([]);
+
+const tariffFields = {
+  weightBrackets: weightBrackets.optional(),
+  pricePerKgAbove: money.required(),
+  pricePerM3: money.required(),
+  minimumCharge: money.default(0),
+};
+
 module.exports = {
   listCargoTypes: {
     query: Joi.object({
@@ -36,9 +56,7 @@ module.exports = {
       description: Joi.string().trim().max(500).allow(null, '').optional(),
       isActive: Joi.boolean().default(true),
       // Анхны тариф — ачааны төрөлтэй хамт заавал үүснэ
-      pricePerKg: money.required(),
-      pricePerM3: money.required(),
-      minimumCharge: money.required(),
+      ...tariffFields,
     }),
   },
 
@@ -58,9 +76,7 @@ module.exports = {
       cargoTypeId: objectId.required(),
     }),
     body: Joi.object({
-      pricePerKg: money.required(),
-      pricePerM3: money.required(),
-      minimumCharge: money.required(),
+      ...tariffFields,
       note: Joi.string().trim().max(500).allow(null, '').optional(),
     }),
   },

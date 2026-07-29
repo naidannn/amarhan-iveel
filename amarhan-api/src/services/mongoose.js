@@ -8,7 +8,7 @@ mongoose.connection.on('connected', () => {
   logger.info('MongoDB is connected');
 });
 
-mongoose.connection.on('error', (err) => {
+mongoose.connection.on('error', err => {
   logger.error('Could not connect to MongoDB', { error: err.message });
   process.exit(-1);
 });

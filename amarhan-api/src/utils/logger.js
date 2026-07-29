@@ -17,7 +17,9 @@ function formatMessage(level, message, meta) {
   if (meta && Object.keys(meta).length > 0) {
     base.meta = meta;
   }
-  return config.env === 'production' ? JSON.stringify(base) : `[${timestamp}] ${level.toUpperCase()}: ${message}${meta ? ' ' + JSON.stringify(meta) : ''}`;
+  return config.env === 'production'
+    ? JSON.stringify(base)
+    : `[${timestamp}] ${level.toUpperCase()}: ${message}${meta ? ' ' + JSON.stringify(meta) : ''}`;
 }
 
 const logger = {

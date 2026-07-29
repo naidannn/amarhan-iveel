@@ -6,13 +6,13 @@
 set -e  # Exit on error
 
 # Configuration
-SSH_KEY="naidan-main.pem"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/naidan-main.pem}"
 SERVER_USER="ubuntu"
-SERVER_HOST="ec2-13-215-144-207.ap-southeast-1.compute.amazonaws.com"
-PROJECT_DIR="amarhan-demo"
+SERVER_HOST="${SERVER_HOST:-ec2-13-215-144-207.ap-southeast-1.compute.amazonaws.com}"
+PROJECT_DIR="amarhan-front"
 BUILD_DIR=".output"
-DEPLOY_DIR="~/amarhan-crm/amarhan-demo"
-ARCHIVE_NAME="amarhan-demo-build.tar.gz"
+DEPLOY_DIR="${DEPLOY_DIR:-~/iveel-amarhan/amarhan-front}"
+ARCHIVE_NAME="amarhan-front-build.tar.gz"
 TEMP_ARCHIVE="/tmp/${ARCHIVE_NAME}"
 
 # Colors for output
@@ -29,8 +29,8 @@ if [ ! -f "$SSH_KEY" ]; then
     exit 1
 fi
 
-# Set correct permissions for SSH key
-chmod 600 "$SSH_KEY"
+# Түлхүүр репод байхаа больсон (~/.ssh/-д зөөгдсөн). Эрхийг зөвхөн шалгана.
+chmod 600 "$SSH_KEY" 2>/dev/null || true
 
 # Navigate to project directory
 if [ ! -d "$PROJECT_DIR" ]; then
@@ -41,18 +41,10 @@ fi
 cd "$PROJECT_DIR"
 
 echo -e "${YELLOW}Step 1: Installing dependencies...${NC}"
-if command -v yarn &> /dev/null; then
-    yarn install
-else
-    npm install
-fi
+npm ci
 
 echo -e "${YELLOW}Step 2: Building project...${NC}"
-if command -v yarn &> /dev/null; then
-    yarn build
-else
-    npm run build
-fi
+npm run build
 
 # Check if build was successful
 if [ ! -d "$BUILD_DIR" ]; then
@@ -88,7 +80,7 @@ echo -e "${YELLOW}Step 5: Extracting on server...${NC}"
 ssh -i "$SSH_KEY" "${SERVER_USER}@${SERVER_HOST}" << 'ENDSSH'
     # Use $HOME instead of ~ for proper expansion
     DEPLOY_DIR="$HOME/amarhan-crm/amarhan-demo"
-    ARCHIVE_NAME="amarhan-demo-build.tar.gz"
+    ARCHIVE_NAME="amarhan-front-build.tar.gz"
     BUILD_DIR=".output"
     
     # Create deployment directory if it doesn't exist

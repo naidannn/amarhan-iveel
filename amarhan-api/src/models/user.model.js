@@ -113,7 +113,7 @@ userSchema.method({
       'status',
     ];
     const transformed = {};
-    fields.forEach((field) => {
+    fields.forEach(field => {
       transformed[field] = this[field];
     });
     return transformed;

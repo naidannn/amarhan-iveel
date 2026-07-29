@@ -76,7 +76,7 @@ app.use(errorHandler.handleError);
 let server;
 
 exports.start = () => {
-  server = app.listen(config.port, (err) => {
+  server = app.listen(config.port, err => {
     if (err) {
       logger.error('Failed to start server', { error: err.message });
       process.exit(-1);
@@ -88,7 +88,7 @@ exports.start = () => {
 
 exports.stop = () => {
   if (server) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       server.close(resolve);
     });
   }

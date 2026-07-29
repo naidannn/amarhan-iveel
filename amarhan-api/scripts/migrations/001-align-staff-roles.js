@@ -24,7 +24,7 @@ const ROLE_MAP = {
   manager: 'staff',
 };
 
-exports.up = async (connection) => {
+exports.up = async connection => {
   const users = connection.collection('users');
 
   // 1. Дараалал чухал: manager → staff-ыг ЭХЭЛЖ хийвэл senior_manager → manager
@@ -57,7 +57,7 @@ exports.up = async (connection) => {
 
   // 4. Шалгалт — танигдахгүй роль үлдсэн эсэх
   const remaining = await users.distinct('role');
-  const invalid = remaining.filter((r) => !['admin', 'manager', 'staff'].includes(r));
+  const invalid = remaining.filter(r => !['admin', 'manager', 'staff'].includes(r));
   if (invalid.length > 0) {
     throw new Error(`Танигдахгүй роль үлдлээ: ${invalid.join(', ')}`);
   }

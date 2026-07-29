@@ -9,7 +9,7 @@ app.start();
 mongoose.connect();
 
 // Graceful shutdown
-const shutdown = async (signal) => {
+const shutdown = async signal => {
   logger.info(`${signal} received. Shutting down gracefully...`);
 
   try {
@@ -29,11 +29,11 @@ const shutdown = async (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', reason => {
   logger.error('Unhandled Rejection', { reason: reason?.toString() });
 });
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
   process.exit(1);
 });

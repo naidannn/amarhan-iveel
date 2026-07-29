@@ -1,6 +1,5 @@
 'use strict';
 
-const httpStatus = require('http-status');
 const userService = require('../services/user.service');
 const { success, created } = require('../utils/response');
 

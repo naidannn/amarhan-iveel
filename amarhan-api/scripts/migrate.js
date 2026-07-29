@@ -47,11 +47,11 @@ async function run() {
 
     const files = fs
       .readdirSync(MIGRATIONS_DIR)
-      .filter((f) => f.endsWith('.js'))
+      .filter(f => f.endsWith('.js'))
       .sort();
 
-    const applied = new Set((await Migration.find({}, 'name')).map((m) => m.name));
-    const pending = files.filter((f) => !applied.has(f));
+    const applied = new Set((await Migration.find({}, 'name')).map(m => m.name));
+    const pending = files.filter(f => !applied.has(f));
 
     if (pending.length === 0) {
       console.log('Хүлээгдэж буй migration алга — бүгд ажилласан байна');
@@ -60,7 +60,7 @@ async function run() {
     }
 
     console.log(`\nХүлээгдэж буй ${pending.length} migration:`);
-    pending.forEach((f) => console.log(`  - ${f}`));
+    pending.forEach(f => console.log(`  - ${f}`));
 
     if (isDryRun) {
       console.log('\n--dry горим: өөрчлөлт хийгээгүй');

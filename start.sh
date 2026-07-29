@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start script for amarhan-crm project
-# Usage: ./start.sh [api|demo|all]
+# Usage: ./start.sh [api|front|all]
 
 set -e
 
@@ -18,21 +18,13 @@ MODE=${1:-all}
 start_api() {
     echo -e "${BLUE}Starting API server...${NC}"
     cd amarhan-api
-    if command -v yarn &> /dev/null; then
-        yarn dev
-    else
-        npm run dev
-    fi
+    npm run dev
 }
 
-start_demo() {
-    echo -e "${BLUE}Starting Nuxt demo server...${NC}"
-    cd amarhan-demo
-    if command -v yarn &> /dev/null; then
-        yarn dev
-    else
-        npm run dev
-    fi
+start_front() {
+    echo -e "${BLUE}Starting Nuxt frontend server...${NC}"
+    cd amarhan-front
+    npm run dev
 }
 
 start_all() {
@@ -42,11 +34,7 @@ start_all() {
     
     # Start API in background
     cd amarhan-api
-    if command -v yarn &> /dev/null; then
-        yarn dev &
-    else
-        npm run dev &
-    fi
+    npm run dev &
     API_PID=$!
     cd ..
     
@@ -54,20 +42,16 @@ start_all() {
     sleep 2
     
     # Start Demo in background
-    cd amarhan-demo
-    if command -v yarn &> /dev/null; then
-        yarn dev &
-    else
-        npm run dev &
-    fi
-    DEMO_PID=$!
+    cd amarhan-front
+    npm run dev &
+    FRONT_PID=$!
     cd ..
     
     # Function to cleanup on exit
     cleanup() {
         echo -e "\n${YELLOW}Stopping servers...${NC}"
         kill $API_PID 2>/dev/null || true
-        kill $DEMO_PID 2>/dev/null || true
+        kill $FRONT_PID 2>/dev/null || true
         exit 0
     }
     
@@ -75,24 +59,24 @@ start_all() {
     trap cleanup INT TERM
     
     # Wait for both processes
-    wait $API_PID $DEMO_PID
+    wait $API_PID $FRONT_PID
 }
 
 case "$MODE" in
     api)
         start_api
         ;;
-    demo)
-        start_demo
+    front)
+        start_front
         ;;
     all)
         start_all
         ;;
     *)
         echo -e "${RED}Invalid option: $MODE${NC}"
-        echo -e "${YELLOW}Usage: ./start.sh [api|demo|all]${NC}"
+        echo -e "${YELLOW}Usage: ./start.sh [api|front|all]${NC}"
         echo -e "${YELLOW}  api  - Start only the API server${NC}"
-        echo -e "${YELLOW}  demo - Start only the Nuxt demo server${NC}"
+        echo -e "${YELLOW}  front - Start only the Nuxt frontend server${NC}"
         echo -e "${YELLOW}  all  - Start both servers (default)${NC}"
         exit 1
         ;;

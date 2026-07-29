@@ -17,6 +17,11 @@ router.post('/login', authLimiter, validate(authValidation.login), authControlle
 // Protected routes
 router.get('/me', authorize(), authController.me);
 router.post('/logout', authorize(), authController.logout);
-router.post('/change-password', authorize(), validate(authValidation.changePassword), authController.changePassword);
+router.post(
+  '/change-password',
+  authorize(),
+  validate(authValidation.changePassword),
+  authController.changePassword
+);
 
 module.exports = router;

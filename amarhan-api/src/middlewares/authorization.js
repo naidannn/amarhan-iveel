@@ -7,15 +7,12 @@ const httpStatus = require('http-status');
 
 const handleJWT = (req, res, next, roles) => async (err, user, info) => {
   const error = err || info;
-  const apiError = new APIError(
-    error ? error.message : 'Unauthorized',
-    httpStatus.UNAUTHORIZED
-  );
+  const apiError = new APIError(error ? error.message : 'Unauthorized', httpStatus.UNAUTHORIZED);
 
   try {
     if (error || !user) throw error;
     await new Promise((resolve, reject) => {
-      req.logIn(user, { session: false }, (err) => {
+      req.logIn(user, { session: false }, err => {
         if (err) reject(err);
         else resolve();
       });
@@ -40,11 +37,11 @@ const authorize =
       req.headers.authorization = `Bearer ${req.query.token}`;
     }
 
-    return passport.authenticate(
-      'jwt',
-      { session: false },
-      handleJWT(req, res, next, roles)
-    )(req, res, next);
+    return passport.authenticate('jwt', { session: false }, handleJWT(req, res, next, roles))(
+      req,
+      res,
+      next
+    );
   };
 
 module.exports = authorize;

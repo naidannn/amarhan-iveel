@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: Backend (amarhan-api)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amarhan-api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: amarhan-api/package-lock.json
+
+      - name: Хамаарал суулгах
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Форматлалт шалгах
+        run: npm run format:check
+
+      # mongodb-memory-server нь mongod binary-г татаж, replica set горимд
+      # ажиллуулна — тусдаа MongoDB service шаардлагагүй.
+      - name: Тест
+        run: npm test
+
+      - name: Хамаарлын эмзэг байдал
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  front:
+    name: Frontend (amarhan-front)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: amarhan-front
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: amarhan-front/package-lock.json
+
+      - name: Хамаарал суулгах
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  secrets:
+    name: Нууц түлхүүр шалгах
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Репод private key, .env буцаж орохоос сэргийлнэ (Phase 0.1-ийн давталт)
+      - name: Түлхүүр/нууц файл репод байгаа эсэх
+        run: |
+          found=$(git ls-files | grep -E '\.(pem|key|p12|pfx|ppk)$|(^|/)\.env$' || true)
+          if [ -n "$found" ]; then
+            echo "::error::Нууц файл репод байна:"
+            echo "$found"
+            exit 1
+          fi
+          echo "Нууц файл олдсонгүй."

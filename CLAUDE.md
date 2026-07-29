@@ -84,15 +84,16 @@ npm test               # Mocha (NODE_ENV=test)
 npm run seed:admin     # Админ хэрэглэгч үүсгэх
 
 # Frontend (amarhan-front/)
-yarn dev               # Nuxt dev server (port 3000)
-yarn build             # production build
-yarn preview
+npm run dev            # Nuxt dev server (port 3000)
+npm run build          # production build
+npm run preview
 
 # Бүхэлд нь
-docker compose up      # api + mongo
+docker compose up      # api + mongo (replica set горимд автоматаар эхэлнэ)
 ```
 
-> Frontend нь **yarn** (packageManager талбарт заасан), backend нь **npm** ашигладаг. Хольж болохгүй.
+> Хоёулаа **npm** ашиглана (`package-lock.json`). Frontend-д `packageManager: yarn`
+> гэсэн зөрчилтэй талбар байсныг Phase 0-д устгасан.
 
 ---
 
@@ -129,20 +130,31 @@ docker compose up      # api + mongo
 
 ---
 
-## 7. Анхаарах — одоо байгаа "хог" код
+## 7. Phase 0 цэвэрлэгээ — дууссан (2026-07-30)
 
-Эдгээр нь өөр төслөөс үлдсэн boilerplate. Шинэ код бичихдээ **жишээ болгож болохгүй**,
-Phase 0-д цэвэрлэгдэнэ (`roadmap.md` харах):
+Boilerplate-ийн хог код устаж, аюулгүй байдлын нүхнүүд таглагдсан. Дэлгэрэнгүйг
+git түүхээс (`chore/p0-cleanup` салаа) харна уу. Гол өөрчлөлтүүд:
 
-| Байршил | Асуудал |
+| Юу | Үр дүн |
 |---|---|
-| `amarhan-front/app/composables/use{HR,CRM,Finance,Inventory,FileManager,ProjectManagement}.ts` | Өөр домэйны код, ашиглагдахгүй |
-| `amarhan-front/stores/auth.ts` | Nuxt 4-т `app/stores/` идэвхтэй — энэ файл үхмэл давхардал |
-| `amarhan-front/app/stores/auth.ts` → `demoLogin()` | Хатуу кодлосон `admin@amarhan.mn / REDACTED_PASSWORD` fallback — production-д аюултай |
-| `amarhan-api/src/services/qpay.js` | Хатуу кодлосон өөр компанийн мерчант эрх, `console.log` |
-| `amarhan-api/test/{hr,contact-request}.test.js` | Байхгүй модулийн тест |
-| `amarhan-api/src/config/constants.js` | Роль (`senior_manager`) нь бизнес шаардлагын Админ/Менежер/Ажилтантай таарахгүй |
-| `naidan-main.pem` (репо root) | SSH private key репод commit хийгдсэн — нэн даруй устгаж, түлхүүрийг сольж, `.gitignore`-т нэмнэ |
+| Ролийн бүтэц | `admin` / `manager` / `staff` (`senior_manager` арилсан) |
+| Нээлттэй `POST /auth/register` | **Хаагдсан** — эрх өөрөө өсгөх нүх байсан. Ажилтныг зөвхөн Админ `POST /api/v1/users`-ээр үүсгэнэ |
+| JWT | 8 цагийн хугацаа + `aud: 'staff'` нэмэгдсэн (өмнө нь хугацаагүй байсан) |
+| Идэвхгүй ажилтан | Хүчинтэй токентой ч хаагдана |
+| Хатуу кодлосон нууц | qpay.js, slack.js устсан; s3-upload.js-ийнх арилсан; `demoLogin()` устсан |
+| MongoDB | docker-compose-д replica set (`rs0`) автоматаар эхэлнэ |
+| Транзакц | `src/utils/transaction.js` → `withTransaction()` |
+| Тест | mongodb-memory-server (replica set), 18 тест өнгөрдөг |
+| Lint | ESLint 9 flat config, Prettier-тэй зөрчилдөхгүй |
+| CI | `.github/workflows/ci.yml` — lint, format, test, build, нууц түлхүүр шалгах |
+
+**Хараахан ажиллуулаагүй:** `scripts/migrations/001-align-staff-roles.js` — одоо байгаа
+`users` өгөгдлийн ролийг хөрвүүлнэ. Backup хийж, `npm run migrate -- --dry` шалгасны
+дараа ажиллуулна.
+
+> ⚠️ **Алдагдсан эрхийг солих шаардлагатай** — репод байсан тул:
+> AWS түлхүүр `YOUR_AWS_ACCESS_KEY_ID`, Slack bot token, QPay `YOUR_QPAY_MERCHANT` эрх,
+> `naidan-main.pem` (одоо `~/.ssh/`-д).
 
 ---
 

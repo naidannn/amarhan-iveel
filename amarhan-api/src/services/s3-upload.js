@@ -1,6 +1,7 @@
 const AWS = require('aws-sdk');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 /**
  * S3 Upload Service
@@ -57,7 +58,7 @@ class S3UploadService {
       // Always upload to S3
       return await this._uploadToS3(fileBuffer, fileName, mimeType);
     } catch (error) {
-      console.error('Upload error:', error);
+      logger.error('S3 upload алдаа', { error: error.message });
       throw error;
     }
   }
@@ -77,7 +78,7 @@ class S3UploadService {
       ACL: 'private',
     };
 
-    console.log(`📤 Uploading to S3: ${params.Key}`);
+    logger.debug('S3 руу байршуулж байна', { key: params.Key });
 
     const result = await this.s3.upload(params).promise();
 
@@ -99,12 +100,12 @@ class S3UploadService {
     const filePath = path.join(this.uploadDir, fileName);
 
     return new Promise((resolve, reject) => {
-      fs.writeFile(filePath, fileBuffer, (err) => {
+      fs.writeFile(filePath, fileBuffer, err => {
         if (err) {
-          console.error('Local upload error:', err);
+          logger.error('Локал байршуулалтын алдаа', { error: err.message });
           reject(err);
         } else {
-          console.log(`📁 File saved locally: ${filePath}`);
+          logger.debug('Файл локалд хадгалагдлаа', { filePath });
           resolve({
             success: true,
             storage: 'local',
@@ -131,7 +132,7 @@ class S3UploadService {
       });
       return url;
     } catch (error) {
-      console.error('Error generating signed URL:', error);
+      logger.error('Signed URL үүсгэхэд алдаа', { error: error.message });
       throw error;
     }
   }
@@ -145,7 +146,7 @@ class S3UploadService {
       // Always delete from S3
       return await this._deleteFromS3(s3Key);
     } catch (error) {
-      console.error('Delete error:', error);
+      logger.error('S3 устгалын алдаа', { error: error.message });
       throw error;
     }
   }
@@ -160,7 +161,7 @@ class S3UploadService {
       Key: s3Key,
     };
 
-    console.log(`🗑️ Deleting from S3: ${s3Key}`);
+    logger.debug('S3-аас устгаж байна', { s3Key });
 
     await this.s3.deleteObject(params).promise();
 
@@ -179,12 +180,12 @@ class S3UploadService {
 
     return new Promise((resolve, reject) => {
       if (fs.existsSync(filePath)) {
-        fs.unlink(filePath, (err) => {
+        fs.unlink(filePath, err => {
           if (err) {
-            console.error('Local delete error:', err);
+            logger.error('Локал устгалын алдаа', { error: err.message });
             reject(err);
           } else {
-            console.log(`🗑️ File deleted locally: ${filePath}`);
+            logger.debug('Файл локалаас устлаа', { filePath });
             resolve({
               success: true,
               message: 'File deleted from local storage',
@@ -210,7 +211,7 @@ class S3UploadService {
       // Always get from S3
       return await this._getFromS3(s3Key);
     } catch (error) {
-      console.error('Get file error:', error);
+      logger.error('Файл авахад алдаа', { error: error.message });
       throw error;
     }
   }
@@ -257,7 +258,7 @@ class S3UploadService {
       // Always get from S3
       return await this._getFileSizeS3(s3Key);
     } catch (error) {
-      console.error('Get file size error:', error);
+      logger.error('Файлын хэмжээ авахад алдаа', { error: error.message });
       throw error;
     }
   }
@@ -297,4 +298,3 @@ class S3UploadService {
 
 // Export singleton instance
 module.exports = new S3UploadService();
-

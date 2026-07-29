@@ -2,20 +2,34 @@
 
 const httpStatus = require('http-status');
 const config = require('../config');
+const logger = require('../utils/logger');
 
-exports.handleNotFound = (req, res, next) => {
+exports.handleNotFound = (req, res, _next) => {
   res.status(httpStatus.NOT_FOUND).json({
     success: false,
-    message: 'Requested resource not found',
+    message: 'Хүссэн хаяг олдсонгүй',
   });
 };
 
-exports.handleError = (err, req, res, next) => {
+// Express алдааны middleware-ийг 4 аргументын тоогоор таньдаг тул _next-ийг хасч болохгүй
+exports.handleError = (err, req, res, _next) => {
   const status = err.status || httpStatus.INTERNAL_SERVER_ERROR;
+
+  // Хүлээгдээгүй алдаа чимээгүй алга болохоос сэргийлнэ.
+  // 4xx нь хэрэглэгчийн алдаа тул зөвхөн 5xx-ийг error түвшинд бичнэ.
+  if (status >= 500) {
+    logger.error('Хүлээгдээгүй алдаа', {
+      message: err.message,
+      stack: err.stack,
+      method: req.method,
+      path: req.originalUrl,
+      requestId: req.id,
+    });
+  }
 
   const response = {
     success: false,
-    message: err.message || 'Internal Server Error',
+    message: err.message || 'Дотоод алдаа гарлаа',
   };
 
   // Mongoose CastError (invalid ObjectId)
@@ -27,7 +41,7 @@ exports.handleError = (err, req, res, next) => {
   // Mongoose ValidationError
   if (err.name === 'ValidationError') {
     response.message = 'Validation Error';
-    response.errors = Object.values(err.errors).map((e) => ({
+    response.errors = Object.values(err.errors).map(e => ({
       field: e.path,
       message: e.message,
     }));

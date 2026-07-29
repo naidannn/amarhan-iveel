@@ -24,18 +24,21 @@ const Branch = require('../src/models/branch.model');
 const CargoType = require('../src/models/cargo-type.model');
 const TariffVersion = require('../src/models/tariff-version.model');
 
+/**
+ * Ивээл Карго одоогоор ГАНЦ салбартай.
+ *
+ * Салбарын код нь байршлын кодын эхний хэсэг болно (`ER`-02-B-15), мөн
+ * `resolveBranch()` идэвхтэй салбар яг нэг байхад автоматаар сонгоно —
+ * ажилтан салбар сонгох шаардлагагүй.
+ *
+ * Ирээдүйд салбар нэмэхэд: энд мөр нэмээд seed ажиллуулна. Тэр үеэс API
+ * `branchId`-г тодорхой заахыг шаардаж эхэлнэ (§8).
+ */
 const BRANCHES = [
   {
     code: 'ER',
-    name: 'Эрээн салбар',
+    name: 'Эрээн агуулах',
     country: 'Хятад',
-    address: null,
-    phone: null,
-  },
-  {
-    code: 'UB',
-    name: 'Улаанбаатар салбар',
-    country: 'Монгол',
     address: null,
     phone: null,
   },

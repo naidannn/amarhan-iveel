@@ -2,6 +2,7 @@
 
 const httpStatus = require('http-status');
 const userRepository = require('../repositories/user.repository');
+const branchResolver = require('./branch-resolver.service');
 const APIError = require('../utils/APIError');
 
 class UserService {
@@ -26,9 +27,20 @@ class UserService {
     return user;
   }
 
+  /**
+   * НЭГ САЛБАРЫН ГОРИМ: салбар заагаагүй бол цорын ганц идэвхтэй салбарыг
+   * автоматаар ононо. Ингэснээр админ ажилтан үүсгэхдээ салбар сонгох алхам
+   * гарахгүй, мөн салбаргүй ажилтан үүсэхээс сэргийлнэ (Менежерийн audit
+   * хамрах хүрээ салбараас хамаардаг).
+   */
   async create(data) {
     try {
-      const user = await userRepository.create(data);
+      const payload = { ...data };
+      if (payload.branchId == null) {
+        payload.branchId = await branchResolver.getDefaultBranchId();
+      }
+
+      const user = await userRepository.create(payload);
       const userObj = user.toObject();
       delete userObj.password;
       return userObj;

@@ -185,13 +185,53 @@ describe('Audit Log (§9.2)', () => {
       expect(res.body.data[0].entityLabel).to.equal('A-салбарын бичлэг');
     });
 
-    it('салбаргүй Менежер audit log харахгүй', async () => {
+    it('НЭГ САЛБАР: салбаргүй Менежер тэр салбарын бичлэгийг харна', async () => {
+      const branch = await createBranch();
+      const actor = await createUser({ role: ROLES.ADMIN });
+      await auditService.record({
+        actor,
+        action: AUDIT_ACTION.BRANCH_CREATE,
+        entity: AUDIT_ENTITY.BRANCH,
+        entityLabel: 'Ганц салбарын бичлэг',
+        branchId: branch._id,
+      });
+
       const { token } = await createUserWithToken({ role: ROLES.MANAGER, branchId: null });
+
       const res = await chai
         .request(app)
         .get('/api/v1/audit-logs')
         .set('Authorization', `Bearer ${token}`);
-      expect(res.status).to.equal(403);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.lengthOf(1);
+    });
+
+    it('САЛБАР ОЛОН: салбаргүй Менежер алдаа авна (өгөгдөл холилдохоос сэргийлнэ)', async () => {
+      await createBranch();
+      await createBranch();
+
+      const { token } = await createUserWithToken({ role: ROLES.MANAGER, branchId: null });
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/audit-logs')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('Салбар олон');
+    });
+
+    it('САЛБАРГҮЙ: салбар огт бүртгэгдээгүй бол ойлгомжтой алдаа', async () => {
+      const { token } = await createUserWithToken({ role: ROLES.MANAGER, branchId: null });
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/audit-logs')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(422);
+      expect(res.body.message).to.include('Салбар бүртгэгдээгүй');
     });
 
     it('audit log үүсгэх/устгах endpoint байхгүй', async () => {

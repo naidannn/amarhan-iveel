@@ -6,10 +6,10 @@
  * ИДЕМПОТЕНТ: байгаа кодыг алгасана.
  *
  * Хэрэглээ:
- *   npm run seed:locations -- --branch ER --rooms 3 --shelves 5 --rows 4 --cells 6
+ *   npm run seed:locations -- --rooms 3 --shelves 5 --rows 4 --cells 6
  *
  * Утга:
- *   --branch   салбарын код (заавал)
+ *   --branch   салбарын код. Салбар ганц бол заахгүй байж болно
  *   --rooms    өрөөний тоо (1-ээс эхэлж дугаарлана)
  *   --shelves  өрөө бүрийн тавиурын тоо (A, B, C ... хэлбэрээр)
  *   --rows     тавиур бүрийн мөрийн тоо (1–9)
@@ -44,19 +44,27 @@ const capacityCount = arg('capacity') ? Number(arg('capacity')) : null;
 const SHELF_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 async function seed() {
-  if (!branchCode) {
-    throw new Error('--branch заавал шаардлагатай. Жишээ: --branch ER');
-  }
   if (shelves > SHELF_LETTERS.length) {
     throw new Error(`Тавиурын тоо ${SHELF_LETTERS.length}-аас их байж болохгүй`);
   }
 
   await mongoose.connect(config.mongo.uri);
 
-  const branch = await Branch.findOne({ code: branchCode.toUpperCase() });
+  // Салбар заагаагүй бол цорын ганц идэвхтэй салбарыг ашиглана
+  const branch = branchCode
+    ? await Branch.findOne({ code: branchCode.toUpperCase() })
+    : await (async () => {
+        const active = await Branch.find({ isActive: true });
+        if (active.length === 1) return active[0];
+        if (active.length === 0) return null;
+        throw new Error('Салбар олон байна — --branch <код> заана уу');
+      })();
+
   if (!branch) {
     throw new Error(
-      `"${branchCode}" салбар олдсонгүй. Эхлээд npm run seed:reference ажиллуулна уу`
+      `Салбар олдсонгүй. Эхлээд npm run seed:reference ажиллуулна уу${
+        branchCode ? ` ("${branchCode}" код байхгүй)` : ''
+      }`
     );
   }
 

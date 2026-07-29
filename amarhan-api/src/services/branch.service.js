@@ -2,6 +2,7 @@
 
 const httpStatus = require('http-status');
 const branchRepository = require('../repositories/branch.repository');
+const branchResolver = require('./branch-resolver.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
 const { withTransaction } = require('../utils/transaction');
@@ -31,6 +32,18 @@ class BranchService {
       throw new APIError('Салбар олдсонгүй', httpStatus.NOT_FOUND);
     }
     return branch;
+  }
+
+  /**
+   * Салбарыг тодорхойлох дүрэм `branch-resolver.service.js`-д байрлана
+   * (дугуй хамаарлаас сэргийлэх үүднээс). Эндээс дамжуулан хүргэнэ.
+   */
+  resolveBranch(explicitId = null) {
+    return branchResolver.resolveBranch(explicitId);
+  }
+
+  getDefaultBranchId() {
+    return branchResolver.getDefaultBranchId();
   }
 
   async create(data, actor, req) {

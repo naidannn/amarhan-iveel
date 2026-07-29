@@ -1,8 +1,7 @@
 'use strict';
 
-const httpStatus = require('http-status');
 const auditLogRepository = require('../repositories/audit-log.repository');
-const APIError = require('../utils/APIError');
+const branchResolver = require('./branch-resolver.service');
 const { ROLES } = require('../config/constants');
 
 /**
@@ -94,18 +93,22 @@ class AuditService {
   /**
    * §9.1 — Админ бүх салбарыг, Менежер зөвхөн өөрийн салбарыг харна.
    * Ажилтан Audit Log харах эрхгүй (route түвшинд хаагдана).
+   *
+   * НЭГ САЛБАРЫН ГОРИМ: салбар оноогоогүй Менежерийг хаахын оронд цорын ганц
+   * идэвхтэй салбарт хамруулна. Салбар олон болвол `resolveBranch()` алдаа
+   * өгч, админ салбар оноохыг шаардана — өөр салбарын өгөгдөл чимээгүй
+   * харагдахаас сэргийлнэ.
    */
   async list(options, actor) {
     const scoped = { ...options };
 
     if (actor.role !== ROLES.ADMIN) {
-      if (!actor.branchId) {
-        throw new APIError(
-          'Танд салбар оноогоогүй тул audit log харах боломжгүй',
-          httpStatus.FORBIDDEN
-        );
+      if (actor.branchId) {
+        scoped.branchId = actor.branchId;
+      } else {
+        const branch = await branchResolver.resolveBranch();
+        scoped.branchId = branch._id;
       }
-      scoped.branchId = actor.branchId;
     }
 
     const result = await auditLogRepository.search({}, scoped);

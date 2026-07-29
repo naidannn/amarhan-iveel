@@ -37,7 +37,8 @@ module.exports = {
 
   create: {
     body: Joi.object({
-      branchId: objectId.required(),
+      // Нэг салбарын горимд заавал биш — заагаагүй бол автоматаар сонгогдоно
+      branchId: objectId.optional(),
       // Бүрэн код эсвэл бүрдэл хэсгүүдийн аль нэгийг өгнө
       code: locationCode.optional(),
       room: Joi.number().integer().min(0).max(99).optional(),
@@ -57,7 +58,7 @@ module.exports = {
 
   createShelf: {
     body: Joi.object({
-      branchId: objectId.required(),
+      branchId: objectId.optional(),
       room: Joi.number().integer().min(0).max(99).required(),
       shelf: Joi.string()
         .uppercase()
@@ -84,7 +85,7 @@ module.exports = {
 
   suggest: {
     query: Joi.object({
-      branchId: objectId.required(),
+      branchId: objectId.optional(),
       room: Joi.string().max(2).optional(),
       shelf: Joi.string().uppercase().length(1).optional(),
     }),

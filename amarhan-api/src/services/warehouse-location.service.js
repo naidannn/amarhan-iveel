@@ -2,7 +2,7 @@
 
 const httpStatus = require('http-status');
 const warehouseLocationRepository = require('../repositories/warehouse-location.repository');
-const branchRepository = require('../repositories/branch.repository');
+const branchResolver = require('./branch-resolver.service');
 const settingService = require('./setting.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
@@ -49,10 +49,8 @@ class WarehouseLocationService {
   }
 
   async create(data, actor, req) {
-    const branch = await branchRepository.findById(data.branchId);
-    if (!branch) {
-      throw new APIError('Салбар олдсонгүй', httpStatus.NOT_FOUND);
-    }
+    // Нэг салбарын горимд `branchId` заавал биш — автоматаар сонгогдоно
+    const branch = await branchResolver.resolveBranch(data.branchId);
 
     const code = this.buildCode(branch.code, data);
 
@@ -104,10 +102,7 @@ class WarehouseLocationService {
    * Аль хэдийн байгаа кодыг алгасана — дахин ажиллуулахад аюулгүй.
    */
   async createShelf({ branchId, room, shelf, rows, cells, capacityCount, capacityM3 }, actor, req) {
-    const branch = await branchRepository.findById(branchId);
-    if (!branch) {
-      throw new APIError('Салбар олдсонгүй', httpStatus.NOT_FOUND);
-    }
+    const branch = await branchResolver.resolveBranch(branchId);
 
     const generated = generateShelfCodes({ branch: branch.code, room, shelf, rows, cells });
 
@@ -217,7 +212,8 @@ class WarehouseLocationService {
     const enabled = await settingService.get(SETTING_KEY.WAREHOUSE_SUGGEST_ENABLED);
     if (!enabled) return null;
 
-    return warehouseLocationRepository.findFirstAvailable(branchId, { room, shelf });
+    const branch = await branchResolver.resolveBranch(branchId);
+    return warehouseLocationRepository.findFirstAvailable(branch._id, { room, shelf });
   }
 
   buildCode(branchCode, { code, room, shelf, row, cell }) {

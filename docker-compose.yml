@@ -1,0 +1,27 @@
+services:
+  api:
+    build: ./amarhan-api
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - APP=amarhan-api
+      - APP_SECRET=change-this-secret
+      - MONGOURI=mongodb://mongo:27017/amarhan
+      - SESSION_SECRET=change-this-session-secret
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3500
+      - NODE_ENV=development
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

@@ -1,0 +1,1 @@
+ssh -i "naidan-main.pem" ubuntu@ec2-13-215-144-207.ap-southeast-1.compute.amazonaws.com

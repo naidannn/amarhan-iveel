@@ -1,8 +1,20 @@
 import { defineStore } from 'pinia'
 
+export type StaffRole = 'admin' | 'manager' | 'staff'
+
+export interface StaffUser {
+  id: string
+  email: string
+  firstname: string
+  lastname: string
+  role: StaffRole
+  branchId?: string | null
+  status: 'active' | 'deactive'
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: null as any,
+    user: null as StaffUser | null,
     token: null as string | null,
     isAuthenticated: false,
     loading: false,
@@ -10,12 +22,11 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAdmin: (state) => state.user?.role === 'admin',
-    isManager: (state) => ['admin', 'manager', 'senior_manager'].includes(state.user?.role),
+    // Менежерийн эрх — өдөр тутмын удирдлага (introduction.md §9.1)
+    isManager: (state) => ['admin', 'manager'].includes(state.user?.role ?? ''),
     userFullName: (state) => {
       if (!state.user) return ''
-      const firstName = state.user.firstname || state.user.firstName || ''
-      const lastName = state.user.lastname || state.user.lastName || ''
-      return `${firstName} ${lastName}`.trim() || 'Админ'
+      return `${state.user.firstname ?? ''} ${state.user.lastname ?? ''}`.trim()
     },
   },
 
@@ -37,11 +48,6 @@ export const useAuthStore = defineStore('auth', {
         }
 
         return response.data.data
-      } catch (error: any) {
-        if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-          return this.demoLogin(email, password)
-        }
-        throw error
       } finally {
         this.loading = false
       }
@@ -52,7 +58,7 @@ export const useAuthStore = defineStore('auth', {
         const { $axios } = useNuxtApp()
         await $axios.post('/api/v1/auth/logout')
       } catch {
-        // Ignore logout errors
+        // Серверийн хариу ямар ч байсан локал төлөвийг цэвэрлэнэ
       } finally {
         this.clearAuth()
       }
@@ -66,23 +72,18 @@ export const useAuthStore = defineStore('auth', {
       if (import.meta.client) {
         localStorage.removeItem('auth_token')
         localStorage.removeItem('auth_user')
-        localStorage.removeItem('demo_mode')
-      }
-
-      try {
-        const { $axios } = useNuxtApp()
-        delete $axios.defaults.headers.common['Authorization']
-      } catch {
-        // axios not available
       }
     },
 
+    /**
+     * localStorage-оос төлөв сэргээж, токеныг сервер дээр баталгаажуулна.
+     * Сервер баталгаажуулаагүй бол нэвтрэлт хүчингүй — локал өгөгдөлд итгэхгүй.
+     */
     async checkAuth(): Promise<boolean> {
       if (!import.meta.client) return false
 
       const token = localStorage.getItem('auth_token')
       const userStr = localStorage.getItem('auth_user')
-      const isDemoMode = localStorage.getItem('demo_mode') === 'true'
 
       if (!token || !userStr) return false
 
@@ -91,18 +92,18 @@ export const useAuthStore = defineStore('auth', {
         this.user = JSON.parse(userStr)
         this.isAuthenticated = true
 
-        if (isDemoMode) return true
-
-        // Verify token with server
         const { $axios } = useNuxtApp()
-        $axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-        await $axios.get('/api/v1/auth/me')
+        const response = await $axios.get('/api/v1/auth/me')
+
+        // Серверийн мэдээллийг эх сурвалж болгоно (эрх өөрчлөгдсөн байж болно)
+        this.user = response.data.data.user ?? this.user
+        if (this.user) {
+          localStorage.setItem('auth_user', JSON.stringify(this.user))
+        }
         return true
       } catch {
-        if (!isDemoMode) {
-          this.clearAuth()
-        }
-        return isDemoMode
+        this.clearAuth()
+        return false
       }
     },
 
@@ -113,36 +114,12 @@ export const useAuthStore = defineStore('auth', {
         const { $axios } = useNuxtApp()
         const response = await $axios.get('/api/v1/auth/me')
         this.user = response.data.data.user
-        if (import.meta.client) {
+        if (import.meta.client && this.user) {
           localStorage.setItem('auth_user', JSON.stringify(this.user))
         }
       } catch {
         this.clearAuth()
       }
-    },
-
-    async demoLogin(email: string, password: string) {
-      if (email === 'admin@amarhan.mn' && password === 'REDACTED_PASSWORD') {
-        this.token = 'demo-token-' + Date.now()
-        this.user = {
-          id: 'demo-user-1',
-          email: 'admin@amarhan.mn',
-          role: 'admin',
-          firstname: 'Admin',
-          lastname: 'User',
-        }
-        this.isAuthenticated = true
-
-        if (import.meta.client) {
-          localStorage.setItem('auth_token', this.token!)
-          localStorage.setItem('auth_user', JSON.stringify(this.user))
-          localStorage.setItem('demo_mode', 'true')
-        }
-
-        return { token: this.token, user: this.user }
-      }
-
-      throw new Error('Invalid demo credentials. Use admin@amarhan.mn / REDACTED_PASSWORD')
     },
   },
 })

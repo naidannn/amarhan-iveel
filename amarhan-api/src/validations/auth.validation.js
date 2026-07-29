@@ -3,16 +3,6 @@
 const Joi = require('joi');
 
 module.exports = {
-  register: {
-    body: Joi.object({
-      email: Joi.string().email().required(),
-      password: Joi.string().min(4).max(128).required(),
-      firstname: Joi.string().max(50).required(),
-      lastname: Joi.string().max(50).required(),
-      role: Joi.string().valid('user', 'admin', 'manager', 'senior_manager').default('user'),
-    }),
-  },
-
   login: {
     body: Joi.object({
       email: Joi.string().email().required(),
@@ -23,7 +13,7 @@ module.exports = {
   changePassword: {
     body: Joi.object({
       currentPassword: Joi.string().required(),
-      newPassword: Joi.string().min(4).max(128).required(),
+      newPassword: Joi.string().min(8).max(128).required(),
     }),
   },
 };

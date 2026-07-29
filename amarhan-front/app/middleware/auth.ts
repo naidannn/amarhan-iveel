@@ -15,8 +15,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  // Check role access
-  const allowedRoles = ['admin', 'manager', 'senior_manager', 'user']
+  // Дотоод системийн ролиуд (introduction.md §9.1). Харилцагч энд орохгүй.
+  const allowedRoles = ['admin', 'manager', 'staff']
   if (!authStore.user || !allowedRoles.includes(authStore.user.role)) {
     throw createError({
       statusCode: 403,

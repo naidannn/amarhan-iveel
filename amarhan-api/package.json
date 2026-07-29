@@ -10,11 +10,8 @@
     "test": "cross-env NODE_ENV=test mocha --exit",
     "format": "prettier --write \"src/**/*.{js,jsx}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx}\"",
-    "seed": "node scripts/seed-data.js",
     "seed:admin": "node scripts/seed-admin.js",
-    "seed:all": "node scripts/seed-all-data.js",
-    "create-demo-users": "node scripts/create-demo-users.js",
-    "import:clients": "node scripts/import-clients-from-csv.js"
+    "migrate": "node scripts/migrate.js"
   },
   "keywords": [],
   "author": "Naidan Khadbaatar",

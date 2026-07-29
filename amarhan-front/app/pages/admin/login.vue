@@ -169,26 +169,24 @@ const handleLogin = async () => {
   
   try {
     await authStore.login(form.email, form.password)
-    
-    // Check if user is admin
-    if (!authStore.isAdmin) {
-      errorMessage.value = 'Та админ эрхгүй байна'
+
+    // Дотоод системд Админ, Менежер, Ажилтан гурвуулаа нэвтэрнэ (introduction.md §9.1).
+    // Хуудас тус бүрийн нарийн эрхийг backend болон route middleware шалгана.
+    const allowedRoles = ['admin', 'manager', 'staff']
+    if (!authStore.user || !allowedRoles.includes(authStore.user.role)) {
+      errorMessage.value = 'Та дотоод системд нэвтрэх эрхгүй байна'
       await authStore.logout()
       return
     }
-    
+
     // Redirect to admin dashboard
     await router.push('/admin')
   } catch (error) {
     console.error('Login error:', error)
-    
+
     // Handle different error types
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      // This will be handled by demo login in the store
-      // But if it still fails, show a helpful message
-      if (!authStore.isAuthenticated) {
-        errorMessage.value = 'API серверт холбогдож чадсангүй. Demo горимд ашиглахын тулд: admin@amarhan.mn / REDACTED_PASSWORD'
-      }
+      errorMessage.value = 'API серверт холбогдож чадсангүй. Сүлжээгээ шалгана уу.'
     } else if (error.response?.status === 401) {
       errorMessage.value = 'Имэйл эсвэл нууц үг буруу байна'
     } else if (error.response?.data?.message) {

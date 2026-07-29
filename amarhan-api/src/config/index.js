@@ -29,6 +29,14 @@ module.exports = {
     uri: process.env.MONGOURI,
     testURI: process.env.MONGOTESTURI,
   },
+  jwt: {
+    // Ажилтны токен — ажлын нэг ээлжийн урт
+    staffAudience: 'staff',
+    staffExpiresIn: process.env.JWT_STAFF_EXPIRES_IN || '8h',
+    // Харилцагчийн токен (Phase 5-д ашиглагдана)
+    customerAudience: 'customer',
+    customerExpiresIn: process.env.JWT_CUSTOMER_EXPIRES_IN || '30d',
+  },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: parseInt(process.env.RATE_LIMIT_MAX) || 100,

@@ -2,11 +2,10 @@
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const httpStatus = require('http-status');
-const APIError = require('../utils/APIError');
+const { ROLES, ROLE_LIST } = require('../config/constants');
 const Schema = mongoose.Schema;
 
-const roles = ['user', 'admin', 'manager', 'senior_manager'];
+const roles = ROLE_LIST;
 
 const userSchema = new Schema(
   {
@@ -18,7 +17,7 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      minlength: 4,
+      minlength: 8,
       maxlength: 128,
       required: true,
     },
@@ -34,8 +33,20 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      default: 'user',
+      default: ROLES.STAFF,
       enum: roles,
+      index: true,
+    },
+    // Менежерийн харах хүрээг тодорхойлно (introduction.md §9.1).
+    // Админд заавал биш — бүх салбарыг хардаг.
+    branchId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Branch',
+      default: null,
+      index: true,
+    },
+    lastLoginAt: {
+      type: Date,
     },
     verified_token: {
       type: String,
@@ -91,7 +102,16 @@ userSchema.set('toJSON', {
 
 userSchema.method({
   transform() {
-    const fields = ['id', 'firstname', 'lastname', 'email', 'role', 'createdAt', 'status'];
+    const fields = [
+      'id',
+      'firstname',
+      'lastname',
+      'email',
+      'role',
+      'branchId',
+      'createdAt',
+      'status',
+    ];
     const transformed = {};
     fields.forEach((field) => {
       transformed[field] = this[field];

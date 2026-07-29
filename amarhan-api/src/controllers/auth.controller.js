@@ -1,17 +1,7 @@
 'use strict';
 
-const httpStatus = require('http-status');
 const authService = require('../services/auth.service');
-const { success, created } = require('../utils/response');
-
-exports.register = async (req, res, next) => {
-  try {
-    const user = await authService.register(req.body);
-    return created(res, user);
-  } catch (error) {
-    next(error);
-  }
-};
+const { success } = require('../utils/response');
 
 exports.login = async (req, res, next) => {
   try {

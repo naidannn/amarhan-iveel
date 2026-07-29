@@ -8,8 +8,10 @@ const authValidation = require('../../validations/auth.validation');
 const authorize = require('../../middlewares/authorization');
 const { authLimiter } = require('../../middlewares/rate-limit');
 
-// Public routes (with auth rate limiting)
-router.post('/register', authLimiter, validate(authValidation.register), authController.register);
+// Нээлттэй бүртгэл ЗӨВХӨН login. Ажилтны бүртгэл нээлттэй байсан нь эрх өөрөө
+// өсгөх нүх байсан (хэн ч role: 'admin'-аар бүртгүүлэх боломжтой) тул хаасан.
+// Ажилтныг зөвхөн Админ POST /api/v1/users-ээр үүсгэнэ (introduction.md §9.1),
+// хамгийн эхний админыг `npm run seed:admin`-аар үүсгэнэ.
 router.post('/login', authLimiter, validate(authValidation.login), authController.login);
 
 // Protected routes

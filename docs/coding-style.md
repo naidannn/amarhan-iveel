@@ -318,6 +318,10 @@ export type PackageStatus =
   | 'registered' | 'notified' | 'awaiting_payment' | 'paid'
   | 'out_for_delivery' | 'picked_up' | 'delivered'
   | 'returned' | 'cancelled'
+
+export type PaymentMethodValue = 'cash' | 'bank' | 'card' | 'qpay'
+export type PaymentRecordStatus = 'pending' | 'completed' | 'voided'
+export type InvoiceStatusValue = 'open' | 'paid' | 'cancelled'
 ```
 
 ### 3.7 Tailwind

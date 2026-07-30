@@ -93,6 +93,38 @@ const packageStatus = {
   cancelled: { label: 'Хүчингүй', color: '#DC2626', bg: '#FEF2F2' },
 };
 
+/**
+ * Төлбөрийн хэлбэр — §1.8. Өнгө нь СЕМАНТИК: бэлэн мөнгө нь кассын бодит
+ * үлдэгдэлтэй тулгагддаг тул тод, дансны гүйлгээ нь дараа батлагддаг тул хүйтэн.
+ */
+const paymentMethod = {
+  cash: { label: 'Бэлэн', color: '#16A34A', bg: '#F0FDF4' },
+  bank: { label: 'Данс', color: '#355DFF', bg: '#EEF2FF' },
+  card: { label: 'Карт', color: '#7C3AED', bg: '#F5F3FF' },
+  qpay: { label: 'QPay', color: '#0891B2', bg: '#ECFEFF' },
+};
+
+/** Төлбөрийн бичлэгийн төлөв — BR-14, BR-18 */
+const paymentRecordStatus = {
+  pending: { label: 'Батлагдаагүй', color: '#B45309', bg: '#FFFBEB' },
+  completed: { label: 'Орсон', color: '#16A34A', bg: '#F0FDF4' },
+  voided: { label: 'Хүчингүй', color: '#DC2626', bg: '#FEF2F2' },
+};
+
+/** Нэхэмжлэхийн төлөв — §2.3 */
+const invoiceStatus = {
+  open: { label: 'Нээлттэй', color: '#B45309', bg: '#FFFBEB' },
+  paid: { label: 'Төлөгдсөн', color: '#16A34A', bg: '#F0FDF4' },
+  cancelled: { label: 'Хүчингүй', color: '#DC2626', bg: '#FEF2F2' },
+};
+
+/** Ачааны төлбөрийн байдал — BR-14 */
+const paymentStatus = {
+  unpaid: { label: 'Төлөгдөөгүй', color: '#DC2626', bg: '#FEF2F2' },
+  partial: { label: 'Хэсэгчилсэн', color: '#B45309', bg: '#FFFBEB' },
+  paid: { label: 'Төлөгдсөн', color: '#16A34A', bg: '#F0FDF4' },
+};
+
 /** Хүргэлтийн төлөв — §5.1 */
 const deliveryStatus = {
   created: { label: 'Хүргэлт үүссэн', color: '#6B7280', bg: '#F3F4F6' },
@@ -150,6 +182,10 @@ export {
   surface,
   text,
   packageStatus,
+  paymentMethod,
+  paymentRecordStatus,
+  paymentStatus,
+  invoiceStatus,
   deliveryStatus,
   sizing,
   radius,
@@ -166,6 +202,10 @@ export default {
   surface,
   text,
   packageStatus,
+  paymentMethod,
+  paymentRecordStatus,
+  paymentStatus,
+  invoiceStatus,
   deliveryStatus,
   sizing,
   radius,

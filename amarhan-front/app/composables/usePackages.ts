@@ -153,10 +153,19 @@ export function usePackages() {
     }
   }
 
+  /**
+   * `allowedTransitions` нь ЗӨВХӨН ажилтан ГАРААР хийж болох шилжилтүүд —
+   * backend-ийн `manualTransitions()`. Системийн шилжилт (`paid`) ба хүчингүй
+   * болгох нь орохгүй: тэднийг товч болгон харуулбал дарах бүрт 409 гарна.
+   */
   const detail = (id: string) =>
-    call<{ package: CargoPackage; auditLogs: any[]; allowedTransitions: PackageStatusValue[] }>(
-      () => $axios.get(`${API}/packages/${id}`)
-    )
+    call<{
+      package: CargoPackage
+      auditLogs: any[]
+      // §2.2 — ачаанд орсон төлбөрүүд (хүчингүй болсныг ч оруулна)
+      payments: any[]
+      allowedTransitions: PackageStatusValue[]
+    }>(() => $axios.get(`${API}/packages/${id}`))
 
   const create = (payload: Record<string, any>) =>
     call<{ package: CargoPackage; warnings: string[] }>(() => $axios.post(`${API}/packages`, payload))

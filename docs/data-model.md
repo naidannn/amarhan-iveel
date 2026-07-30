@@ -303,15 +303,25 @@ schema.index({ paymentStatus: 1, status: 1 });
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
-| `invoiceNumber` | String, unique | Дараалсан дугаар |
-| `customerId` | ObjectId → `customers` | |
-| `items` | [{ packageId, trackingNumber, amount }] | Багтсан ачаанууд |
-| `totalAmount` | Number (₮) | `Σ items.amount` |
-| `paidAmount` | Number (₮) | |
+| `invoiceNumber` | String, unique | `INV-{YYMM}-{дараалал}` (BR-16b) |
+| `customerId` | ObjectId → `customers` | BR-16 — нэг нэхэмжлэхэд ЗӨВХӨН нэг харилцагч |
+| `customerPhone` | String | Хайлт, баримт хэвлэхэд хуулбарласан |
+| `items` | [{ packageId, trackingNumber, amount }] | Багтсан ачаанууд. `amount` = нэхэмжлэх үүсэх үеийн **үлдэгдэл** |
+| `totalAmount` | Number (₮) | `Σ items.amount` — үүсэх үед хөшөөлөгдөнө |
+| `paidAmount` | Number (₮) | Холбогдсон `completed` төлбөрүүдийн нийлбэр |
 | `status` | Enum: `open` \| `paid` \| `cancelled` | |
+| `branchId` | ObjectId → `branches` | BR-37 — Менежерийн хамрах хүрээ |
 | `createdBy` | ObjectId → `users` \| null | `null` = харилцагч өөрөө |
+| `cancelledAt`, `cancelReason` | Date, String | BR-18a |
 
-**Индекс:** `invoiceNumber` (unique), `{ customerId: 1, createdAt: -1 }`, `status`
+**Индекс:** `invoiceNumber` (unique), `{ customerId: 1, createdAt: -1 }`,
+`{ status: 1, createdAt: -1 }`, `createdAt`, `items.packageId` (BR-16a)
+
+> **ТООЦООНЫ ЭХ СУРВАЛЖ БИШ.** `items.amount` ба `totalAmount` нь баримт
+> хэвлэхэд зориулсан ХӨШӨӨЛӨГДСӨН утга. Ачааны `balance` үргэлж
+> `payments.allocations`-аас гарна (BR-14). `items.amount`-ыг `finalPrice`-ээр
+> биш **үлдэгдлээр** бичдэг: ачааны хэсэг өмнө төлөгдсөн байвал `finalPrice`-ээр
+> нэхэмжлэх нь аль хэдийн төлсөн мөнгийг дахин нэхэмжлэнэ (BR-16).
 
 ---
 
@@ -327,11 +337,14 @@ schema.index({ paymentStatus: 1, status: 1 });
 | `customerId` | ObjectId → `customers` | |
 | `allocations` | [{ packageId, amount }] | **Σ = `amount`** байх ёстой |
 | `status` | Enum: `pending` \| `completed` \| `voided` | |
-| `receivedBy` | ObjectId → `users` \| null | `null` = онлайн |
+| `receivedBy` | ObjectId → `users` \| null | `null` = онлайн (§2.1) |
+| `receivedByName` | String \| null | Кассын баримт тулгахад ажилтан устсан ч нэр үлдэнэ |
+| `branchId` | ObjectId → `branches` | BR-37 |
+| `note` | String \| null | Дансны гүйлгээний дугаар г.м. |
 | `provider` | String \| null | `qpay` |
 | `providerInvoiceId` | String \| null | QPay нэхэмжлэхийн ID |
 | `providerPaymentId` | String \| null | QPay төлбөрийн ID |
-| `voidedAt`, `voidReason` | Date, String | Устгахгүй, хүчингүй болгоно |
+| `voidedAt`, `voidedBy`, `voidReason` | Date, ObjectId, String | Устгахгүй, хүчингүй болгоно (BR-18) |
 
 **Индекс:**
 ```js
@@ -346,9 +359,32 @@ schema.index(
 );
 ```
 
-> **Пропорциональ хуваарилалт (§2.3):** `allocations`-ыг үнийн харьцаагаар бодохдоо
-> `Math.floor` ашиглаж, **дугуйруулалтын үлдэгдлийг сүүлийн ачаанд нэмнэ**. Ингэснээр
-> `Σ allocations.amount === amount` үргэлж яг таарна.
+> **ЭНЭ КОЛЛЕКЦ НЬ МӨНГӨНИЙ ЭХ СУРВАЛЖ.** `packages.paidAmount` / `balance` нь
+> үүнээс ГАРАЛТАЙ кэш (BR-14) — зөрвөл ЭНД байгаа нь зөв. Тиймээс бичлэгийг
+> ХЭЗЭЭ Ч устгахгүй, зөвхөн `voided` болгоно (BR-18).
+
+> **Пропорциональ хуваарилалт (§2.3):** `allocations`-ыг **үлдэгдлийн** харьцаагаар
+> (`finalPrice`-ийн БИШ) бодохдоо доогуур дугуйруулж, **үлдэгдлийг сүүлийн
+> ачаанд нэмнэ**. Ингэснээр `Σ allocations.amount === amount` үргэлж яг таарна
+> (BR-17). Тогтмолыг model-ийн `pre('validate')` мөн ДАХИН шалгана — домэйныг
+> тойрч гарах шинэ зам нэмэгдэхэд мөнгө чимээгүй «үүсэх/устах» боломжгүй байх
+> ёстой.
+
+> **`status: 'pending'` нь үлдэгдэлд ТООЦОГДОХГҮЙ** — батлагдаагүй онлайн
+> төлбөрийг төлөгдсөн гэж үзвэл төлөөгүй ачаа хүргэлтэнд гарна. Зөвхөн
+> `completed` тооцогдоно.
+
+---
+
+## 9a. `counters` — дараалсан дугаарын тоолуур
+
+| Талбар | Төрөл | Тайлбар |
+|---|---|---|
+| `key` | String, unique | `invoice` г.м. |
+| `seq` | Number | Атомик `$inc`-ээр өсдөг |
+
+Нэхэмжлэхийн дугаарт хэрэглэнэ (BR-16b). `countDocuments() + 1` нь зэрэг
+дуудлагад ижил тоо буцаадаг тул хэрэглэхгүй.
 
 ---
 

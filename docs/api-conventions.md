@@ -301,6 +301,48 @@ PUT    /api/v1/payments/invoices/:invoiceId/cancel  # BR-18a — Менежер,
 
 ---
 
+## 8b. Хүргэлтийн API (§5)
+
+```
+GET    /api/v1/deliveries                       # жагсаалт, шүүлттэй (§9.3)
+GET    /api/v1/deliveries/summary               # төлөв тус бүрийн тоо (өдрийн маршрут)
+GET    /api/v1/deliveries/deliverable/:phone    # хүргэлт үүсгэхийн ӨМНӨХ дэлгэц
+GET    /api/v1/deliveries/package/:packageId    # ачаа ямар хүргэлтүүдэд орсон
+POST   /api/v1/deliveries                       # хүргэлт үүсгэх (төлбөр шаардахгүй)
+PUT    /api/v1/deliveries/bulk/status           # өдрийн маршрутыг нэг дор гаргах
+GET    /api/v1/deliveries/:deliveryId           # дэлгэрэнгүй + unpaidTotal + audit
+PUT    /api/v1/deliveries/:deliveryId           # засах (зөвхөн `created` төлөвт)
+PUT    /api/v1/deliveries/:deliveryId/status    # BR-21 — төлөв өөрчлөх ганц зам
+PUT    /api/v1/deliveries/:deliveryId/cancel    # Менежер, Админ, шалтгаан заавал
+```
+
+Өдрийн маршрутыг товлосон огноогоор шүүнэ:
+`GET /deliveries?scheduledFrom=...&scheduledTo=...&status=created`
+
+**`PUT /:deliveryId/status` — §5.2-ын хаалт.** `status: 'dispatched'` үед багц
+доторх бүх ачааны `balance === 0` байх ёстой. Дутуу бол:
+
+```json
+{
+  "success": false,
+  "message": "Төлбөр дутуу байна: 12,000₮",
+  "code": "UNPAID_PACKAGES",
+  "details": {
+    "unpaidTotal": 12000,
+    "packages": [{ "id": "...", "trackingNumber": "TRK123", "balance": 12000 }]
+  }
+}
+```
+
+> **`force`, `override` гэсэн параметр БАЙХГҮЙ бөгөөд нэмэхийг хориглоно.**
+> Энэ хаалт нь эрхийн БИШ, домэйны хориг — Админ ч тойрч чадахгүй (§5.2).
+> `details.packages` нь UI-д аль ачааны төлбөр дутууг шууд заахад зориулагдсан.
+
+`GET /deliveries/:id` нь `allowedTransitions`-ыг **`manualTransitions()`**-ээс
+буцаана (`cancelled` орохгүй) — UI зөвхөн бодитоор ажиллах товч харуулна.
+
+---
+
 ## 9. Bulk үйлдэл
 
 Олон ачааг нэг дор боловсруулах (§1.9, §2.3):
@@ -308,12 +350,17 @@ PUT    /api/v1/payments/invoices/:invoiceId/cancel  # BR-18a — Менежер,
 ```
 POST /api/v1/payments/invoices       # олон ачаанаас нэхэмжлэх үүсгэх
 POST /api/v1/packages/bulk-status    # олон ачааны төлөв өөрчлөх
+PUT  /api/v1/deliveries/bulk/status  # олон хүргэлтийн төлөв өөрчлөх (§5)
 ```
 
-- Нэг хүсэлтэд дээд тал нь **200 элемент**. §1.9-д «20–40 ачаа» гэсэн ч
-  хязгаарыг өгөөмөр тавьсан — түүнээс дээш бол нэг HTTP хүсэлт хэт урт
-  ажиллаж, ажилтан хүлээнэ
-- Бүхэлдээ нэг транзакцад — нэг нь бүтэлгүйтвэл бүгд буцна
+- Нэг хүсэлтэд дээд тал нь **200 элемент** (хүргэлтийн багцад **100**). §1.9-д
+  «20–40 ачаа» гэсэн ч хязгаарыг өгөөмөр тавьсан — түүнээс дээш бол нэг HTTP
+  хүсэлт хэт урт ажиллаж, ажилтан хүлээнэ
+- Нэхэмжлэх үүсгэх нь **нэг транзакцад** — нэг нь бүтэлгүйтвэл бүгд буцна
+- Төлөв өөрчлөх bulk (`packages/bulk-status`, `deliveries/bulk/status`) нь
+  элемент бүрийг **ТУСДАА транзакцаар** хийнэ: 40 ачааны 39 нь зөв, 1 нь буруу
+  төлөвт байхад бүгдийг унагах нь ажилтныг гацуулна. Аль нь болсон, аль нь
+  болоогүйг тодорхой буцаана
 - Хариултад амжилтгүй болсон элемент бүрийн шалтгаан:
 
 ```json

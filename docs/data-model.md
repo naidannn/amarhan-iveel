@@ -392,22 +392,33 @@ schema.index(
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
-| `deliveryNumber` | String, unique | |
-| `customerId` | ObjectId → `customers` | |
-| `packageIds` | [ObjectId → `packages`] | |
-| `address`, `phone`, `note` | String | |
-| `status` | Enum: `created` \| `dispatched` \| `delivered` \| `returned` | §5.1 |
-| `driverId` | ObjectId → `users` \| null | |
-| `scheduledDate` | Date | |
-| `dispatchedAt`, `deliveredAt` | Date | |
+| `deliveryNumber` | String, unique | `DLV-YYMM-NNNNNN` (`counters`-ийн `delivery` түлхүүр) |
+| `customerId` | ObjectId → `customers` | Нэг хүргэлт = НЭГ харилцагч |
+| `customerPhone` | String (8 орон) | Хайлтад зориулж хуулбарласан (BR-27) |
+| `packageIds` | [ObjectId → `packages`] | Хоосон биш, давхардалгүй (`pre('validate')`) |
+| `address` | String, required | |
+| `phone` | String (8 орон) | **Хүлээн авагчийн** утас — `customerPhone`-оос ялгаатай байж болно (гэр бүл, ажлын хаяг). Заагаагүй бол харилцагчийнхыг авна |
+| `note` | String \| null | |
+| `status` | Enum: `created` \| `dispatched` \| `delivered` \| `returned` \| `cancelled` | §5.1, BR-21 |
+| `driverId` | ObjectId → `users` \| null | Системд бүртгэлтэй ажилтан |
+| `driverName`, `driverPhone` | String \| null | Гэрээт/гадны жолооч. `driverId` өгсөн үед нэр ХУУЛБАРЛАГДАНА — ажилтан устсан ч түүхэнд үлдэнэ |
+| `scheduledDate` | Date \| null | Өдрийн маршрутын бүлэглэл |
+| `dispatchedAt`, `deliveredAt` | Date \| null | |
 | `createdBy` | ObjectId → `users` \| null | `null` = харилцагч өөрөө |
-| `fee` | Number (₮) | Хүргэлтийн төлбөр (хэрэв авбал) |
+| `statusHistory` | [{ from, to, at, by, byName, reason }] | `packages.statusHistory`-ийн ижил бүтэц |
+| `cancelledAt`, `cancelReason` | Date \| String | Зөвхөн `cancelled` төлөвт |
+| `fee` | Number (₮) | Хүргэлтийн төлбөр. **ЗӨВХӨН МЭДЭЭЛЭЛ** — ачааны `balance`-д нөлөөлөхгүй, §5.2-ын хаалтад орохгүй (BR-21b, нээлттэй Q3) |
 
 **Индекс:** `deliveryNumber` (unique), `{ status: 1, scheduledDate: 1 }`,
-`{ customerId: 1, createdAt: -1 }`, `packageIds`
+`{ customerId: 1, createdAt: -1 }`, `packageIds`, `{ branchId: 1, createdAt: -1 }`,
+`{ createdAt: -1 }`, `{ driverId: 1, scheduledDate: -1 }`
+
+`packageIds` индекс нь хоёр зорилготой: ачааны дэлгэрэнгүйд хүргэлтийн түүх харах,
+мөн BR-20a-ийн «энэ ачаа идэвхтэй хүргэлтэд байна уу» шалгалт.
 
 > **§5.2 хаалт:** `created → dispatched` шилжихийн өмнө `packageIds`-ийн **бүх** ачааны
-> `balance === 0` байх ёстой. Override байхгүй.
+> `balance === 0` байх ёстой. Override байхгүй. Үлдэгдлийг транзакц дотор ачааг
+> ДАХИН уншиж бодно (BR-20) — гадуур уншсан утга хуучирсан байж болно.
 
 ---
 

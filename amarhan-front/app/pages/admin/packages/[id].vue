@@ -11,9 +11,11 @@ import {
   ShieldCheck,
   AlertTriangle,
   Wallet,
+  Truck,
 } from 'lucide-vue-next'
 import { ERROR_CODE, type CargoPackage, type PackageStatusValue } from '~/composables/usePackages'
 import { usePayments, type Payment } from '~/composables/usePayments'
+import type { Delivery } from '~/composables/useDeliveries'
 
 /**
  * Ачааны дэлгэрэнгүй — introduction.md §1
@@ -39,6 +41,7 @@ const id = computed(() => String(route.params.id))
 const pkg = ref<CargoPackage | null>(null)
 const auditLogs = ref<any[]>([])
 const payments = ref<Payment[]>([])
+const deliveries = ref<Delivery[]>([])
 const allowedTransitions = ref<PackageStatusValue[]>([])
 const loading = ref(true)
 
@@ -56,6 +59,7 @@ async function load() {
     pkg.value = result.package
     auditLogs.value = result.auditLogs ?? []
     payments.value = result.payments ?? []
+    deliveries.value = result.deliveries ?? []
     allowedTransitions.value = result.allowedTransitions ?? []
   } catch (e: any) {
     toast.error('Ачаа ачаалагдсангүй', { description: e.message })
@@ -679,6 +683,35 @@ const printOpen = ref(false)
                 >
                   Хүчингүй болгох
                 </UiBtn>
+              </li>
+            </ul>
+          </div>
+
+          <!-- §5 — Хүргэлтийн түүх (цуцлагдсаныг ч харуулна) -->
+          <div v-if="deliveries.length" class="card">
+            <h2 class="mb-3 flex items-center gap-2 text-h4 text-content">
+              <Truck :size="19" class="text-content-secondary" />
+              Хүргэлт
+            </h2>
+
+            <ul class="divide-y divide-surface-border">
+              <li
+                v-for="d in deliveries"
+                :key="d.id"
+                class="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                <div class="min-w-0">
+                  <NuxtLink
+                    :to="`/admin/deliveries/${d.id}`"
+                    class="tabular text-body font-semibold text-primary hover:underline"
+                  >
+                    {{ d.deliveryNumber }}
+                  </NuxtLink>
+                  <p class="mt-0.5 truncate text-body-sm text-content-secondary">
+                    {{ d.address }}
+                  </p>
+                </div>
+                <UiStatusBadge :status="d.status" kind="delivery" size="sm" />
               </li>
             </ul>
           </div>

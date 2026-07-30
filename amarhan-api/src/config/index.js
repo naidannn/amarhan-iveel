@@ -20,10 +20,23 @@ module.exports = {
     : ['http://localhost:3000', 'http://localhost:3500'],
   sessionSecret: process.env.SESSION_SECRET || process.env.APP_SECRET,
   server: {
-    googleClientID: process.env.GOOGLE_CLIENT_ID,
-    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL,
     frontendURL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  },
+  /**
+   * Google OAuth — ЗӨВХӨН ХАРИЛЦАГЧИЙН нэвтрэлт (§3).
+   *
+   * Ажилтныг Google-ээр нэвтрүүлэхгүй: ажилтны бүртгэлийг зөвхөн Админ
+   * үүсгэдэг (§9.1) бөгөөд Google-ээр автоматаар ажилтан үүсгэх нь эрх
+   * өөрөө өсгөх нүх болно — Phase 0-д яг ийм шалтгаанаар нээлттэй
+   * `POST /auth/register`-ыг хаасан.
+   */
+  google: {
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+    get enabled() {
+      return Boolean(this.clientID && this.clientSecret && this.callbackURL);
+    },
   },
   mongo: {
     uri: process.env.MONGOURI,
@@ -33,9 +46,19 @@ module.exports = {
     // Ажилтны токен — ажлын нэг ээлжийн урт
     staffAudience: 'staff',
     staffExpiresIn: process.env.JWT_STAFF_EXPIRES_IN || '8h',
-    // Харилцагчийн токен (Phase 5-д ашиглагдана)
+    // Харилцагчийн токен (Phase 5)
     customerAudience: 'customer',
     customerExpiresIn: process.env.JWT_CUSTOMER_EXPIRES_IN || '30d',
+    /**
+     * Google-ээр нэвтэрсэн ч утсаа хараахан өгөөгүй хүний ТҮР токен.
+     *
+     * Тусдаа audience байх ёстой: энэ токен ард нь бодит харилцагчийн бичлэг
+     * БАЙХГҮЙ тул `customer` audience-тай адилтгавал бүртгэлгүй хүн
+     * харилцагчийн endpoint рүү орох зам нээгдэнэ. Хугацаа нь нэг форм
+     * бөглөх л хэрэгтэй.
+     */
+    pendingAudience: 'customer_pending',
+    pendingExpiresIn: '15m',
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,

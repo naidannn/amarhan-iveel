@@ -46,4 +46,27 @@ const authLimiter = rateLimit({
   skip: () => config.env === 'test',
 });
 
-module.exports = { globalLimiter, authLimiter };
+/**
+ * Нэвтрэхгүйгээр хандах endpoint-ууд (`/v1/public/*`) — Phase 5.
+ *
+ * ЗААВАЛ тусдаа хязгаартай байх шалтгаан: ачаа хайх нь танилтгүй бөгөөд
+ * дугаараар л ажилладаг. Хязгааргүй бол дугаарын орон зайг дараалан
+ * туршиж (`ABC0001`, `ABC0002`, …) аль дугаар бодитоор бүртгэлтэйг, улмаар
+ * маскласан утасны эхний 4 оронг цуглуулах боломжтой.
+ *
+ * Ажилтны глобал хязгаараас (1,000) хамаагүй бага: бодит хэрэглэгч ачаагаа
+ * минутанд хэдэн арван удаа хайхгүй.
+ */
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  message: {
+    success: false,
+    message: 'Хайлт хэт олон. Хэсэг хугацааны дараа дахин оролдоно уу',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => config.env === 'test',
+});
+
+module.exports = { globalLimiter, authLimiter, publicLimiter };

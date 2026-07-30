@@ -39,6 +39,10 @@ class AuditService {
       reason = null,
       branchId = null,
       req = null,
+      // Ажилтан БИШ актерын нэрийг тодорхой бичихэд (жишээ: харилцагч өөрөө
+      // вэбээс хийсэн үйлдэл — Phase 5). `actor` нь `users` бичлэг биш тул
+      // `actorId` null үлдэж, түүхэнд хэн болох нь нэрээр л ялгагдана.
+      actorName = null,
     } = entry;
 
     if (!action || !entity) {
@@ -48,7 +52,7 @@ class AuditService {
     return auditLogRepository.record(
       {
         actorId: actor?._id ?? null,
-        actorName: this.describeActor(actor),
+        actorName: actorName ?? this.describeActor(actor),
         actorRole: actor?.role ?? null,
         action,
         entity,

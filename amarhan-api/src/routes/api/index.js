@@ -12,6 +12,9 @@ const auditRouter = require('./audit.route');
 const packageRouter = require('./package.route');
 const paymentRouter = require('./payment.route');
 const deliveryRouter = require('./delivery.route');
+const settingRouter = require('./setting.route');
+const customerWebRouter = require('./customer-web.route');
+const publicRouter = require('./public.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -39,5 +42,22 @@ router.use('/v1/payments', paymentRouter);
 // Phase 4 — хүргэлтийн модуль (§5). Төлбөрөөс ХАМААРНА: §5.2-ын хаалт нь
 // ачааны үлдэгдлийг уншиж шалгадаг.
 router.use('/v1/deliveries', deliveryRouter);
+
+// Phase 5 — тохиргоо ба статик агуулга. Унших: ажилтан, засах: Админ (§9.1).
+router.use('/v1/settings', settingRouter);
+
+/**
+ * Phase 5 — ХАРИЛЦАГЧИЙН вэб (§3).
+ *
+ * `/v1/customer` (ганц тоо) нь ХАРИЛЦАГЧ ӨӨРӨӨ ханддаг, `aud: 'customer'`
+ * токенээр хамгаалагдсан хэсэг. `/v1/customers` (олон тоо) нь АЖИЛТАН
+ * харилцагчийг удирддаг, `aud: 'staff'` хэсэг — хоёулаа зориуд ӨӨР
+ * танилтын гинжтэй. Нэрийн ялгаа нь бага тул route нэмэхдээ алийг нь
+ * өргөтгөж байгаагаа шалгана.
+ */
+router.use('/v1/customer', customerWebRouter);
+
+// Phase 5 — нэвтрэхгүйгээр: ачаа хайх, статик агуулга (§3).
+router.use('/v1/public', publicRouter);
 
 module.exports = router;

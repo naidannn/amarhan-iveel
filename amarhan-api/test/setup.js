@@ -3,8 +3,9 @@
 /**
  * Тестийн глобал тохиргоо (Mocha root hook plugin).
  *
- * Санах ойд ажиллах MongoDB-г REPLICA SET горимд эхлүүлнэ — транзакц шаардлагатай
- * (docs/testing.md §4). Бодит хөгжүүлэлтийн DB рүү тест хэзээ ч холбогдохгүй.
+ * Санах ойд ажиллах MongoDB-г STANDALONE горимд эхлүүлнэ — систем replica set/
+ * транзакц ашиглахгүй тул шаардлагагүй (docs/testing.md §4). Бодит хөгжүүлэлтийн
+ * DB рүү тест хэзээ ч холбогдохгүй.
  *
  * `--require`-ээр ачаалагдсан файл `before()`-ыг шууд дуудаж чадахгүй тул
  * Mocha-ийн `mochaHooks` экспортын хэлбэрийг ашиглав.
@@ -22,22 +23,20 @@ process.env.MONGOURI = process.env.MONGOURI || 'mongodb://127.0.0.1:27017/iveel-
 const chai = require('chai');
 const chaiAsPromised = require('chai-as-promised');
 const mongoose = require('mongoose');
-const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
 chai.use(chaiAsPromised);
 
-let replSet;
+let mongod;
 
 exports.mochaHooks = {
   async beforeAll() {
     // Анх ажиллуулахад mongod binary татагдана — удаж болно.
     this.timeout(180000);
 
-    replSet = await MongoMemoryReplSet.create({
-      replSet: { count: 1, storageEngine: 'wiredTiger' },
-    });
+    mongod = await MongoMemoryServer.create();
 
-    const uri = replSet.getUri();
+    const uri = mongod.getUri();
     process.env.MONGOURI = uri;
     process.env.MONGOTESTURI = uri;
 
@@ -56,6 +55,6 @@ exports.mochaHooks = {
 
   async afterAll() {
     await mongoose.disconnect();
-    if (replSet) await replSet.stop();
+    if (mongod) await mongod.stop();
   },
 };

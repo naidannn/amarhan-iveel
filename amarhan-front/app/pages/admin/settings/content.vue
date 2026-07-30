@@ -31,7 +31,15 @@ const erenhot = reactive({
   addressMn: '',
   note: '',
 })
-const contact = reactive({ phone: '', email: '', address: '', workingHours: '', facebook: '' })
+const contact = reactive({
+  phone: '',
+  email: '',
+  address: '',
+  workingHours: '',
+  facebook: '',
+  website: '',
+  googleMapsUrl: '',
+})
 const faq = ref<{ question: string; answer: string }[]>([])
 const notice = ref('')
 
@@ -211,6 +219,22 @@ const canEdit = computed(() => auth.isAdmin)
           </UiField>
           <UiField label="Facebook" for="facebook">
             <UiTextInput id="facebook" v-model="contact.facebook" :disabled="!canEdit" />
+          </UiField>
+          <UiField label="Вэб хуудас" for="website">
+            <UiTextInput
+              id="website"
+              v-model="contact.website"
+              :disabled="!canEdit"
+              placeholder="www.iweeltcargo.com"
+            />
+          </UiField>
+          <UiField label="Google Maps холбоос" for="google-maps">
+            <UiTextInput
+              id="google-maps"
+              v-model="contact.googleMapsUrl"
+              :disabled="!canEdit"
+              placeholder="https://maps.app.goo.gl/..."
+            />
           </UiField>
 
           <UiBtn

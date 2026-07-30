@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Truck, Info } from 'lucide-vue-next'
+import { Info } from 'lucide-vue-next'
 
 /**
  * Харилцагч бүртгүүлэх — introduction.md §3
@@ -50,11 +50,7 @@ useHead({ title: 'Бүртгүүлэх — Ивээл Карго' })
 <template>
   <div class="mx-auto max-w-sm py-8 sm:py-12">
     <div class="text-center">
-      <div
-        class="mx-auto flex h-11 w-11 items-center justify-center rounded-btn bg-primary text-content-inverse"
-      >
-        <Truck :size="22" :stroke-width="2.2" />
-      </div>
+      <img src="/logo-mark.png" alt="Ивээлт Карго" class="mx-auto h-11 w-11 rounded-btn object-cover" width="44" height="44" />
       <h1 class="mt-4 text-h1 font-bold text-content">Бүртгүүлэх</h1>
     </div>
 

@@ -37,7 +37,7 @@
 | [`security-and-permissions.md`](security-and-permissions.md) | Эрхийн матриц, audit log, аюулгүй байдал | Эрх / audit хөндөхөөс өмнө |
 | [`testing.md`](testing.md) | Тестийн стратеги, заавал байх тестүүд | Тест бичихээс өмнө |
 | [`git-workflow.md`](git-workflow.md) | Салаа, commit, PR дүрэм | Commit хийхээс өмнө |
-| [`setup-and-deployment.md`](setup-and-deployment.md) | Локал орчин, env, Docker, deploy | Орчин тохируулахад |
+| [`setup-and-deployment.md`](setup-and-deployment.md) | Локал орчин, env, deploy | Орчин тохируулахад |
 | [`glossary.md`](glossary.md) | Монгол ↔ англи нэр томьёо | Нэр сонгохдоо |
 
 ---

@@ -31,6 +31,8 @@ const VALUE_SCHEMAS = {
     address: Joi.string().trim().max(1000).allow('').default(''),
     workingHours: Joi.string().trim().max(500).allow('').default(''),
     facebook: Joi.string().trim().max(300).allow('').default(''),
+    website: Joi.string().trim().max(300).allow('').default(''),
+    googleMapsUrl: Joi.string().trim().max(500).allow('').default(''),
   }),
 
   [SETTING_KEY.CONTENT_FAQ]: Joi.array()

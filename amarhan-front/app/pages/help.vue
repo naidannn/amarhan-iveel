@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Phone, Mail, MapPin, Clock, ChevronDown } from 'lucide-vue-next'
+import { Phone, Mail, MapPin, Clock, ChevronDown, Globe, Map } from 'lucide-vue-next'
 
 /**
  * Тусламж — түгээмэл асуулт ба холбоо барих (roadmap 5.10).
@@ -20,6 +20,8 @@ const contactRows = computed(() =>
     { icon: Mail, label: 'Имэйл', value: contact.value?.email },
     { icon: MapPin, label: 'Хаяг', value: contact.value?.address },
     { icon: Clock, label: 'Ажиллах цаг', value: contact.value?.workingHours },
+    { icon: Globe, label: 'Вэб хуудас', value: contact.value?.website },
+    { icon: Map, label: 'Google Maps', value: contact.value?.googleMapsUrl },
   ].filter(row => row.value)
 )
 

@@ -139,6 +139,31 @@ class PackageRepository extends BaseRepository {
   }
 
   /**
+   * BR-15 — зэрэг ирсэн төлбөрүүд хамтдаа үлдэгдлээс хэтрэхээс сэргийлэх
+   * ганц найдвартай зам (`payment.service.js#reserveAllocations`). Query
+   * (`balance: { $gte: amount }`) ба update (`$inc`) НЭГ атомик үйлдэл тул
+   * MongoDB replica set/транзакц шаардахгүйгээр ч зэрэг хүсэлтийг зөв
+   * дараалуулна — олдохгүй бол (`null`) өөр хүсэлт балансыг аль хэдийн
+   * хэтэрхий бага болгосон гэсэн үг.
+   */
+  async reserveBalance(id, amount, { session } = {}) {
+    return this.model.findOneAndUpdate(
+      { _id: id, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true, ...(session ? { session } : {}) }
+    );
+  }
+
+  /** `reserveBalance`-ийн нөөцлөлтийг буцаана (all-or-nothing компенсаци). */
+  async releaseBalance(id, amount, { session } = {}) {
+    return this.model.findOneAndUpdate(
+      { _id: id },
+      { $inc: { balance: amount } },
+      { new: true, ...(session ? { session } : {}) }
+    );
+  }
+
+  /**
    * Байршлын ачааллыг эргэн тооцоолох cron-д (docs/data-model.md §7).
    *
    * `OCCUPIES_LOCATION`-ыг домэйнээс авч байгаа шалтгаан: `currentCount`-ыг

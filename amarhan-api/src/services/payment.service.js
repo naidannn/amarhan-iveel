@@ -120,6 +120,12 @@ class PaymentService {
 
       const resolved = this.buildAllocations(amount, context, allocations);
 
+      // BR-15 — зэрэг ирсэн хоёр төлбөр хамтдаа үлдэгдлээс хэтрэхээс сэргийлнэ.
+      // `buildAllocations`-ийн шалгалт `context.packages`-ийн УНШСАН (боломжит
+      // хуучин) `balance`-аар хийгддэг тул зэрэг хүсэлт хоёулаа мөн шалгалтыг
+      // давж болно. Энэ атомик нөөцлөлт нь бодит DB утгаар ДАХИН шалгана.
+      await this.reserveAllocations(resolved, { session });
+
       const branch = await branchResolver.resolveBranch(
         context.branchId ?? actor?.branchId ?? null
       );
@@ -436,6 +442,38 @@ class PaymentService {
         throw new APIError(error.message, httpStatus.UNPROCESSABLE_ENTITY, { code });
       }
       throw error;
+    }
+  }
+
+  /**
+   * BR-15 — зэрэг хоёр төлбөр хамтдаа үлдэгдлээс хэтрэхийг ХОРИГЛОНО.
+   *
+   * `withTransaction` дараалсан бичилт болсон тул (§9 шийдвэр #2) зэрэг ирсэн
+   * хоёр хүсэлт ижил `balance`-ыг УНШИЖ, хоёулаа зөв гэж дүгнэх боломжтой.
+   * Үүнээс сэргийлэхэд MongoDB-ийн **нэг баримт бичгийн атомик** `findOneAndUpdate`
+   * ашиглана — энэ нь replica set/транзакц шаардахгүй, standalone дээр ч
+   * найдвартай (баримт бичиг тус бүрийн бичилт үргэлж атомик). Аль нэг ачаан
+   * дээр нөөцлөлт бүтэлгүйтвэл өмнөх нөөцлөлтүүдийг буцааж, БҮГДИЙГ хориглоно
+   * (`create()` all-or-nothing зарчим хадгалагдана).
+   *
+   * `balance`-д хийсэн энэ өөрчлөлт ТҮР зуурын — `recalculatePackage` дараа нь
+   * эх сурвалжаас (payments.allocations) дахин бодож бичихэд дарагдана (BR-14).
+   */
+  async reserveAllocations(resolved, { session }) {
+    const reserved = [];
+    for (const { packageId, amount } of resolved) {
+      const pkg = await packageRepository.reserveBalance(packageId, amount, { session });
+      if (!pkg) {
+        for (const done of reserved) {
+          await packageRepository.releaseBalance(done.packageId, done.amount, { session });
+        }
+        throw new APIError(
+          'Үлдэгдлээс илүү дүн бүртгэх боломжгүй — өөр төлбөр зэрэг бүртгэгдсэн байж магадгүй',
+          httpStatus.UNPROCESSABLE_ENTITY,
+          { code: ERROR_CODE.OVERPAYMENT }
+        );
+      }
+      reserved.push({ packageId, amount });
     }
   }
 

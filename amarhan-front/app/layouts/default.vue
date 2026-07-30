@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Truck, Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard } from 'lucide-vue-next'
+import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard } from 'lucide-vue-next'
 
 /**
  * Харилцагчийн вэбийн layout — introduction.md §3
@@ -55,11 +55,7 @@ watch(
     <header class="sticky top-0 z-30 border-b border-surface-border bg-surface-card">
       <div class="mx-auto flex h-navbar max-w-6xl items-center gap-3 px-4 sm:px-6">
         <NuxtLink to="/" class="flex shrink-0 items-center gap-2.5">
-          <div
-            class="flex h-9 w-9 items-center justify-center rounded-btn bg-primary text-content-inverse"
-          >
-            <Truck :size="20" :stroke-width="2.2" />
-          </div>
+          <img src="/logo-mark.png" alt="Ивээлт Карго" class="h-9 w-9 rounded-btn object-cover" width="36" height="36" />
           <span class="font-bold text-content">Ивээл Карго</span>
         </NuxtLink>
 

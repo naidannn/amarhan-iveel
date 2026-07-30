@@ -323,6 +323,8 @@ exports.SETTING_DEFAULTS = {
     address: '',
     workingHours: '',
     facebook: '',
+    website: '',
+    googleMapsUrl: '',
   },
 
   // [{ question, answer }]

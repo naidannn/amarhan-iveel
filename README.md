@@ -36,7 +36,7 @@
 | Backend | Node.js 20, Express 4, MongoDB 7 (Mongoose) |
 | Frontend | Nuxt 4, Vue 3, Tailwind CSS, Pinia |
 | Тест | Mocha, Chai, mongodb-memory-server |
-| Бусад | JWT танилт, Joi валидац, Docker Compose |
+| Бусад | JWT танилт, Joi валидац |
 
 ---
 
@@ -45,10 +45,7 @@
 ### Шаардлага
 
 - Node.js 20 LTS
-- Docker (MongoDB-д) эсвэл MongoDB 7 **replica set горимд**
-
-> **replica set заавал.** Төлбөр ба audit log-ийг атомик бичихэд транзакц
-> шаардлагатай — standalone MongoDB дээр транзакц ажиллахгүй.
+- MongoDB 7 (**standalone** — replica set шаардлагагүй, систем транзакц ашигладаггүй)
 
 ### Суулгах
 
@@ -56,8 +53,7 @@
 git clone git@github.com:naidannn/amarhan-iveel.git
 cd amarhan-iveel
 
-# 1. MongoDB (replica set автоматаар эхэлнэ)
-docker compose up -d mongo mongo-init
+# 1. MongoDB — локал mongod аль хэдийн ажиллаж байгаа гэж үзнэ (порт 27017)
 
 # 2. Backend
 cd amarhan-api
@@ -79,7 +75,7 @@ npm run dev                   # http://localhost:3000
 ```bash
 # Backend (amarhan-api/)
 npm run dev            # nodemon
-npm test               # Mocha (санах ойн MongoDB, replica set)
+npm test               # Mocha (санах ойн MongoDB, standalone)
 npm run lint           # ESLint
 npm run format         # Prettier
 npm run seed:admin     # анхны админ үүсгэх
@@ -115,8 +111,7 @@ iveel-amarhan/
 │                      # controllers, routes, validations, middlewares, utils
 ├── amarhan-front/     # Frontend — Nuxt 4
 │   └── app/           # pages, components, composables, stores, layouts
-├── docs/              # Техникийн баримт бичиг
-└── docker-compose.yml
+└── docs/              # Техникийн баримт бичиг
 ```
 
 Давхаргын дүрэм: **Controller → Service → Repository → Model.**

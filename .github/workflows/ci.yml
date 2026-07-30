@@ -31,7 +31,7 @@ jobs:
       - name: Форматлалт шалгах
         run: npm run format:check
 
-      # mongodb-memory-server нь mongod binary-г татаж, replica set горимд
+      # mongodb-memory-server нь mongod binary-г татаж, standalone горимд
       # ажиллуулна — тусдаа MongoDB service шаардлагагүй.
       - name: Тест
         run: npm test

@@ -142,9 +142,9 @@ const [pkg, tariff] = await Promise.all([
 ]);
 ```
 
-### 2.8 Транзакц
+### 2.8 `withTransaction` — дараалсан бичилт
 
-Мөнгө, төлөв, audit хөндөх бүх үйлдэл нэг транзакцад:
+Мөнгө, төлөв, audit хөндөх бүх үйлдэл `withTransaction` дотор:
 
 ```js
 return withTransaction(async (session) => {
@@ -153,7 +153,13 @@ return withTransaction(async (session) => {
 });
 ```
 
-**Дүрэм:** нэг service метод дотор 2+ бичих үйлдэл байвал транзакц заавал.
+**Дүрэм:** нэг service метод дотор 2+ бичих үйлдэл байвал `withTransaction` заавал.
+
+> **Анхаар:** систем standalone MongoDB ашигладаг тул энэ нь жинхэнэ Mongo
+> транзакц/rollback БИШ — callback дотор дараалан бичдэг (`docs/architecture.md`
+> §4.3, §9 шийдвэр #2). `{ session }`-ийг дамжуулсаар байх ёстой (дуудагч талын
+> кодыг өөрчлөхгүйн тулд, session нь `undefined` байх болно), гэхдээ дунд
+> алхамд алдаа гарвал өмнөх бичлэг **буцаагдахгүй**.
 
 ### 2.9 Validation
 

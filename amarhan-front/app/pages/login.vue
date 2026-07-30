@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { Truck } from 'lucide-vue-next'
-
 /**
  * Харилцагчийн нэвтрэх хуудас — introduction.md §3
  *
@@ -45,11 +43,7 @@ useHead({ title: 'Нэвтрэх — Ивээл Карго' })
 <template>
   <div class="mx-auto max-w-sm py-8 sm:py-14">
     <div class="text-center">
-      <div
-        class="mx-auto flex h-11 w-11 items-center justify-center rounded-btn bg-primary text-content-inverse"
-      >
-        <Truck :size="22" :stroke-width="2.2" />
-      </div>
+      <img src="/logo-mark.png" alt="Ивээлт Карго" class="mx-auto h-11 w-11 rounded-btn object-cover" width="44" height="44" />
       <h1 class="mt-4 text-h1 font-bold text-content">Нэвтрэх</h1>
       <p class="mt-1.5 text-body text-content-secondary">
         Утасны дугаар эсвэл имэйлээрээ нэвтэрнэ үү

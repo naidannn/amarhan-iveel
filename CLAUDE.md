@@ -26,6 +26,13 @@
 > Салбарын seed код `ER` (Эрээн, Хятад) → `UB` (Улаанбаатар, Монгол) болов;
 > `UB` нь **түр утга**, бодит агуулахын кодыг эзэмшигчээс лавлана.
 
+> **Дэд бүтцийн хялбаршуулалт (2026-07-31):** Эзэмшигчийн шийдвэрээр MongoDB
+> replica set, Docker, AWS S3 бүгд репогоос хасагдсан. Систем одоо локал
+> **standalone** MongoDB руу шууд холбогддог, `withTransaction()` жинхэнэ Mongo
+> транзакц ХИЙХГҮЙ болсон (дараалсан бичилт, rollback баталгаа алга —
+> `docs/architecture.md` §4.3, §9 шийдвэр #2). Файл хадгалалт (AWS S3) хэрэгжээгүй
+> байсан тул код цэвэрхэн устсан (`s3-upload.js`, `aws-sdk`, `multer-s3`, `s3-zip`).
+
 **Phase 0–4 дууссан — MVP бэлэн** (ачаа бүртгэх → төлбөр авах → хүргэх өдөр
 тутмын урсгал бүрэн ажиллана). **Phase 5-ын цөм хэсэг дууссан** — харилцагч
 өөрөө бүртгүүлж, ачаа/төлбөрөө хянана. QPay (5.6–5.7), OTP (5.2), харилцагч
@@ -98,8 +105,7 @@ iveel-amarhan/
 │       ├── pages/  components/  composables/  stores/  layouts/  middleware/
 ├── docs/                 # Техникийн баримт бичиг (доор жагсаав)
 ├── introduction.md       # Бизнес шаардлага
-├── roadmap.md            # Хөгжүүлэлтийн төлөвлөгөө
-└── docker-compose.yml
+└── roadmap.md            # Хөгжүүлэлтийн төлөвлөгөө
 ```
 
 ---
@@ -137,8 +143,8 @@ npm run dev            # Nuxt dev server (port 3000)
 npm run build          # production build
 npm run preview
 
-# Бүхэлд нь
-docker compose up      # api + mongo (replica set горимд автоматаар эхэлнэ)
+# MongoDB — локал standalone mongod (Docker/replica set шаардлагагүй)
+mongod                 # эсвэл системийн mongod сервис аль хэдийн ажиллаж байгаа бол алгасна
 ```
 
 > Хоёулаа **npm** ашиглана (`package-lock.json`). Frontend-д `packageManager: yarn`
@@ -223,9 +229,9 @@ git түүхээс (`chore/p0-cleanup` салаа) харна уу. Гол өө�
 | JWT | 8 цагийн хугацаа + `aud: 'staff'` нэмэгдсэн (өмнө нь хугацаагүй байсан) |
 | Идэвхгүй ажилтан | Хүчинтэй токентой ч хаагдана |
 | Хатуу кодлосон нууц | qpay.js, slack.js устсан; s3-upload.js-ийнх арилсан; `demoLogin()` устсан |
-| MongoDB | docker-compose-д replica set (`rs0`) автоматаар эхэлнэ |
-| Транзакц | `src/utils/transaction.js` → `withTransaction()` |
-| Тест | mongodb-memory-server (replica set), 18 тест өнгөрдөг |
+| MongoDB | docker-compose-д replica set (`rs0`) автоматаар эхэлнэ *(2026-07-31: буцаагдсан, доор үзнэ үү)* |
+| Транзакц | `src/utils/transaction.js` → `withTransaction()` *(2026-07-31: session/rollback-гүй болсон)* |
+| Тест | mongodb-memory-server (replica set), 18 тест өнгөрдөг *(2026-07-31: standalone болсон)* |
 | Lint | ESLint 9 flat config, Prettier-тэй зөрчилдөхгүй |
 | CI | `.github/workflows/ci.yml` — lint, format, test, build, нууц түлхүүр шалгах |
 
@@ -234,9 +240,36 @@ git түүхээс (`chore/p0-cleanup` салаа) харна уу. Гол өө�
 дараа ажиллуулна.
 
 > ⚠️ **Алдагдсан эрхийг солих шаардлагатай** — эдгээр репод хатуу кодлогдсон байсан:
-> AWS IAM түлхүүр (`s3-upload.js`), Slack bot token (`slack.js`), QPay мерчант эрх
-> (`qpay.js`), SSH private key (`naidan-main.pem`, одоо `~/.ssh/`-д).
-> Утгыг нь энд бичихгүй — солих ажлыг гүйцэтгэсэн эсэхийг эзэмшигчээс лавлана.
+> AWS IAM түлхүүр (`s3-upload.js`, файл өөрөө 2026-07-31-нд устсан ч гэсэн УРЬД
+> commit хийгдсэн IAM түлхүүрийг солих шаардлага хэвээр байна), Slack bot token
+> (`slack.js`), QPay мерчант эрх (`qpay.js`), SSH private key (`naidan-main.pem`,
+> одоо `~/.ssh/`-д). Утгыг нь энд бичихгүй — солих ажлыг гүйцэтгэсэн эсэхийг
+> эзэмшигчээс лавлана.
+
+### 7.1 Дэд бүтцийн буцаалт (2026-07-31)
+
+Эзэмшигчийн шийдвэрээр Phase 0-ийн дараах шийдвэрүүдийг буцаасан:
+
+| Юу | Хуучин | Шинэ |
+|---|---|---|
+| MongoDB | Docker + replica set (`rs0`) | Локал **standalone** mongod, `.env`-ийн `MONGOURI` шууд заана |
+| Транзакц | `withTransaction()` жинхэнэ Mongo session/rollback-той | `withTransaction()` зөвхөн callback-аа дараалан ажиллуулна — **rollback байхгүй** |
+| Docker | `docker-compose.yml`, `amarhan-api/Dockerfile` | Устсан — dev ажиллуулахад Docker шаардахгүй |
+| Файл хадгалалт (AWS S3) | `s3-upload.js`, `aws-sdk`, `multer-s3`, `s3-zip` (код бэлэн ч route холбогдоогүй байсан) | Устсан |
+| Тест | `mongodb-memory-server` replica set горимд | `mongodb-memory-server` standalone горимд (илүү хурдан) |
+
+**Trade-off:** мөнгө/audit өөрчлөлтийн **атомик rollback баталгаа алдагдсан**
+(`docs/architecture.md` §9 шийдвэр #2, `docs/business-rules.md` BR-41). Хэрэв
+дараа нь атомик баталгаа дахин хэрэгтэй болвол replica set-ийг буцааж тохируулах
+хэрэгтэй (docker-compose-гүйгээр ч болно — `mongod --replSet rs0`).
+
+> **Илрүүлсэн регресс, засагдсан:** энэ өөрчлөлт хийхэд `payment.test.js`-ийн
+> "зэрэг орсон хоёр төлбөр хамтдаа хэтрэвэл нэг нь бүтэлгүйтнэ" (BR-15) тест
+> унасан — жинхэнэ транзакцын write-conflict илрүүлэлт байхгүй болсноор зэрэг
+> ирсэн хоёр төлбөр хамтдаа үлдэгдлээс хэтрэх боломжтой болсон байсан. Үүнийг
+> MongoDB-ийн **нэг баримт бичгийн атомик** `findOneAndUpdate` ашигласан
+> `reserveAllocations`-аар (`payment.service.js`, `package.repository.js`)
+> засварласан — эдгээр нь replica set шаардахгүй. Тест дахин ногоон.
 
 ---
 

@@ -72,8 +72,8 @@ amarhan-api/test/
 
 ## 4. Тестийн өгөгдөл
 
-**`mongodb-memory-server`** (replica set горимд — транзакц шаардлагатай). Бодит MongoDB
-руу тест холбохгүй.
+**`mongodb-memory-server`** (**standalone** горимд — систем replica set/транзакц
+ашигладаггүй, `docs/architecture.md` §9 шийдвэр #2). Бодит MongoDB руу тест холбохгүй.
 
 Factory ашиглана, шууд `Model.create` биш:
 
@@ -177,14 +177,19 @@ expect(logs[0].after).to.equal(29000);
 expect(logs[0].reason).to.not.be.empty;
 ```
 
-### 6.3 Транзакцын буцаалт
+### 6.3 Дараалсан бичилтийн алдаа (rollback БАЙХГҮЙ)
+
+> **2026-07-31 шинэчлэл:** систем standalone MongoDB дээр ажилладаг тул
+> `withTransaction()` rollback хийхгүй (§4, `docs/architecture.md` §4.3, §9
+> шийдвэр #2). Доорх тест ЗӨВ хуучин зан төлөл БИШ — харин одоогийн жинхэнэ
+> зан төлөлийг баримтжуулж байгаа: audit бичих алдаатай ч өмнөх өөрчлөлт үлдэнэ.
 
 ```js
-it('audit бичигдэхгүй бол үнийн өөрчлөлт ч хийгдэхгүй (BR-41)', async () => {
+it('audit бичихэд алдаа гарвал ч ӨМНӨХ өөрчлөлт үлдэнэ (rollback байхгүй)', async () => {
   stub(auditService, 'record').rejects(new Error('DB алдаа'));
   await expect(packageService.overridePrice(...)).to.be.rejected;
   const pkg = await Package.findById(id);
-  expect(pkg.finalPrice).to.equal(35000);   // өөрчлөгдөөгүй
+  expect(pkg.finalPrice).to.equal(29000);   // өөрчлөгдсөн ХЭВЭЭР — trade-off
 });
 ```
 

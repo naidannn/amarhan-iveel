@@ -18,7 +18,6 @@ module.exports = {
   corsOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
     : ['http://localhost:3000', 'http://localhost:3500'],
-  sessionSecret: process.env.SESSION_SECRET || process.env.APP_SECRET,
   server: {
     frontendURL: process.env.FRONTEND_URL || 'http://localhost:3000',
   },

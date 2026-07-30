@@ -273,31 +273,48 @@ QPay нэг төлбөрийн мэдэгдлийг олон удаа илгээ
 ```
 app/
 ├── pages/
-│   ├── index.vue                  # харилцагчийн нүүр
-│   ├── track/[number].vue         # ачаа хайх (нэвтрэхгүйгээр)
-│   ├── notifications.vue          # §7 — нэвтрээгүй ч харна
+│   ├── index.vue                  # харилцагчийн нүүр (SSR)
+│   ├── track/index.vue  track/[number].vue   # ачаа хайх (нэвтрэхгүйгээр)
+│   ├── address.vue                # §3 — Эрээний хүлээн авах хаяг
+│   ├── help.vue                   # FAQ + холбоо барих
+│   ├── login.vue  register.vue    # ХАРИЛЦАГЧийн нэвтрэлт
+│   ├── auth/google.vue            # Google-ийн буцах цэг
 │   ├── my/                        # харилцагчийн хувийн хэсэг
-│   │   ├── packages.vue  payments.vue  deliveries.vue  loyalty.vue
+│   │   ├── index.vue  packages/index.vue  packages/[id].vue
+│   │   └── payments.vue  deliveries.vue  profile.vue
 │   └── admin/
+│       ├── login.vue              # АЖИЛТНЫ нэвтрэлт — тусдаа
 │       ├── packages/index.vue  packages/new.vue  packages/[id].vue
 │       ├── payments/  deliveries/  warehouse/  reports/
-│       └── settings/  audit/
+│       └── settings/content.vue  audit.vue
 ├── components/
-│   ├── ui/                        # суурь: Button, Input, Modal, Table, Badge
-│   ├── package/                   # домэйн: PackageForm, StatusBadge, PackageTable
-│   ├── payment/  delivery/  warehouse/
-├── composables/                   # домэйн бүрт нэг: usePackages, usePayments, ...
-├── stores/                        # Pinia: auth, settings (глобал төлөв л энд)
+│   ├── ui/                        # суурь: Btn, TextInput, Modal, DataTable, Badge
+│   ├── package/  payment/  delivery/
+├── composables/                   # домэйн бүрт нэг: usePackages, useCustomerPortal, ...
+├── stores/                        # Pinia: auth (ажилтан), customer (харилцагч)
 ├── layouts/                       # default (харилцагч), admin (ажилтан)
-└── middleware/                    # auth (ажилтан), customer, role
+└── middleware/                    # auth (ажилтан), customer (харилцагч)
 ```
 
 **Дүрэм:**
 
-- Сервер өгөгдөл → **composable** (`usePackages`), Pinia store биш. Store-ыг зөвхөн
-  жинхэнэ глобал төлөвт (auth, тохиргоо) ашиглана.
+- Сервер өгөгдөл → **composable** (`usePackages`, `useCustomerPortal`), Pinia store
+  биш. Store-ыг зөвхөн жинхэнэ глобал төлөвт (нэвтрэлт) ашиглана.
 - Composable бүр `useApi`-г ашиглана — `$axios`-ыг компонентоос шууд дуудахгүй.
 - Хүснэгт/жагсаалтын хуудаслалт, шүүлт **үргэлж query параметрээр backend руу** явна.
+
+### Хоёр нэвтрэлт нэг браузерт (Phase 5)
+
+`auth` (ажилтан) ба `customer` store нь **тусдаа** `localStorage` түлхүүртэй
+(`auth_token` / `customer_token`). Нэг браузерт хоёулаа зэрэг байж болно —
+жишээ нь ажилтан ажлын компьютероосоо өөрийн ачаагаа хардаг. Нэг store
+хуваалцвал хоёр дахь нэвтрэлт эхнийхийг чимээгүй унтраана.
+
+`plugins/axios.ts` токеныг **хүсэлтийн ЗАМААР** сонгоно: `/api/v1/customer/*`
+бол харилцагчийнх, бусад нь ажилтных. Одоогийн route-аар (`useRoute().path`)
+шийдвэл нээлттэй хуудаснаас хийсэн хүсэлт аль токеныг авахаа мэдэхгүй, мөн
+навигацийн дундуур хүсэлт буруу толгойтой явж болно. 401 ч мөн замаар
+ялгагдана — харилцагчийн 401-д ажилтныг гаргах нь буруу.
 
 ---
 
@@ -305,11 +322,16 @@ app/
 
 | Сервис | Зориулалт | Phase | Тэмдэглэл |
 |---|---|---|---|
-| **QPay** | Онлайн төлбөр, callback | 4 | Одоогийн `qpay.js` нь өөр төслийнх — бүрэн дахин бичнэ |
-| **SMS gateway** | Ачаа ирсэн, төлбөр, хүргэлтийн мэдэгдэл | 5 | Үйлчилгээ үзүүлэгч сонгох шаардлагатай |
-| **Google OAuth** | Харилцагчийн нэвтрэлт | 4 | `passport-google-oauth20` аль хэдийн суусан |
+| **QPay** | Онлайн төлбөр, callback | 5.6 | ⛔ `qpay.js` Phase 0-д устсан — цэвэрээр дахин бичнэ |
+| **SMS gateway** | OTP (5.2), ачаа ирсэн/төлбөрийн мэдэгдэл | 6 | ⛔ Үйлчилгээ үзүүлэгч сонгоогүй |
+| **Google OAuth** | **Зөвхөн харилцагчийн** нэвтрэлт | 5 | ✅ `passport-setup.js` — `google-customer` strategy |
 | **AWS S3** | Ачааны зураг, экспорт файл | 2 | `s3-upload.js` бэлэн |
-| **OneSignal** | Push мэдэгдэл | 5 | Сонголтоор |
+| **OneSignal** | Push мэдэгдэл | 6 | Сонголтоор |
+
+> **Google-ээр АЖИЛТАН үүсгэхийг хориглоно.** Boilerplate-ийн strategy нь
+> нэвтэрсэн хүн бүрт `users` бичлэг үүсгэдэг байсан — Phase 0-д хаагдсан
+> нээлттэй `POST /auth/register`-тэй ижил, эрх өөрөө өсгөх нүх. Ажилтныг
+> зөвхөн Админ үүсгэнэ (§9.1).
 
 **Интеграцын дүрэм:** гадаад дуудлага бүр `src/integrations/<name>/` дотор, adapter
 интерфейсийн ард байрлана. Service давхарга adapter-ыг л мэднэ — ингэснээр үйлчилгээ

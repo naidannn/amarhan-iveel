@@ -125,12 +125,19 @@ const paymentStatus = {
   paid: { label: 'Төлөгдсөн', color: '#16A34A', bg: '#F0FDF4' },
 };
 
-/** Хүргэлтийн төлөв — §5.1 */
+/**
+ * Хүргэлтийн төлөв — §5.1
+ *
+ * `returned` нь шар (улаан БИШ): ачаа буцаж ирсэн нь алдаа биш, дахин
+ * гаргах боломжтой хэвийн үр дүн. Улаан нь зөвхөн `cancelled` —
+ * хүргэлт огт болоогүй.
+ */
 const deliveryStatus = {
   created: { label: 'Хүргэлт үүссэн', color: '#6B7280', bg: '#F3F4F6' },
   dispatched: { label: 'Хүргэлтэнд гарсан', color: '#0891B2', bg: '#ECFEFF' },
   delivered: { label: 'Амжилттай хүргэгдсэн', color: '#16A34A', bg: '#F0FDF4' },
-  returned: { label: 'Буцаагдсан', color: '#DC2626', bg: '#FEF2F2' },
+  returned: { label: 'Буцаагдсан', color: '#B45309', bg: '#FFFBEB' },
+  cancelled: { label: 'Цуцлагдсан', color: '#DC2626', bg: '#FEF2F2' },
 };
 
 /** Бүрэлдэхүүн хэсгийн хэмжээ — бүх интерактив элемент 40px өндөр */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, FileText, Wallet, Printer, PackageCheck, ArrowLeft } from 'lucide-vue-next'
+import { Search, FileText, Wallet, Printer, PackageCheck, ArrowLeft, Truck } from 'lucide-vue-next'
 import { usePayments, type Invoice, type Payment } from '~/composables/usePayments'
 import type { CargoPackage } from '~/composables/usePackages'
 
@@ -468,6 +468,14 @@ function backToSelect() {
           </p>
           <UiBtn variant="success" :icon="PackageCheck" block :loading="busy" @click="handOver">
             {{ invoice.items.length }} ачааг хүлээлгэн өгөх
+          </UiBtn>
+
+          <!--
+            §5 — салбараас авахгүй, хүргүүлэх бол тусдаа урсгал. Төлбөр
+            төлөгдсөн тул хүргэлт шууд гарах боломжтой (§5.2 хаалт нээгдсэн).
+          -->
+          <UiBtn class="mt-2" variant="secondary" :icon="Truck" block to="/admin/deliveries/new">
+            Хүргэлтээр авах
           </UiBtn>
         </div>
 

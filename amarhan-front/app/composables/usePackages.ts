@@ -164,6 +164,8 @@ export function usePackages() {
       auditLogs: any[]
       // §2.2 — ачаанд орсон төлбөрүүд (хүчингүй болсныг ч оруулна)
       payments: any[]
+      // §5.1 — ачаа орсон хүргэлтүүд (цуцлагдсаныг ч оруулна)
+      deliveries: any[]
       allowedTransitions: PackageStatusValue[]
     }>(() => $axios.get(`${API}/packages/${id}`))
 

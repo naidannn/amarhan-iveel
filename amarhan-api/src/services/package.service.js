@@ -85,11 +85,18 @@ class PackageService {
     const paymentRepository = require('../repositories/payment.repository');
     const payments = await paymentRepository.listForPackage(pkg._id);
 
+    // §5 — ачаа ямар хүргэлтэд орсон. Repository-г шууд дуудаж байгаа
+    // шалтгаан: `deliveryService` нь `packageService`-ийг шаарддаг.
+    const deliveryRepository = require('../repositories/delivery.repository');
+    const deliveries = await deliveryRepository.listForPackage(pkg._id);
+
     return {
       package: pkg,
       auditLogs,
       // §2.2 — ачаанд орсон төлбөрүүд (хүчингүй болсныг ч харуулна)
       payments,
+      // §5.1 — хүргэлтийн түүх (цуцлагдсаныг ч харуулна)
+      deliveries,
       /**
        * UI-д ямар товч харуулахыг backend шийднэ — дүрэм ганц газарт байх ёстой.
        *

@@ -78,8 +78,11 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
     });
 
     it('алдааны мессеж зөвшөөрөгдөх төлөвүүдийг МОНГОЛООР санал болгоно', () => {
+      // `registered → delivered` нь ХҮСНЭГТЭД ч байхгүй — тиймээс зөвшөөрөгдөх
+      // хувилбаруудыг санал болгоно. (`registered → paid` нь хүснэгтэд БАЙГАА,
+      // зөвхөн системийн зам тул өөр мессеж гарна — доор тусад нь шалгав.)
       try {
-        state.assertTransition(S.REGISTERED, S.PAID);
+        state.assertTransition(S.REGISTERED, S.DELIVERED);
         throw new Error('алдаа гарах ёстой байсан');
       } catch (err) {
         expect(err.message).to.include('Бүртгэгдсэн');

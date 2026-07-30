@@ -142,12 +142,15 @@ module.exports = new PackageService();
 (`src/domain/package-state.js`) тодорхойлж, service түүнийг л ашиглана.
 
 ```js
-// Замын төлөв БАЙХГҮЙ — бүртгэл нь ачаа Монголд ирсний дараа (BR-07)
+// Замын төлөв БАЙХГҮЙ — бүртгэл нь ачаа Монголд ирсний дараа (BR-07).
+// `paid` руу шууд орох нь СИСТЕМИЙН зам (төлбөр бүртгэгдэх) — гараар үсрэхгүй.
 const TRANSITIONS = {
-  registered:        ['notified', 'cancelled'],
-  notified:          ['awaiting_payment', 'cancelled'],
+  registered:        ['notified', 'awaiting_payment', 'paid', 'cancelled'],
+  notified:          ['awaiting_payment', 'paid', 'cancelled'],
   awaiting_payment:  ['paid', 'cancelled'],
-  paid:              ['out_for_delivery', 'picked_up'],
+  // `awaiting_payment` руу буцах нь төлбөр хүчингүй болсны залруулга (BR-18) —
+  // `SYSTEM_ONLY_EDGES` гараар хийхийг хориглоно
+  paid:              ['out_for_delivery', 'picked_up', 'awaiting_payment'],
   out_for_delivery:  ['delivered', 'returned'],
   picked_up:         ['delivered'],
   delivered:         [],

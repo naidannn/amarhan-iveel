@@ -10,8 +10,10 @@ import {
   History,
   ShieldCheck,
   AlertTriangle,
+  Wallet,
 } from 'lucide-vue-next'
 import { ERROR_CODE, type CargoPackage, type PackageStatusValue } from '~/composables/usePackages'
+import { usePayments, type Payment } from '~/composables/usePayments'
 
 /**
  * Ачааны дэлгэрэнгүй — introduction.md §1
@@ -27,6 +29,7 @@ definePageMeta({ layout: 'admin', middleware: 'auth' })
 
 const route = useRoute()
 const api = usePackages()
+const paymentApi = usePayments()
 const toast = useToast()
 const status = usePackageStatus()
 const auth = useAuthStore()
@@ -35,6 +38,7 @@ const id = computed(() => String(route.params.id))
 
 const pkg = ref<CargoPackage | null>(null)
 const auditLogs = ref<any[]>([])
+const payments = ref<Payment[]>([])
 const allowedTransitions = ref<PackageStatusValue[]>([])
 const loading = ref(true)
 
@@ -51,6 +55,7 @@ async function load() {
     const result = await api.detail(id.value)
     pkg.value = result.package
     auditLogs.value = result.auditLogs ?? []
+    payments.value = result.payments ?? []
     allowedTransitions.value = result.allowedTransitions ?? []
   } catch (e: any) {
     toast.error('Ачаа ачаалагдсангүй', { description: e.message })
@@ -173,6 +178,56 @@ async function applyPrice() {
     await load()
   } catch (e: any) {
     toast.error('Үнэ өөрчлөгдсөнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+// ── Төлбөр (§1.8, §2.2) ──────────────────────────────────────────────────
+const payOpen = ref(false)
+
+/**
+ * Төлбөрийн бичлэг ОЛОН ачаанд хуваарилагдсан байж болно (нэгтгэсэн нэхэмжлэх,
+ * §2.3). Тиймээс ЭНЭ ачааны хуудсанд бүтэн `payment.amount`-ыг харуулбал
+ * ажилтан хэт их дүн харж, тооцоо зөрсөн гэж бодно. Зөвхөн энэ ачаанд НОГДСОН
+ * хэсгийг харуулна.
+ */
+function allocationFor(payment: Payment) {
+  return payment.allocations
+    .filter(a => {
+      const pid = typeof a.packageId === 'object' && a.packageId !== null
+        ? a.packageId.id
+        : a.packageId
+      return String(pid) === id.value
+    })
+    .reduce((sum, a) => sum + a.amount, 0)
+}
+
+const voidOpen = ref(false)
+const voidTarget = ref<Payment | null>(null)
+const voidReason = ref('')
+
+function openVoid(payment: Payment) {
+  voidTarget.value = payment
+  voidReason.value = ''
+  voidOpen.value = true
+}
+
+async function applyVoid() {
+  if (!voidTarget.value || voidReason.value.trim().length < 3) {
+    toast.error('Хүчингүй болгох шалтгааныг бичнэ үү')
+    return
+  }
+  busy.value = true
+  try {
+    await paymentApi.voidPayment(voidTarget.value.id, voidReason.value.trim())
+    toast.success('Төлбөр хүчингүй болов', {
+      description: 'Ачааны үлдэгдэл дахин бодогдлоо',
+    })
+    voidOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Хүчингүй болсонгүй', { description: e.message, duration: 9000 })
   } finally {
     busy.value = false
   }
@@ -532,11 +587,30 @@ const printOpen = ref(false)
                   {{ formatCurrency(pkg.balance) }}
                 </dd>
               </div>
+              <div class="flex justify-between pt-1">
+                <dt class="text-content-secondary">Төлбөрийн байдал</dt>
+                <dd><UiStatusBadge :status="pkg.paymentStatus" kind="payment" size="sm" /></dd>
+              </div>
             </dl>
+
+            <!--
+              §1.8 — төлбөр авах нь ГОЛ үйлдэл тул `primary` товч.
+              Хүчингүй ачаанд төлбөр авах нь бүртгэгдээгүй мөнгө үүсгэнэ (backend
+              мөн хаана), бүрэн төлөгдсөнд авах юм байхгүй.
+            -->
+            <UiBtn
+              v-if="pkg.status !== 'cancelled' && pkg.balance > 0"
+              class="mt-4"
+              :icon="Wallet"
+              block
+              @click="payOpen = true"
+            >
+              Төлбөр авах
+            </UiBtn>
 
             <UiBtn
               v-if="pkg.status !== 'cancelled'"
-              class="mt-4"
+              class="mt-2"
               variant="secondary"
               :icon="Pencil"
               block
@@ -544,6 +618,69 @@ const printOpen = ref(false)
             >
               Үнэ өөрчлөх
             </UiBtn>
+          </div>
+
+          <!-- §2.2 — Төлбөрийн түүх -->
+          <div v-if="payments.length" class="card">
+            <h2 class="mb-3 flex items-center gap-2 text-h4 text-content">
+              <Wallet :size="19" class="text-content-secondary" />
+              Төлбөрийн түүх
+            </h2>
+
+            <ul class="divide-y divide-surface-border">
+              <li v-for="p in payments" :key="p.id" class="py-3 first:pt-0 last:pb-0">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p
+                      class="tabular text-body font-semibold"
+                      :class="
+                        p.status === 'voided'
+                          ? 'text-content-disabled line-through'
+                          : 'text-content'
+                      "
+                    >
+                      {{ formatCurrency(allocationFor(p)) }}
+                    </p>
+                    <p class="tabular mt-0.5 text-body-sm text-content-secondary">
+                      {{ formatDateTime(p.createdAt) }}
+                      <span v-if="p.receivedByName"> · {{ p.receivedByName }}</span>
+                    </p>
+                    <p
+                      v-if="p.voidReason"
+                      class="mt-0.5 text-body-sm italic text-content-secondary"
+                    >
+                      «{{ p.voidReason }}»
+                    </p>
+                  </div>
+
+                  <div class="flex shrink-0 flex-col items-end gap-1">
+                    <UiStatusBadge :status="p.method" kind="method" size="sm" />
+                    <UiStatusBadge
+                      v-if="p.status !== 'completed'"
+                      :status="p.status"
+                      kind="record"
+                      size="sm"
+                    />
+                  </div>
+                </div>
+
+                <!--
+                  BR-18 — устгахгүй, хүчингүй болгоно. Зөвхөн Менежер/Админ:
+                  хүчингүй болгох нь орсон мөнгийг "байхгүй" болгодог тул
+                  ажилтан өөрөө хийж чадвал кассын дутагдлыг нуух зам болно.
+                -->
+                <UiBtn
+                  v-if="isManagement && p.status === 'completed'"
+                  class="mt-2"
+                  size="sm"
+                  variant="ghost"
+                  :icon="Ban"
+                  @click="openVoid(p)"
+                >
+                  Хүчингүй болгох
+                </UiBtn>
+              </li>
+            </ul>
           </div>
 
           <!-- Байршил -->
@@ -589,6 +726,32 @@ const printOpen = ref(false)
       </div>
 
       <!-- ── Модалууд ────────────────────────────────────────────────── -->
+
+      <!-- §1.8 — төлбөр авах. `packages` нь массив: ижил компонент
+           нэгтгэсэн нэхэмжлэхэд олон ачаатай хэрэглэгдэнэ (§2.3) -->
+      <PaymentPayModal v-model="payOpen" :packages="[pkg]" @paid="load" />
+
+      <UiModal v-model="voidOpen" title="Төлбөрийг хүчингүй болгох" size="sm" persistent>
+        <div class="space-y-4">
+          <p class="text-body text-content-secondary">
+            <span class="tabular font-semibold text-content">
+              {{ voidTarget ? formatCurrency(voidTarget.amount) : '' }}
+            </span>
+            дүнтэй төлбөр хүчингүй болно. Бичлэг УСТАХГҮЙ — ачааны үлдэгдэл дахин
+            бодогдож, төлөв нь «Төлбөр хүлээгдэж буй» болж залруулагдана.
+          </p>
+
+          <UiField label="Шалтгаан" required hint="Audit Log-д бичигдэнэ">
+            <UiTextArea v-model="voidReason" :rows="2" placeholder="Жишээ: дансаар ороогүй" />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="voidOpen = false">Болих</UiBtn>
+          <UiBtn variant="danger" :loading="busy" @click="applyVoid">Хүчингүй болгох</UiBtn>
+        </template>
+      </UiModal>
+
       <UiModal v-model="statusOpen" title="Төлөв өөрчлөх">
         <div class="space-y-4">
           <p class="text-body text-content-secondary">

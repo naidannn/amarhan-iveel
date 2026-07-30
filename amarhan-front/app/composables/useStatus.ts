@@ -64,6 +64,37 @@ export function usePackageStatus() {
   return { style, label, progress, FLOW, all: map }
 }
 
+/**
+ * Төлбөрийн харагдах байдал — §1.8, §2.2
+ *
+ * Дөрвөн ӨӨР зүйлийг ялгаж байгаа шалтгаан:
+ *   `method`       — ЯМАР хэлбэрээр орсон (бэлэн/данс/карт/QPay)
+ *   `recordStatus` — тухайн БИЧЛЭГ хүчинтэй эсэх (orson/батлагдаагүй/хүчингүй)
+ *   `paymentStatus`— АЧААНЫ төлбөрийн байдал (төлөгдөөгүй/хэсэгчилсэн/төлөгдсөн)
+ *   `invoiceStatus`— НЭХЭМЖЛЭХИЙН төлөв
+ *
+ * Эдгээрийг холивол «Хүчингүй» гэсэн ижил үг ачаа, төлбөр, нэхэмжлэхэд
+ * өөр өөр утга агуулсан хэвээр нэг өнгөтэй болно.
+ */
+export function usePaymentStyles() {
+  function pick(map: Record<string, StatusStyle>) {
+    return {
+      style: (key: string | null | undefined): StatusStyle =>
+        (key ? map[key] : undefined) ?? UNKNOWN,
+      label: (key: string | null | undefined): string =>
+        ((key ? map[key] : undefined) ?? UNKNOWN).label,
+      all: map,
+    }
+  }
+
+  return {
+    method: pick(tokens.paymentMethod as Record<string, StatusStyle>),
+    recordStatus: pick(tokens.paymentRecordStatus as Record<string, StatusStyle>),
+    paymentStatus: pick(tokens.paymentStatus as Record<string, StatusStyle>),
+    invoiceStatus: pick(tokens.invoiceStatus as Record<string, StatusStyle>),
+  }
+}
+
 export function useDeliveryStatus() {
   const map = tokens.deliveryStatus as Record<string, StatusStyle>
 

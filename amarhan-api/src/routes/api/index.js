@@ -10,6 +10,7 @@ const tariffRouter = require('./tariff.route');
 const customerRouter = require('./customer.route');
 const auditRouter = require('./audit.route');
 const packageRouter = require('./package.route');
+const paymentRouter = require('./payment.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -29,5 +30,9 @@ router.use('/v1/audit-logs', auditRouter);
 
 // Phase 2 — ачааны модуль (§1)
 router.use('/v1/packages', packageRouter);
+
+// Phase 3 — төлбөрийн модуль (§1.8, §2). Нэхэмжлэх нь `/payments/invoices`-д
+// байрлана: тэр нь бие даасан объект БИШ, төлбөр авах урсгалын хэсэг (§2.3).
+router.use('/v1/payments', paymentRouter);
 
 module.exports = router;

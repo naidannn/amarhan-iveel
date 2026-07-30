@@ -315,9 +315,9 @@ export interface Package {
 }
 
 export type PackageStatus =
-  | 'registered' | 'in_transit' | 'arrived' | 'notified'
-  | 'awaiting_payment' | 'paid' | 'out_for_delivery'
-  | 'picked_up' | 'delivered' | 'returned' | 'cancelled'
+  | 'registered' | 'notified' | 'awaiting_payment' | 'paid'
+  | 'out_for_delivery' | 'picked_up' | 'delivered'
+  | 'returned' | 'cancelled'
 ```
 
 ### 3.7 Tailwind

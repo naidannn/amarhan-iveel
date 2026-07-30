@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
-// `resolveComponent('NuxtLink')` БИШ: тэр функц `<script setup>`-ийн scope-д
-// байхгүй тул template-ээс дуудахад "Failed to resolve component" гарч, `to`
-// prop-той товч бүр эвдэрдэг. `#components`-ээс шууд импортлох нь тодорхой.
-import { NuxtLink } from '#components'
 
 /**
  * Товч — Design System v1
@@ -45,21 +41,45 @@ const isDisabled = computed(() => props.disabled || props.loading)
 const iconSize = computed(() => (props.size === 'sm' ? 15 : 17))
 </script>
 
+<!--
+  ЯАГААД `<component :is>` БИШ, харин хоёр тодорхой салаа:
+
+  `:is="... ? NuxtLink : 'button'"` гэж бичих нь NuxtLink-ыг АЖИЛЛАХ ҮЕД
+  шийдүүлэхийг шаарддаг. `resolveComponent('NuxtLink')` нь `<script setup>`-ийн
+  scope-д байхгүй, `#components`-ээс импортлосон хувилбар нь SSR-д зөв шийдэгдэхгүй
+  — хоёр тохиолдолд ч "Failed to resolve component: NuxtLink" гарч, `to` prop-той
+  товч бүр эвдэрдэг (сайдбарын навигаци, жагсаалтын товчнууд).
+
+  `<NuxtLink>`-ыг ТАГААР бичихэд Vue-ийн компилятор нь BUILD үед шийддэг —
+  ажиллах үеийн шийдэлт байхгүй, тиймээс эвдэх зүйл ч байхгүй.
+
+  Дотоод агуулга нь хоёр салаанд давтагдахгүйн тулд `#inner` slot-д байна.
+-->
 <template>
-  <component
-    :is="to && !isDisabled ? NuxtLink : 'button'"
-    :to="to && !isDisabled ? to : undefined"
-    :type="to ? undefined : type"
-    :disabled="to ? undefined : isDisabled"
+  <NuxtLink
+    v-if="to && !isDisabled"
+    :to="to"
+    :aria-busy="loading || undefined"
+    class="inline-flex items-center justify-center rounded-btn font-semibold transition-all duration-200 ease-out"
+    :class="[VARIANTS[variant], SIZES[size], block && 'w-full']"
+  >
+    <Loader2 v-if="loading" :size="iconSize" :stroke-width="2.4" class="animate-spin" />
+    <component v-else-if="icon" :is="icon" :size="iconSize" :stroke-width="2.2" />
+    <slot />
+    <component v-if="iconRight && !loading" :is="iconRight" :size="iconSize" :stroke-width="2.2" />
+  </NuxtLink>
+
+  <button
+    v-else
+    :type="type"
+    :disabled="isDisabled"
     :aria-busy="loading || undefined"
     class="inline-flex items-center justify-center rounded-btn font-semibold transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
     :class="[VARIANTS[variant], SIZES[size], block && 'w-full']"
   >
     <Loader2 v-if="loading" :size="iconSize" :stroke-width="2.4" class="animate-spin" />
     <component v-else-if="icon" :is="icon" :size="iconSize" :stroke-width="2.2" />
-
     <slot />
-
     <component v-if="iconRight && !loading" :is="iconRight" :size="iconSize" :stroke-width="2.2" />
-  </component>
+  </button>
 </template>

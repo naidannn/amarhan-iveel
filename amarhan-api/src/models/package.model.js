@@ -67,10 +67,15 @@ const packageSchema = new Schema(
     },
 
     // ── Хэмжигдэхүүн (§1.1) ───────────────────────────────────────────────
+    /**
+     * Ачааны төрөл нь ТАРИФЫГ хайхад хэрэглэгддэг. Ажилтан үнийг гараар
+     * заасан үед (BR-01a) тариф хэрэглэгдэхгүй тул төрөл ч шаардлагагүй —
+     * ийм үед `null`. Зохиомол төрөл сонгуулах нь тайланг гажуудуулна.
+     */
     cargoTypeId: {
       type: Schema.Types.ObjectId,
       ref: 'CargoType',
-      required: true,
+      default: null,
     },
     quantity: {
       type: Number,
@@ -105,6 +110,12 @@ const packageSchema = new Schema(
     /**
      * BR-02 — бүртгэх үеийн тарифын УТГА ачаанд хуулагдана.
      * Тариф хожим өөрчлөгдөхөд ЭНЭ ачааны үнэ тайлбарлагдах чадвартай хэвээр байна.
+     *
+     * `null` байх ЦОРЫН ГАНЦ тохиолдол: ажилтан үнийг гараар заасан
+     * (`priceSource: 'manual'`, BR-01a). Тэр үед тариф ОГТ хэрэглэгдээгүй тул
+     * хуулах утга байхгүй — хоосон snapshot хадгалбал "тарифаар бодогдсон"
+     * гэсэн хуурамч дүр төрх үүсэх ба ачааг засахад буруу тарифаар дахин
+     * бодогдоно.
      */
     pricingSnapshot: {
       type: {
@@ -118,7 +129,7 @@ const packageSchema = new Schema(
         tariffVersionId: { type: Schema.Types.ObjectId, ref: 'TariffVersion' },
         _id: false,
       },
-      required: true,
+      default: null,
     },
     // Систем бодсон дүн — override хийсэн ч ХЭВЭЭР үлдэнэ (audit-д хэрэгтэй)
     computedPrice: {
@@ -204,7 +215,7 @@ const packageSchema = new Schema(
       ref: 'WarehouseLocation',
       default: null,
     },
-    // Хайлтад зориулж хуулбарласан (`ER-02-B-15`)
+    // Хайлтад зориулж хуулбарласан (`UB-02-B-15`)
     locationCode: {
       type: String,
       uppercase: true,

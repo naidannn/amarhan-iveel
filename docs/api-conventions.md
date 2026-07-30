@@ -130,7 +130,7 @@ DELETE /api/v1/packages/:packageId           # бүрмөсөн устгах (з
 
 ```
 GET /api/v1/packages?status=awaiting_payment&branchId=...&phone=99112233
-                    &locationCode=ER-02-B-15&from=2026-07-01&to=2026-07-30
+                    &locationCode=UB-02-B-15&from=2026-07-01&to=2026-07-30
                     &page=1&limit=50
 ```
 

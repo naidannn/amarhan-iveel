@@ -13,7 +13,7 @@ class WarehouseLocationRepository extends BaseRepository {
   }
 
   /**
-   * §8 — байршлаар хайх. Хэсэгчилсэн код (`ER-02`) ч ажиллана.
+   * §8 — байршлаар хайх. Хэсэгчилсэн код (`UB-02`) ч ажиллана.
    * `code` индекслэгдсэн бөгөөд эхнээс нь тулгах тул index ашиглагдана.
    */
   async search(query = {}, options = {}) {

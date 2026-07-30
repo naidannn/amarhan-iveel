@@ -10,9 +10,9 @@ const {
 
 describe('BR-22 — Агуулахын байршлын код (§8)', () => {
   describe('Код угсрах', () => {
-    it('шаардлагын жишээг яг үүсгэнэ: ER-02-B-15', () => {
-      const code = formatLocationCode({ branch: 'ER', room: 2, shelf: 'B', row: 1, cell: 5 });
-      expect(code).to.equal('ER-02-B-15');
+    it('шаардлагын жишээг яг үүсгэнэ: UB-02-B-15', () => {
+      const code = formatLocationCode({ branch: 'UB', room: 2, shelf: 'B', row: 1, cell: 5 });
+      expect(code).to.equal('UB-02-B-15');
     });
 
     it('өрөөний дугаарыг 2 орон болгож гүйцээнэ', () => {
@@ -22,15 +22,15 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
     });
 
     it('жижиг үсгийг том болгоно', () => {
-      expect(formatLocationCode({ branch: 'er', room: 2, shelf: 'b', row: 1, cell: 5 })).to.equal(
-        'ER-02-B-15'
+      expect(formatLocationCode({ branch: 'ub', room: 2, shelf: 'b', row: 1, cell: 5 })).to.equal(
+        'UB-02-B-15'
       );
     });
 
     it('өрөөг мөр хэлбэрээр өгсөн ч ажиллана', () => {
       expect(
-        formatLocationCode({ branch: 'ER', room: '02', shelf: 'B', row: 1, cell: 5 })
-      ).to.equal('ER-02-B-15');
+        formatLocationCode({ branch: 'UB', room: '02', shelf: 'B', row: 1, cell: 5 })
+      ).to.equal('UB-02-B-15');
     });
 
     it('салбарын код 2 үсэг биш бол алдаа', () => {
@@ -47,37 +47,37 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
 
     it('өрөө 99-аас их бол алдаа', () => {
       expect(() =>
-        formatLocationCode({ branch: 'ER', room: 100, shelf: 'B', row: 1, cell: 5 })
+        formatLocationCode({ branch: 'UB', room: 100, shelf: 'B', row: 1, cell: 5 })
       ).to.throw(/Өрөөний дугаар/);
     });
 
     it('тавиур 1 үсэг биш бол алдаа', () => {
       expect(() =>
-        formatLocationCode({ branch: 'ER', room: 2, shelf: 'BB', row: 1, cell: 5 })
+        formatLocationCode({ branch: 'UB', room: 2, shelf: 'BB', row: 1, cell: 5 })
       ).to.throw(/Тавиурын код/);
     });
 
     it('мөр 1–9-ээс гадуур бол алдаа', () => {
       expect(() =>
-        formatLocationCode({ branch: 'ER', room: 2, shelf: 'B', row: 0, cell: 5 })
+        formatLocationCode({ branch: 'UB', room: 2, shelf: 'B', row: 0, cell: 5 })
       ).to.throw(/Мөрийн дугаар/);
       expect(() =>
-        formatLocationCode({ branch: 'ER', room: 2, shelf: 'B', row: 10, cell: 5 })
+        formatLocationCode({ branch: 'UB', room: 2, shelf: 'B', row: 10, cell: 5 })
       ).to.throw(/Мөрийн дугаар/);
     });
 
     it('нүд 1–9-ээс гадуур бол алдаа', () => {
       expect(() =>
-        formatLocationCode({ branch: 'ER', room: 2, shelf: 'B', row: 1, cell: 0 })
+        formatLocationCode({ branch: 'UB', room: 2, shelf: 'B', row: 1, cell: 0 })
       ).to.throw(/Нүдний дугаар/);
     });
   });
 
   describe('Код задлах', () => {
     it('бүрдэл хэсгүүдэд зөв задална', () => {
-      const parts = parseLocationCode('ER-02-B-15');
+      const parts = parseLocationCode('UB-02-B-15');
       expect(parts).to.deep.equal({
-        branch: 'ER',
+        branch: 'UB',
         room: '02',
         roomNumber: 2,
         shelf: 'B',
@@ -87,11 +87,11 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
     });
 
     it('жижиг үсэг, зайг тэвчинэ', () => {
-      expect(parseLocationCode('  er-02-b-15  ').branch).to.equal('ER');
+      expect(parseLocationCode('  ub-02-b-15  ').branch).to.equal('UB');
     });
 
     it('буруу форматад алдаа өгнө', () => {
-      const invalid = ['ER-2-B-15', 'ER-02-BB-15', 'ER-02-B-1', 'ER02B15', '', null, 'ER-02-B-155'];
+      const invalid = ['UB-2-B-15', 'UB-02-BB-15', 'UB-02-B-1', 'UB02B15', '', null, 'UB-02-B-155'];
       invalid.forEach(code => {
         expect(() => parseLocationCode(code), `"${code}"`).to.throw(/формат буруу/);
       });
@@ -100,7 +100,7 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
 
   describe('Угсрах ⇄ задлах эргэлт', () => {
     it('угсарсан кодыг задлахад анхны утга гарна', () => {
-      const input = { branch: 'ER', room: 12, shelf: 'C', row: 4, cell: 7 };
+      const input = { branch: 'UB', room: 12, shelf: 'C', row: 4, cell: 7 };
       const parsed = parseLocationCode(formatLocationCode(input));
       expect(parsed.branch).to.equal(input.branch);
       expect(parsed.roomNumber).to.equal(input.room);
@@ -112,7 +112,7 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
 
   describe('Хүчинтэй эсэхийг шалгах', () => {
     it('зөв кодод true', () => {
-      expect(isValidLocationCode('ER-02-B-15')).to.equal(true);
+      expect(isValidLocationCode('UB-02-B-15')).to.equal(true);
     });
 
     it('буруу кодод false (алдаа шидэхгүй)', () => {
@@ -123,24 +123,24 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
 
   describe('Тавиурын бүх нүдийг үүсгэх (bulk seed)', () => {
     it('мөр × нүдний тоогоор код үүсгэнэ', () => {
-      const codes = generateShelfCodes({ branch: 'ER', room: 2, shelf: 'B', rows: 3, cells: 4 });
+      const codes = generateShelfCodes({ branch: 'UB', room: 2, shelf: 'B', rows: 3, cells: 4 });
       expect(codes).to.have.lengthOf(12);
-      expect(codes[0].code).to.equal('ER-02-B-11');
-      expect(codes[11].code).to.equal('ER-02-B-34');
+      expect(codes[0].code).to.equal('UB-02-B-11');
+      expect(codes[11].code).to.equal('UB-02-B-34');
     });
 
     it('үүсгэсэн код бүр давхардахгүй', () => {
-      const codes = generateShelfCodes({ branch: 'ER', room: 1, shelf: 'A', rows: 9, cells: 9 });
+      const codes = generateShelfCodes({ branch: 'UB', room: 1, shelf: 'A', rows: 9, cells: 9 });
       const unique = new Set(codes.map(c => c.code));
       expect(codes).to.have.lengthOf(81);
       expect(unique.size).to.equal(81);
     });
 
     it('бүрдэл хэсгүүдийг хамт буцаана', () => {
-      const [first] = generateShelfCodes({ branch: 'er', room: 2, shelf: 'b', rows: 1, cells: 1 });
+      const [first] = generateShelfCodes({ branch: 'ub', room: 2, shelf: 'b', rows: 1, cells: 1 });
       expect(first).to.deep.equal({
-        code: 'ER-02-B-11',
-        branch: 'ER',
+        code: 'UB-02-B-11',
+        branch: 'UB',
         room: '02',
         shelf: 'B',
         row: 1,
@@ -150,10 +150,10 @@ describe('BR-22 — Агуулахын байршлын код (§8)', () => {
 
     it('хязгаараас давсан мөр/нүдэнд алдаа', () => {
       expect(() =>
-        generateShelfCodes({ branch: 'ER', room: 2, shelf: 'B', rows: 10, cells: 4 })
+        generateShelfCodes({ branch: 'UB', room: 2, shelf: 'B', rows: 10, cells: 4 })
       ).to.throw(/Мөрийн тоо/);
       expect(() =>
-        generateShelfCodes({ branch: 'ER', room: 2, shelf: 'B', rows: 3, cells: 0 })
+        generateShelfCodes({ branch: 'UB', room: 2, shelf: 'B', rows: 3, cells: 0 })
       ).to.throw(/Нүдний тоо/);
     });
   });

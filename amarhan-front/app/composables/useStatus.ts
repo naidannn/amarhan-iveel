@@ -10,8 +10,6 @@ import tokens from '~/assets/design-tokens'
 
 export type PackageStatus =
   | 'registered'
-  | 'in_transit'
-  | 'arrived'
   | 'notified'
   | 'awaiting_payment'
   | 'paid'
@@ -50,8 +48,6 @@ export function usePackageStatus() {
   /** Дэвшлийн мөрөнд ашиглах — төлөв урсгалын хэдэн дэх алхам вэ */
   const FLOW: PackageStatus[] = [
     'registered',
-    'in_transit',
-    'arrived',
     'notified',
     'awaiting_payment',
     'paid',

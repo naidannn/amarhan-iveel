@@ -33,7 +33,7 @@ const phone = Joi.string().trim().min(8).max(20);
 const locationCode = Joi.string()
   .uppercase()
   .pattern(/^[A-Za-z]{2}-\d{2}-[A-Za-z]-\d\d$/)
-  .messages({ 'string.pattern.base': 'Байршлын кодын формат буруу (жишээ: ER-02-B-15)' });
+  .messages({ 'string.pattern.base': 'Байршлын кодын формат буруу (жишээ: UB-02-B-15)' });
 
 // 2 орны нарийвчлал (§1.1). Жинлүүр илүү нарийн уншсан ч бид 2 орноор тооцно.
 const weightKg = Joi.number().min(0).max(100000).precision(2);
@@ -128,8 +128,10 @@ module.exports = {
       // Харилцагч шинээр үүсэх бол нэрийг хамт бүртгэнэ (BR-29)
       customerName: Joi.string().trim().max(100).optional(),
 
-      cargoTypeId: objectId.required(),
-      quantity: Joi.number().integer().min(1).max(100000).required(),
+      // Жин/эзлэхүүнээр үнэ бодоход ЗААВАЛ, гараар үнэ заасан үед шаардлагагүй
+      // (BR-01a). Нарийн шалгалтыг `resolvePricing()` хийнэ.
+      cargoTypeId: objectId.optional(),
+      quantity: Joi.number().integer().min(1).max(100000).default(1),
 
       weightKg: weightKg.optional(),
       volumeM3: volumeM3.optional(),
@@ -145,7 +147,15 @@ module.exports = {
       arrivedAt: Joi.date().max('now').optional(),
       note: Joi.string().trim().max(1000).allow('', null).optional(),
 
-      // BR-04 — бүртгэх үед шууд override. Шалтгаангүй бол service татгалзана.
+      /**
+       * Үнийн дүн. ХОЁР өөр утга агуулна — аль нь болохыг жин/эзлэхүүн
+       * оруулсан эсэх шийднэ (`resolvePricing()`):
+       *   жин/эзлэхүүнтэй → тарифын дүнг дарж бичих OVERRIDE (шалтгаан заавал)
+       *   жин/эзлэхүүнгүй → ГАРААР заасан үнэ (шалтгаан шаардахгүй, BR-01a)
+       *
+       * Тиймээс `.with('finalPrice', 'priceOverrideReason')` гэж Joi түвшинд
+       * хатуу хамааруулж БОЛОХГҮЙ — гараар заах замыг хааж орхино.
+       */
       finalPrice: money.optional(),
       priceOverrideReason: reason.optional(),
 
@@ -153,13 +163,17 @@ module.exports = {
       allowDuplicate: Joi.boolean().default(false),
       duplicateReason: reason.optional(),
     })
-      // §1.1 — жин эсвэл эзлэхүүний ядаж нэг нь заавал (BR-01)
-      .or('weightKg', 'volumeM3', 'dimensions')
-      // §1.1 — байршил заавал
-      .or('locationId', 'locationCode')
-      .with('finalPrice', 'priceOverrideReason')
+      /**
+       * Үнийг тодорхойлох ядаж нэг зам байх ёстой (BR-01 эсвэл BR-01a).
+       *
+       * Байршлын `.or('locationId','locationCode')`-ыг ЗОРИУДААР хассан:
+       * Joi-ийн хоёр `.or()` нь ИЖИЛ `object.missing` кодтой тул нэг мессеж
+       * хоёуланг дарж, "жин оруулна уу" гэсэн алдаа байршил дутуу үед ч
+       * гардаг байсан. Байршлыг `resolveLocation()` тодорхой мессежээр шалгана.
+       */
+      .or('weightKg', 'volumeM3', 'dimensions', 'finalPrice')
       .messages({
-        'object.missing': 'Жин, эзлэхүүн эсвэл хэмжээсийн ядаж нэгийг оруулна уу',
+        'object.missing': 'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулна уу',
       }),
   },
 

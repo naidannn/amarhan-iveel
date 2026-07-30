@@ -4,10 +4,12 @@ import type { Component } from 'vue'
 /**
  * Тоон үзүүлэлтийн карт — dashboard-ийн үндсэн бүтэц.
  *
- *   ┌──────────────┐
- *   │ 🚛  125      │
- *   │ Замд явж буй │
- *   └──────────────┘
+ *   ┌───────────────────┐
+ *   │ 🚛  125           │
+ *   │ Хүргэлтэнд гарсан │
+ *   └───────────────────┘
+ *
+ * Агуулга нь `UiStatCardBody`-д — доорх template-ийн тайлбар харах.
  */
 withDefaults(
   defineProps<{
@@ -22,37 +24,38 @@ withDefaults(
   }>(),
   { accent: '#355DFF' }
 )
-
-/** Мөнгө биш энгийн тоог мянгатаар тусгаарлана */
-function display(value: number | string) {
-  return typeof value === 'number' ? value.toLocaleString('mn-MN') : value
-}
 </script>
 
+<!--
+  `resolveComponent('NuxtLink')`-ыг template-ээс дуудахгүй — `<script setup>`-ийн
+  scope-д байхгүй тул "Failed to resolve component" гарч, `to` prop-той карт
+  эвдэрдэг. `<NuxtLink>`-ыг тагаар бичихэд компилятор build үед шийднэ
+  (Btn.vue-ийн ижил тайлбар харах).
+-->
 <template>
-  <component
-    :is="to ? resolveComponent('NuxtLink') : 'div'"
+  <NuxtLink
+    v-if="to"
     :to="to"
-    class="card block"
-    :class="to ? 'transition-all duration-200 ease-out hover:shadow-raised' : ''"
+    class="card block transition-all duration-200 ease-out hover:shadow-raised"
   >
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <p class="text-body text-content-secondary">{{ label }}</p>
+    <UiStatCardBody
+      :label="label"
+      :value="value"
+      :hint="hint"
+      :icon="icon"
+      :accent="accent"
+      :loading="loading"
+    />
+  </NuxtLink>
 
-        <p v-if="loading" class="mt-2 h-9 w-24 animate-pulse rounded bg-surface-hover" />
-        <p v-else class="tabular mt-1 text-h2 text-content">{{ display(value) }}</p>
-
-        <p v-if="hint" class="mt-1 text-body-sm text-content-secondary">{{ hint }}</p>
-      </div>
-
-      <div
-        v-if="icon"
-        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn"
-        :style="{ backgroundColor: `${accent}14`, color: accent }"
-      >
-        <component :is="icon" :size="22" :stroke-width="2" />
-      </div>
-    </div>
-  </component>
+  <div v-else class="card block">
+    <UiStatCardBody
+      :label="label"
+      :value="value"
+      :hint="hint"
+      :icon="icon"
+      :accent="accent"
+      :loading="loading"
+    />
+  </div>
 </template>

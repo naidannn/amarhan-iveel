@@ -196,8 +196,16 @@ function formatMeasure(pkg: CargoPackage) {
   return parts.join(' · ') || '—'
 }
 
+/**
+ * ЧУХАЛ — `!== null` шалгалтыг ХАСАЖ БОЛОХГҮЙ. `typeof null === 'object'` тул
+ * `cargoTypeId` нь `null` (ажилтан үнийг шууд заасан, BR-01a) үед `null.name`
+ * гэж уншиж render throw хийдэг. Vue-д render дундаа алдаа гарвал тухайн
+ * компонентын render effect УНАДАГ — хүснэгт skeleton-оор бүрмөсөн хөшиж,
+ * консол дээр хачирхалтай алдаа гарна. Тарифгүй ачаа нь ХЭВИЙН тохиолдол.
+ */
 function typeName(pkg: CargoPackage) {
-  return typeof pkg.cargoTypeId === 'object' ? pkg.cargoTypeId.name : '—'
+  const t = pkg.cargoTypeId
+  return typeof t === 'object' && t !== null ? t.name : '—'
 }
 </script>
 

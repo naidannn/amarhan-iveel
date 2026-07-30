@@ -17,9 +17,11 @@ useHead({ title: 'Хяналтын самбар · Ивээл Карго' })
 
 const { all: allStatuses } = usePackageStatus()
 
+// «Замд явж буй» БАЙХГҮЙ — ачааг Монголд ирсний дараа бүртгэдэг тул замын
+// төлөв гэж байхгүй (BR-07). Оронд нь хүргэлтэнд гарсныг хардаг.
 const stats = [
   { label: 'Өнөөдөр бүртгэсэн', value: 0, icon: Package, accent: '#355DFF' },
-  { label: 'Замд явж буй', value: 0, icon: Truck, accent: '#EA580C' },
+  { label: 'Хүргэлтэнд гарсан', value: 0, icon: Truck, accent: '#EA580C' },
   { label: 'Төлбөр хүлээгдэж буй', value: 0, icon: Wallet, accent: '#B45309' },
   { label: 'Идэвхтэй харилцагч', value: 0, icon: Users, accent: '#16A34A' },
 ]

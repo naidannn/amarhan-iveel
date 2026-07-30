@@ -93,15 +93,20 @@ notifications, settings  (бие даасан)
 
 ## 4. `branches` — салбар
 
-> **Одоогийн байдал:** ганц салбар (`ER` — Эрээн агуулах). Коллекцыг устгаагүй —
-> байршлын код салбарын кодоос эхэлдэг (§8) ба ирээдүйд салбар нэмэгдэх ёстой.
+> **Одоогийн байдал:** ганц салбар — **Монгол дахь** агуулах (жишээ `UB`).
+> Коллекцыг устгаагүй — байршлын код салбарын кодоос эхэлдэг (§8) ба ирээдүйд
+> салбар нэмэгдэх ёстой.
 > Нэг салбарын горимын дүрэм: [`business-rules.md` BR-22a](business-rules.md).
+>
+> Ачааг Эрээнд БИШ, Монголд ирсний дараа бүртгэдэг (§1.1) тул салбар нь Монголд
+> байна. Эрээний хүлээн авах хаяг нь `settings`-д хадгалагдах ХАРУУЛАХ текст
+> (§3, `content.erenhot_address`) — салбарын бүртгэл биш.
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
-| `code` | String(2), unique | `ER`, `UB` (§8) |
-| `name` | String | "Эрээн салбар" |
-| `country` | String | |
+| `code` | String(2), unique | `UB` (§8) |
+| `name` | String | "Улаанбаатар агуулах" |
+| `country` | String | "Монгол" |
 | `address`, `phone` | String | Хэрэглэгчийн вэбэд харагдана (§3) |
 | `isActive` | Boolean | |
 
@@ -113,7 +118,7 @@ notifications, settings  (бие даасан)
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
-| `code` | String, **unique** | `ER-02-B-15` — бүрэн код |
+| `code` | String, **unique** | `UB-02-B-15` — бүрэн код |
 | `branchId` | ObjectId → `branches` | |
 | `room` | String(2) | `02` |
 | `shelf` | String | `B` |
@@ -191,18 +196,28 @@ notifications, settings  (бие даасан)
 | `customerId` | ObjectId → `customers` | |
 | `customerPhone` | String | Хайлтад зориулж хуулбарласан (denormalized) |
 | `branchId` | ObjectId → `branches` | Бүртгэсэн салбар |
-| `cargoTypeId` | ObjectId → `cargo_types` | |
-| `quantity` | Number | §1.1 |
+| `cargoTypeId` | ObjectId → `cargo_types` **\| null** | Тарифаар бодоход заавал. `null` = ажилтан дүнг шууд заасан (BR-01a) |
+| `quantity` | Number | §1.1, default `1` |
 | `weightKg` | Number \| null | 2 орны нарийвчлал |
 | `volumeM3` | Number \| null | 4 орны нарийвчлал |
 | `dimensions` | { lengthCm, widthCm, heightCm } \| null | Оруулбал `volumeM3` автоматаар бодогдоно |
 | **Үнэ** | | |
-| `pricingSnapshot` | { weightBrackets[], pricePerKgAbove, pricePerM3, minimumCharge, tariffVersionId } | Бүртгэх үеийн тариф (BR-02). Ачааг **засахад ч** энэ тарифаар дахин бодогдоно |
-| `computedPrice` | Number (₮) | Автоматаар бодогдсон дүн |
-| `priceSource` | Enum: `weight` \| `volume` \| `minimum` | Аль нь давамгайлсан |
+| `pricingSnapshot` | { weightBrackets[], pricePerKgAbove, pricePerM3, minimumCharge, tariffVersionId } **\| null** | Бүртгэх үеийн тариф (BR-02). Ачааг **засахад ч** энэ тарифаар дахин бодогдоно. `null` = тариф хэрэглээгүй (BR-01a) |
+| `computedPrice` | Number (₮) | Автоматаар бодогдсон дүн. `manual` үед `finalPrice`-тай тэнцүү |
+| `priceSource` | Enum: `weight` \| `volume` \| `minimum` \| `manual` | Аль замаар үнэ тодорхойлогдсон |
 | `finalPrice` | Number (₮) | Бодит төлөх дүн (override-ийн дараа) |
-| `priceOverridden` | Boolean | |
-| `priceOverrideReason` | String \| null | Override үед **заавал** |
+| `priceOverridden` | Boolean | Тарифын дүнг ДАРСАН эсэх. `manual` бүртгэлд `false` — дарах дүн байгаагүй |
+| `priceOverrideReason` | String \| null | Override үед **заавал**. `manual` бүртгэлд шаардахгүй |
+
+> **`pricingSnapshot: null` нь зөвшөөрөгдсөн, ХУУРАМЧ snapshot хориотой.** Тариф
+> хэрэглээгүй ачаанд хоосон/зохиомол snapshot хадгалбал `update()` түүнийг
+> тариф гэж уншиж, хожим жин нэмэхэд БУРУУ дүн бодно. `null` байхад систем
+> дахин бодохоос татгалзаж, үнийг зөвхөн `PUT /:id/price`-аар шалтгаантайгаар
+> өөрчлүүлнэ (BR-01a).
+
+> **Ямар нэг зам ЗААВАЛ.** `weightKg`/`volumeM3`/`dimensions`/`finalPrice`-ийн
+> ядаж нэг нь өгөгдөх ёстой — Joi түвшинд `.or(...)`-оор шалгагдана. Жин өгөөд
+> `cargoTypeId` өгөхгүй бол service `400` буцаана.
 | **Төлбөр** | | |
 | `paidAmount` | Number (₮) | Хуваарилагдсан төлбөрийн нийлбэр |
 | `balance` | Number (₮) | `finalPrice − paidAmount` |
@@ -222,11 +237,13 @@ notifications, settings  (бие даасан)
 
 ### Төлөвийн enum (§1.5)
 
+> **9 утга.** `in_transit` ба `arrived` БАЙХГҮЙ — бүртгэл нь ачаа Монголд ирсний
+> дараа хийгддэг тул `registered` өөрөө «ирсэн» гэдгийг илэрхийлнэ
+> ([`business-rules.md` BR-07](business-rules.md)).
+
 | Утга | Монгол |
 |---|---|
-| `registered` | Эрээнд бүртгэгдсэн |
-| `in_transit` | Монгол руу илгээгдсэн |
-| `arrived` | Монголд ирсэн |
+| `registered` | Бүртгэгдсэн (= Монголд ирсэн, агуулахад байна) |
 | `notified` | Хэрэглэгчид мэдэгдсэн |
 | `awaiting_payment` | Төлбөр хүлээгдэж буй |
 | `paid` | Төлбөр төлөгдсөн |

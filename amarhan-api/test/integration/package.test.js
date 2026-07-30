@@ -39,7 +39,7 @@ describe('Ачааны модуль (§1)', () => {
   let admin;
 
   beforeEach(async () => {
-    branch = await createBranch({ code: 'ER', name: 'Эрээн агуулах' });
+    branch = await createBranch({ code: 'UB', name: 'Улаанбаатар агуулах' });
     ({ cargoType, tariff } = await createCargoTypeWithTariff({ code: 'standard' }));
     location = await createLocation(branch, { capacityCount: 10 });
 
@@ -148,7 +148,7 @@ describe('Ачааны модуль (§1)', () => {
     it('BR-22a — нэг салбарын горимд branchId заах шаардлагагүй', async () => {
       const pkg = await register();
       expect(String(pkg.branchId)).to.equal(String(branch._id));
-      expect(pkg.branchCode).to.equal('ER');
+      expect(pkg.branchCode).to.equal('UB');
     });
 
     it('төлөв registered, төлбөр unpaid, түүх бичигдсэн байна', async () => {
@@ -174,7 +174,7 @@ describe('Ачааны модуль (§1)', () => {
       expect(log.after.finalPrice).to.equal(pkg.finalPrice);
     });
 
-    it('BR-01 — жин ба эзлэхүүн хоёулаа байхгүй бол хүлээж авахгүй', async () => {
+    it('BR-01 — жин, эзлэхүүн, үнэ ГУРВУУЛАА байхгүй бол хүлээж авахгүй', async () => {
       const payload = body();
       delete payload.weightKg;
 
@@ -191,7 +191,7 @@ describe('Ачааны модуль (§1)', () => {
     });
 
     it('өөр салбарын байршилд ачаа тавихыг хориглоно', async () => {
-      const other = await createBranch({ code: 'UB' });
+      const other = await createBranch({ code: 'DZ' });
       const otherLocation = await createLocation(other);
 
       const res = await post(
@@ -203,7 +203,7 @@ describe('Ачааны модуль (§1)', () => {
     });
 
     it('байхгүй байршлын код 404 буцаана', async () => {
-      const res = await post(staff, body({ locationCode: 'ER-09-Z-99' }));
+      const res = await post(staff, body({ locationCode: 'UB-09-Z-99' }));
       expect(res.status).to.equal(404);
     });
 
@@ -225,6 +225,126 @@ describe('Ачааны модуль (§1)', () => {
     it('нэвтрээгүй хүн ачаа бүртгэхгүй', async () => {
       const res = await chai.request(app).post(BASE).send(body());
       expect(res.status).to.equal(401);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('BR-01a — Ажилтан үнийг ГААРАР заах (§1.2)', () => {
+    /** Жингүй, зөвхөн үнийн дүнтэй хүсэлт */
+    function manualBody(overrides = {}) {
+      const payload = body({ finalPrice: 12000, ...overrides });
+      delete payload.weightKg;
+      delete payload.cargoTypeId;
+      return payload;
+    }
+
+    it('жин, эзлэхүүнгүйгээр зөвхөн үнийн дүнгээр бүртгэнэ', async () => {
+      const res = await post(staff, manualBody());
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      const pkg = res.body.data.package;
+      expect(pkg.finalPrice).to.equal(12000);
+      expect(pkg.balance).to.equal(12000);
+      expect(pkg.priceSource).to.equal(PRICE_SOURCE.MANUAL);
+      expect(pkg.weightKg).to.be.null;
+      expect(pkg.volumeM3).to.be.null;
+    });
+
+    it('тариф ХЭРЭГЛЭГДЭХГҮЙ тул snapshot хоосон байна', async () => {
+      const res = await post(staff, manualBody());
+      expect(res.body.data.package.pricingSnapshot).to.be.null;
+    });
+
+    it('ачааны төрөл шаардахгүй', async () => {
+      const res = await post(staff, manualBody());
+      expect(res.status).to.equal(201);
+      expect(res.body.data.package.cargoTypeId).to.be.null;
+    });
+
+    it('override БИШ тул шалтгаан шаардахгүй', async () => {
+      const res = await post(staff, manualBody());
+      expect(res.status).to.equal(201);
+      expect(res.body.data.package.priceOverridden).to.be.false;
+      expect(res.body.data.package.priceOverrideReason).to.be.null;
+    });
+
+    it('ажилтан ±20% хязгаараас үл хамааран дүн заана (харьцуулах суурь байхгүй)', async () => {
+      const res = await post(staff, manualBody({ finalPrice: 999000 }));
+      expect(res.status).to.equal(201);
+      expect(res.body.data.package.finalPrice).to.equal(999000);
+    });
+
+    it('үнэ бүхэл тоо байх ёстой', async () => {
+      const res = await post(staff, manualBody({ finalPrice: 1200.5 }));
+      expect(res.status).to.equal(400);
+    });
+
+    it('жин өгсөн ч ачааны төрөл заагаагүй бол алдаа', async () => {
+      const payload = body({ weightKg: 0.4 });
+      delete payload.cargoTypeId;
+
+      const res = await post(staff, payload);
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('ачааны төрл');
+    });
+
+    it('BR-02 — гараар үнэтэй ачаанд жин нэмэхэд үнэ ӨӨРЧЛӨГДӨХГҮЙ', async () => {
+      const created = await post(staff, manualBody());
+      const pkg = created.body.data.package;
+
+      const res = await chai
+        .request(app)
+        .put(`${BASE}/${pkg.id}`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ weightKg: 0.4 });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      // Жин МЭДЭЭЛЭЛ болж хадгалагдана, гэхдээ тарифын snapshot байхгүй тул
+      // дахин бодох боломжгүй — үнэ хэвээр
+      expect(res.body.data.weightKg).to.equal(0.4);
+      expect(res.body.data.finalPrice).to.equal(12000);
+    });
+
+    it('гараар үнэтэй ачааны үнийг солиход шалтгаан заавал', async () => {
+      const created = await post(staff, manualBody());
+      const pkg = created.body.data.package;
+
+      const noReason = await chai
+        .request(app)
+        .put(`${BASE}/${pkg.id}/price`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ price: 20000 });
+      expect(noReason.status).to.equal(400);
+
+      const withReason = await chai
+        .request(app)
+        .put(`${BASE}/${pkg.id}/price`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ price: 20000, reason: 'Харилцагчтай дахин тохиров' });
+
+      expect(withReason.status, JSON.stringify(withReason.body)).to.equal(200);
+      expect(withReason.body.data.finalPrice).to.equal(20000);
+      // Гараар үнэтэй ачаанд `computedPrice` эцсийн үнэтэй тэнцүү үлдэнэ —
+      // эс тэгвээс хуурамч "хэдээс хэд болов" харьцуулалт үүснэ
+      expect(withReason.body.data.computedPrice).to.equal(20000);
+
+      const log = await AuditLog.findOne({ action: AUDIT_ACTION.PACKAGE_PRICE_OVERRIDE });
+      expect(log.before).to.equal(12000);
+      expect(log.after).to.equal(20000);
+      expect(log.reason).to.equal('Харилцагчтай дахин тохиров');
+    });
+
+    it('тарифаар бодогдсон ачаанд ±20% хязгаар ХЭВЭЭР үйлчилнэ', async () => {
+      const pkg = await register(staff, { weightKg: 0.4 });
+
+      const res = await chai
+        .request(app)
+        .put(`${BASE}/${pkg.id}/price`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ price: 5000, reason: 'хямдрал' });
+
+      expect(res.status).to.equal(403);
+      expect(res.body.code).to.equal(ERROR_CODE.OVERRIDE_LIMIT_EXCEEDED);
     });
   });
 
@@ -392,15 +512,15 @@ describe('Ачааны модуль (§1)', () => {
       const pkg = await register();
 
       const res = await changeStatus(staff, pkg.id, {
-        status: PACKAGE_STATUS.IN_TRANSIT,
-        reason: 'Машинд ачив',
+        status: PACKAGE_STATUS.NOTIFIED,
+        reason: 'Харилцагчид мессеж илгээв',
       });
 
       expect(res.status, JSON.stringify(res.body)).to.equal(200);
-      expect(res.body.data.status).to.equal(PACKAGE_STATUS.IN_TRANSIT);
+      expect(res.body.data.status).to.equal(PACKAGE_STATUS.NOTIFIED);
       expect(res.body.data.statusHistory).to.have.lengthOf(2);
       expect(res.body.data.statusHistory[1].from).to.equal(PACKAGE_STATUS.REGISTERED);
-      expect(res.body.data.statusHistory[1].reason).to.equal('Машинд ачив');
+      expect(res.body.data.statusHistory[1].reason).to.equal('Харилцагчид мессеж илгээв');
     });
 
     it('BR-07 — registered → delivered ҮСРЭХ боломжгүй', async () => {
@@ -437,21 +557,30 @@ describe('Ачааны модуль (§1)', () => {
       expect(res.body.message).to.include('Төлбөр бүрэн төлөгдөөгүй');
     });
 
-    it('§8 — илгээгдэхэд агуулахын нүд чөлөөлөгдөнө', async () => {
+    it('§8 — агуулахаас ГАРАХАД нүд чөлөөлөгдөнө', async () => {
       const pkg = await register();
       expect((await WarehouseLocation.findById(location._id)).currentCount).to.equal(1);
 
-      await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.IN_TRANSIT });
+      // Салбараас авахын тулд төлбөр бүрэн байх ёстой (BR-19)
+      await Package.collection.updateOne(
+        { _id: new Package.base.Types.ObjectId(pkg.id) },
+        {
+          $set: {
+            status: PACKAGE_STATUS.PAID,
+            paymentStatus: PAYMENT_STATUS.PAID,
+            paidAmount: 1500,
+            balance: 0,
+          },
+        }
+      );
+
+      await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.PICKED_UP });
 
       expect((await WarehouseLocation.findById(location._id)).currentCount).to.equal(0);
     });
 
     it('агуулах дотор үлдэх шилжилт нүдний ачааллыг хөдөлгөхгүй', async () => {
       const pkg = await register();
-      await Package.collection.updateOne(
-        { _id: new Package.base.Types.ObjectId(pkg.id) },
-        { $set: { status: PACKAGE_STATUS.ARRIVED } }
-      );
 
       await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.NOTIFIED });
 
@@ -460,11 +589,11 @@ describe('Ачааны модуль (§1)', () => {
 
     it('§9.2 — шилжилт audit-д бичигдэнэ', async () => {
       const pkg = await register();
-      await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.IN_TRANSIT });
+      await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.NOTIFIED });
 
       const log = await AuditLog.findOne({ action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE });
       expect(log.before).to.equal(PACKAGE_STATUS.REGISTERED);
-      expect(log.after).to.equal(PACKAGE_STATUS.IN_TRANSIT);
+      expect(log.after).to.equal(PACKAGE_STATUS.NOTIFIED);
     });
 
     it('төлөв өөрчлөх endpoint-оор cancelled оноож болохгүй (тусдаа дүрэмтэй)', async () => {
@@ -478,8 +607,8 @@ describe('Ачааны модуль (§1)', () => {
       const b = await register();
       const c = await register();
 
-      // c-г аль хэдийн илгээчихвэл дахин илгээх боломжгүй болно
-      await changeStatus(staff, c.id, { status: PACKAGE_STATUS.IN_TRANSIT });
+      // c-д аль хэдийн мэдэгдчихвэл дахин мэдэгдэх боломжгүй болно
+      await changeStatus(staff, c.id, { status: PACKAGE_STATUS.NOTIFIED });
 
       const res = await chai
         .request(app)
@@ -487,7 +616,7 @@ describe('Ачааны модуль (§1)', () => {
         .set('Authorization', `Bearer ${staff.token}`)
         .send({
           packageIds: [a.id, b.id, c.id],
-          status: PACKAGE_STATUS.IN_TRANSIT,
+          status: PACKAGE_STATUS.NOTIFIED,
         });
 
       expect(res.status, JSON.stringify(res.body)).to.equal(200);
@@ -702,9 +831,9 @@ describe('Ачааны модуль (§1)', () => {
         .request(app)
         .put(`${BASE}/${a.id}/status`)
         .set('Authorization', `Bearer ${staff.token}`)
-        .send({ status: PACKAGE_STATUS.IN_TRANSIT });
+        .send({ status: PACKAGE_STATUS.NOTIFIED });
 
-      const res = await list(staff, `?status=${PACKAGE_STATUS.IN_TRANSIT}`);
+      const res = await list(staff, `?status=${PACKAGE_STATUS.NOTIFIED}`);
       expect(res.body.data).to.have.lengthOf(1);
     });
 
@@ -738,7 +867,7 @@ describe('Ачааны модуль (§1)', () => {
     it('BR-37 — Менежер зөвхөн ӨӨРИЙН салбарын ачааг харна', async () => {
       await register();
 
-      const otherBranch = await createBranch({ code: 'UB' });
+      const otherBranch = await createBranch({ code: 'DZ' });
       const otherManager = await createUserWithToken({
         role: ROLES.MANAGER,
         branchId: otherBranch._id,
@@ -752,7 +881,7 @@ describe('Ачааны модуль (§1)', () => {
     it('BR-37 — Менежер frontend-ээс өөр branchId дамжуулж тойрч чадахгүй', async () => {
       await register();
 
-      const otherBranch = await createBranch({ code: 'UB' });
+      const otherBranch = await createBranch({ code: 'DZ' });
       const otherManager = await createUserWithToken({
         role: ROLES.MANAGER,
         branchId: otherBranch._id,
@@ -811,7 +940,7 @@ describe('Ачааны модуль (§1)', () => {
       expect(res.body.data.package.customerId.phone).to.equal('99112233');
       expect(res.body.data.package.cargoTypeId.code).to.equal('standard');
       expect(res.body.data.auditLogs).to.be.an('array').with.length.greaterThan(0);
-      expect(res.body.data.allowedTransitions).to.include(PACKAGE_STATUS.IN_TRANSIT);
+      expect(res.body.data.allowedTransitions).to.include(PACKAGE_STATUS.NOTIFIED);
     });
 
     it('байхгүй ачаанд 404', async () => {

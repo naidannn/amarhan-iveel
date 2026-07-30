@@ -131,16 +131,25 @@ function toggleRow(row: T) {
           </tr>
         </thead>
 
+        <!--
+          v-if ба v-for-ыг НЭГ элемент дээр ХАМТ бичихийг хориглоно. Vue 3-д
+          v-if нь илүү өндөр эрэмбэтэй тул `<tr v-if="loading" v-for=...>` гэж
+          бичихэд v-for нь фрагмент болж, дараагийн `v-else-if`/`v-else` салаа
+          холбогдохоо больдог — үр дүнд өгөгдлийн мөр ХЭЗЭЭ Ч гарахгүй, зөвхөн
+          skeleton үлддэг. Тиймээс салаа бүрийг `<template>`-ээр тусгаарлав.
+        -->
         <tbody>
           <!-- Ачаалж буй -->
-          <tr v-if="loading" v-for="n in 5" :key="`skeleton-${n}`" class="border-b border-surface-border">
-            <td v-if="selectable" class="px-4 py-4">
-              <div class="h-4 w-4 animate-pulse rounded bg-surface-hover" />
-            </td>
-            <td v-for="column in columns" :key="column.key" class="px-4 py-4">
-              <div class="h-4 animate-pulse rounded bg-surface-hover" />
-            </td>
-          </tr>
+          <template v-if="loading">
+            <tr v-for="n in 5" :key="`skeleton-${n}`" class="border-b border-surface-border">
+              <td v-if="selectable" class="px-4 py-4">
+                <div class="h-4 w-4 animate-pulse rounded bg-surface-hover" />
+              </td>
+              <td v-for="column in columns" :key="column.key" class="px-4 py-4">
+                <div class="h-4 animate-pulse rounded bg-surface-hover" />
+              </td>
+            </tr>
+          </template>
 
           <!-- Хоосон -->
           <tr v-else-if="rows.length === 0">
@@ -154,35 +163,36 @@ function toggleRow(row: T) {
           </tr>
 
           <!-- Өгөгдөл -->
-          <tr
-            v-else
-            v-for="row in rows"
-            :key="keyOf(row)"
-            class="table-row"
-            :class="$attrs.onRowClick || $slots.default ? 'cursor-pointer' : ''"
-            @click="emit('rowClick', row)"
-          >
-            <td v-if="selectable" class="px-4 py-4" @click.stop>
-              <input
-                type="checkbox"
-                class="h-4 w-4 cursor-pointer rounded border-surface-border text-primary focus:ring-2 focus:ring-primary-200"
-                :checked="selected?.includes(keyOf(row))"
-                :aria-label="`${keyOf(row)} сонгох`"
-                @change="toggleRow(row)"
-              />
-            </td>
-
-            <td
-              v-for="column in columns"
-              :key="column.key"
-              class="px-4 py-4 text-body text-content"
-              :class="[ALIGN[column.align ?? 'left'], column.tabular && 'tabular']"
+          <template v-else>
+            <tr
+              v-for="row in rows"
+              :key="keyOf(row)"
+              class="table-row"
+              :class="$attrs.onRowClick || $slots.default ? 'cursor-pointer' : ''"
+              @click="emit('rowClick', row)"
             >
-              <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]">
-                {{ row[column.key] }}
-              </slot>
-            </td>
-          </tr>
+              <td v-if="selectable" class="px-4 py-4" @click.stop>
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 cursor-pointer rounded border-surface-border text-primary focus:ring-2 focus:ring-primary-200"
+                  :checked="selected?.includes(keyOf(row))"
+                  :aria-label="`${keyOf(row)} сонгох`"
+                  @change="toggleRow(row)"
+                />
+              </td>
+
+              <td
+                v-for="column in columns"
+                :key="column.key"
+                class="px-4 py-4 text-body text-content"
+                :class="[ALIGN[column.align ?? 'left'], column.tabular && 'tabular']"
+              >
+                <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]">
+                  {{ row[column.key] }}
+                </slot>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>

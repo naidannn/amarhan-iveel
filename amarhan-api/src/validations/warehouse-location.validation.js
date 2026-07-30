@@ -6,14 +6,14 @@ const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 const locationCode = Joi.string()
   .uppercase()
   .pattern(/^[A-Za-z]{2}-\d{2}-[A-Za-z]-\d\d$/)
-  .messages({ 'string.pattern.base': 'Байршлын кодын формат буруу (жишээ: ER-02-B-15)' });
+  .messages({ 'string.pattern.base': 'Байршлын кодын формат буруу (жишээ: UB-02-B-15)' });
 
 module.exports = {
   list: {
     query: Joi.object({
       page: Joi.number().integer().min(1).default(1),
       limit: Joi.number().integer().min(1).max(100).default(50),
-      // Хэсэгчилсэн код (`ER-02`) ч ажиллана
+      // Хэсэгчилсэн код (`UB-02`) ч ажиллана
       code: Joi.string().uppercase().max(12).optional(),
       branchId: objectId.optional(),
       room: Joi.string().max(2).optional(),

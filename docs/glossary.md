@@ -15,7 +15,7 @@
 | Ажилтан (дотоод) | `user` / `staff` | `users` | `employee` биш |
 | Салбар | `branch` | `branches` | |
 | Агуулахын байршил | `warehouseLocation` | `warehouse_locations` | |
-| Байршлын код | `locationCode` | | `ER-02-B-15` |
+| Байршлын код | `locationCode` | | `UB-02-B-15` |
 | Ачааны төрөл | `cargoType` | `cargo_types` | |
 | Тариф | `tariff` | `tariff_versions` | |
 | Төлбөр | `payment` | `payments` | |
@@ -30,11 +30,12 @@
 
 ## 2. Ачааны төлөв (§1.5)
 
+> Замын төлөв (`in_transit`, `arrived`) байхгүй — бүртгэл нь ачаа Монголд ирсний
+> дараа хийгддэг ([`business-rules.md` BR-07](business-rules.md)).
+
 | Монгол (UI) | Код |
 |---|---|
-| Эрээнд бүртгэгдсэн | `registered` |
-| Монгол руу илгээгдсэн | `in_transit` |
-| Монголд ирсэн | `arrived` |
+| Бүртгэгдсэн *(= Монголд ирсэн)* | `registered` |
 | Хэрэглэгчид мэдэгдсэн | `notified` |
 | Төлбөр хүлээгдэж буй | `awaiting_payment` |
 | Төлбөр төлөгдсөн | `paid` |
@@ -100,7 +101,7 @@
 | Тавиур | `shelf` | `B` |
 | Мөр | `row` | `1` |
 | Нүд | `cell` | `5` |
-| Бүрэн код | `code` | `ER-02-B-15` |
+| Бүрэн код | `code` | `UB-02-B-15` |
 | Багтаамж | `capacityCount` / `capacityM3` | |
 
 ---

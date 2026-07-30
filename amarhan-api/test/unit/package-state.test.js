@@ -43,9 +43,7 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
 
   describe('BR-07 — зөвшөөрөгдсөн шилжилт', () => {
     const happyPath = [
-      [S.REGISTERED, S.IN_TRANSIT],
-      [S.IN_TRANSIT, S.ARRIVED],
-      [S.ARRIVED, S.NOTIFIED],
+      [S.REGISTERED, S.NOTIFIED],
       [S.NOTIFIED, S.AWAITING_PAYMENT],
       [S.AWAITING_PAYMENT, S.PAID],
       [S.PAID, S.OUT_FOR_DELIVERY],
@@ -70,8 +68,13 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
       );
     });
 
-    it('арагшаа шилжихгүй (arrived → in_transit)', () => {
-      expect(state.canTransition(S.ARRIVED, S.IN_TRANSIT)).to.be.false;
+    it('арагшаа шилжихгүй (awaiting_payment → notified)', () => {
+      expect(state.canTransition(S.AWAITING_PAYMENT, S.NOTIFIED)).to.be.false;
+    });
+
+    it('Эрээний/замын төлөв БАЙХГҮЙ — бүртгэл нь Монголд ирсний дараа хийгддэг', () => {
+      expect(state.isKnownStatus('in_transit')).to.be.false;
+      expect(state.isKnownStatus('arrived')).to.be.false;
     });
 
     it('алдааны мессеж зөвшөөрөгдөх төлөвүүдийг МОНГОЛООР санал болгоно', () => {
@@ -79,8 +82,8 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
         state.assertTransition(S.REGISTERED, S.PAID);
         throw new Error('алдаа гарах ёстой байсан');
       } catch (err) {
-        expect(err.message).to.include('Эрээнд бүртгэгдсэн');
-        expect(err.message).to.include('Монгол руу илгээгдсэн');
+        expect(err.message).to.include('Бүртгэгдсэн');
+        expect(err.message).to.include('Хэрэглэгчид мэдэгдсэн');
       }
     });
   });
@@ -107,7 +110,7 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
   });
 
   describe('BR-07 — хүчингүй болгох', () => {
-    const cancellable = [S.REGISTERED, S.IN_TRANSIT, S.ARRIVED, S.NOTIFIED, S.AWAITING_PAYMENT];
+    const cancellable = [S.REGISTERED, S.NOTIFIED, S.AWAITING_PAYMENT];
 
     cancellable.forEach(status => {
       it(`${status} төлөвөөс хүчингүй болгоно`, () => {
@@ -158,7 +161,7 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
 
   describe('Оролтын шалгалт', () => {
     it('танигдахгүй одоогийн төлөв', () => {
-      expect(() => state.assertTransition('зохиомол', S.IN_TRANSIT)).to.throw(
+      expect(() => state.assertTransition('зохиомол', S.NOTIFIED)).to.throw(
         /Танигдахгүй одоогийн төлөв/
       );
     });
@@ -170,7 +173,7 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
     });
 
     it('ижил төлөв рүү шилжүүлэх', () => {
-      expect(() => state.assertTransition(S.ARRIVED, S.ARRIVED)).to.throw(/аль хэдийн/);
+      expect(() => state.assertTransition(S.NOTIFIED, S.NOTIFIED)).to.throw(/аль хэдийн/);
     });
 
     it('allowedTransitions хуулбар буцаана — гаднаас хүснэгтийг эвдэж болохгүй', () => {
@@ -186,13 +189,13 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
 
   describe('BR-24/BR-25 — байршил эзлэх төлөвүүд', () => {
     it('агуулахад байгаа ачаа нүдийг эзэлнэ', () => {
-      [S.REGISTERED, S.ARRIVED, S.NOTIFIED, S.AWAITING_PAYMENT, S.PAID, S.RETURNED].forEach(
+      [S.REGISTERED, S.NOTIFIED, S.AWAITING_PAYMENT, S.PAID, S.RETURNED].forEach(
         s => expect(state.occupiesLocation(s), s).to.be.true
       );
     });
 
     it('гарсан, өгөгдсөн, хүчингүй ачаа нүдийг чөлөөлнө', () => {
-      [S.IN_TRANSIT, S.OUT_FOR_DELIVERY, S.PICKED_UP, S.DELIVERED, S.CANCELLED].forEach(
+      [S.OUT_FOR_DELIVERY, S.PICKED_UP, S.DELIVERED, S.CANCELLED].forEach(
         s => expect(state.occupiesLocation(s), s).to.be.false
       );
     });

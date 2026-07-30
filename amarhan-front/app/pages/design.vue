@@ -72,7 +72,7 @@ const columns: Column<Row>[] = [
 ]
 
 const rows: Row[] = [
-  { id: '1', tracking: 'TRK-88213', customer: '9911-2233', status: 'in_transit', weight: '0.85', price: 2000 },
+  { id: '1', tracking: 'TRK-88213', customer: '9911-2233', status: 'notified', weight: '0.85', price: 2000 },
   { id: '2', tracking: 'TRK-88214', customer: '9955-4433', status: 'awaiting_payment', weight: '3.20', price: 8000 },
   { id: '3', tracking: 'TRK-88215', customer: '8811-9900', status: 'delivered', weight: '0.09', price: 800 },
 ]
@@ -293,13 +293,13 @@ function money(value: number) {
 
         <div class="mt-5 flex flex-wrap gap-3">
           <UiBtn variant="secondary" @click="modalOpen = true">Модал нээх</UiBtn>
-          <UiBtn variant="secondary" @click="toast.success('Ачаа бүртгэгдлээ', { description: 'TRK-88213 · ER-02-B-15' })">
+          <UiBtn variant="secondary" @click="toast.success('Ачаа бүртгэгдлээ', { description: 'TRK-88213 · UB-02-B-15' })">
             Амжилт
           </UiBtn>
           <UiBtn variant="secondary" @click="toast.error('Төлбөр дутуу байна', { description: '12,000₮ үлдэгдэлтэй' })">
             Алдаа
           </UiBtn>
-          <UiBtn variant="secondary" @click="toast.warning('Нүд дүүрсэн байна', { description: 'ER-02-B-15' })">
+          <UiBtn variant="secondary" @click="toast.warning('Нүд дүүрсэн байна', { description: 'UB-02-B-15' })">
             Сануулга
           </UiBtn>
         </div>

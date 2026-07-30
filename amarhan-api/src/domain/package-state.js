@@ -21,19 +21,21 @@ const S = PACKAGE_STATUS;
  *
  * Хоосон массив = ТӨГСГӨЛИЙН төлөв, хаашаа ч шилжихгүй.
  *
- *   registered → in_transit → arrived → notified → awaiting_payment → paid
- *                                                                      ↓
- *                                             out_for_delivery / picked_up
- *                                                                      ↓
- *                                                                 delivered
+ *   registered → notified → awaiting_payment → paid
+ *                                               ↓
+ *                       out_for_delivery / picked_up
+ *                                               ↓
+ *                                          delivered
  *
  *   out_for_delivery → returned → (out_for_delivery | picked_up)
  *   registered…awaiting_payment → cancelled
+ *
+ * ЯАГААД `registered`-ЭЭС ЭХЭЛДЭГ: ачааг Монголд ирсний ДАРАА бүртгэдэг тул
+ * бүртгэл өөрөө "ирсэн" гэдгийг илэрхийлнэ. Эрээний тал, замын хөдөлгөөнийг
+ * систем хянадаггүй — тэр үед ачаа системд ОГТ байхгүй.
  */
 const TRANSITIONS = Object.freeze({
-  [S.REGISTERED]: [S.IN_TRANSIT, S.CANCELLED],
-  [S.IN_TRANSIT]: [S.ARRIVED, S.CANCELLED],
-  [S.ARRIVED]: [S.NOTIFIED, S.CANCELLED],
+  [S.REGISTERED]: [S.NOTIFIED, S.CANCELLED],
   [S.NOTIFIED]: [S.AWAITING_PAYMENT, S.CANCELLED],
   [S.AWAITING_PAYMENT]: [S.PAID, S.CANCELLED],
   [S.PAID]: [S.OUT_FOR_DELIVERY, S.PICKED_UP],
@@ -48,13 +50,11 @@ const TRANSITIONS = Object.freeze({
  * Хэрэглэгчид харагдах монгол нэр (§1.5).
  *
  * Backend-д байгаа шалтгаан: алдааны мессеж монгол хэлээр байх ёстой
- * ("Эрээнд бүртгэгдсэн"-ээс "Амжилттай хүлээлгэн өгсөн" рүү шилжих боломжгүй).
+ * ("Бүртгэгдсэн"-ээс "Амжилттай хүлээлгэн өгсөн" рүү шилжих боломжгүй).
  * Frontend өөрийн хуулбартай — design token дотор (`packageStatus`).
  */
 const STATUS_LABEL = Object.freeze({
-  [S.REGISTERED]: 'Эрээнд бүртгэгдсэн',
-  [S.IN_TRANSIT]: 'Монгол руу илгээгдсэн',
-  [S.ARRIVED]: 'Монголд ирсэн',
+  [S.REGISTERED]: 'Бүртгэгдсэн',
   [S.NOTIFIED]: 'Хэрэглэгчид мэдэгдсэн',
   [S.AWAITING_PAYMENT]: 'Төлбөр хүлээгдэж буй',
   [S.PAID]: 'Төлбөр төлөгдсөн',
@@ -83,16 +83,14 @@ const REQUIRES_FULL_PAYMENT = Object.freeze([S.OUT_FOR_DELIVERY, S.PICKED_UP]);
  * Ачаа агуулахын нүдийг ФИЗИКЭЭР эзэлж байгаа төлөвүүд — §8, BR-24/BR-25.
  *
  * `warehouse_locations.currentCount / currentM3` нь ЗӨВХӨН эдгээр төлөвт байгаа
- * ачааг тоолно. Илгээгдсэн (`in_transit`), гарсан (`out_for_delivery`,
- * `picked_up`), өгөгдсөн (`delivered`), хүчингүй (`cancelled`) ачаа нүдийг
- * эзлэхээ болино — эс тэгвээс тавиур хэзээ ч чөлөөлөгдөхгүй, багтаамжийн
- * сануулга (BR-24) утгаа алдана.
+ * ачааг тоолно. Гарсан (`out_for_delivery`, `picked_up`), өгөгдсөн
+ * (`delivered`), хүчингүй (`cancelled`) ачаа нүдийг эзлэхээ болино — эс тэгвээс
+ * тавиур хэзээ ч чөлөөлөгдөхгүй, багтаамжийн сануулга (BR-24) утгаа алдана.
  *
  * `returned` нь буцаж агуулахад ирсэн гэсэн үг тул ДАХИН эзэлнэ.
  */
 const OCCUPIES_LOCATION = Object.freeze([
   S.REGISTERED,
-  S.ARRIVED,
   S.NOTIFIED,
   S.AWAITING_PAYMENT,
   S.PAID,

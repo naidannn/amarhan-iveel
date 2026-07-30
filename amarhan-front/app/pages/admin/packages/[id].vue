@@ -492,7 +492,14 @@ const printOpen = ref(false)
               {{ formatCurrency(pkg.finalPrice) }}
             </p>
 
-            <p v-if="pkg.priceOverridden" class="mt-1 text-body-sm text-warning">
+            <!--
+              `manual` (BR-01a) — тариф хэрэглээгүй, ажилтан дүнг өөрөө заасан.
+              Тарифын дүн БАЙХГҮЙ тул "бодогдсон" гэж харуулах юм байхгүй.
+            -->
+            <p v-if="pkg.priceSource === 'manual'" class="mt-1 text-body-sm text-content-secondary">
+              Ажилтан дүнг шууд заасан
+            </p>
+            <p v-else-if="pkg.priceOverridden" class="mt-1 text-body-sm text-warning">
               Гараар өөрчилсөн (бодогдсон: {{ formatCurrency(pkg.computedPrice) }})
             </p>
             <p v-else class="mt-1 text-body-sm text-content-secondary">
@@ -643,7 +650,7 @@ const printOpen = ref(false)
           </p>
 
           <UiField label="Шинэ байршлын код" required>
-            <UiTextInput v-model="newLocation" :icon="MapPin" placeholder="ER-02-B-15" tabular />
+            <UiTextInput v-model="newLocation" :icon="MapPin" placeholder="UB-02-B-15" tabular />
           </UiField>
 
           <UiField label="Шалтгаан" hint="Сонголтоор — audit-д бичигдэнэ">

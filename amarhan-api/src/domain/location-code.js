@@ -5,7 +5,7 @@
  *
  * Бүтэц:  Салбар → Өрөө → Тавиур → Мөр → Нүд
  * Формат: `{Салбар:2 үсэг}-{Өрөө:2 орон}-{Тавиур:үсэг}-{Мөр:1}{Нүд:1}`
- * Жишээ:  `ER-02-B-15`  =  Эрээн салбар → 02-р өрөө → B тавиур → 1-р мөр → 5-р нүд
+ * Жишээ:  `UB-02-B-15`  =  Улаанбаатар салбар → 02-р өрөө → B тавиур → 1-р мөр → 5-р нүд
  *
  * Мөр ба Нүд нь сүүлийн хоёр оронд ХАМТ бичигдэнэ: эхний орон = Мөр, хоёр дахь = Нүд.
  *
@@ -23,7 +23,7 @@ const CODE_PATTERN = /^([A-Z]{2})-(\d{2})-([A-Z])-(\d)(\d)$/;
  * @param {string} parts.shelf   — 1 үсэг (`B`)
  * @param {number} parts.row     — 1–9
  * @param {number} parts.cell    — 1–9
- * @returns {string} `ER-02-B-15`
+ * @returns {string} `UB-02-B-15`
  * @throws {Error} утга формат хангахгүй бол
  */
 function formatLocationCode({ branch, room, shelf, row, cell }) {
@@ -55,7 +55,7 @@ function formatLocationCode({ branch, room, shelf, row, cell }) {
 /**
  * Бүрэн кодыг бүрдэл хэсэгт задална.
  *
- * @param {string} code — `ER-02-B-15`
+ * @param {string} code — `UB-02-B-15`
  * @returns {{branch: string, room: string, roomNumber: number, shelf: string, row: number, cell: number}}
  * @throws {Error} формат буруу бол
  */
@@ -66,7 +66,7 @@ function parseLocationCode(code) {
   const match = CODE_PATTERN.exec(normalized);
 
   if (!match) {
-    throw new Error(`Байршлын кодын формат буруу: "${code}". Жишээ: ER-02-B-15`);
+    throw new Error(`Байршлын кодын формат буруу: "${code}". Жишээ: UB-02-B-15`);
   }
 
   const [, branch, room, shelf, row, cell] = match;

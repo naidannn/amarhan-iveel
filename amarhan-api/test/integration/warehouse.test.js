@@ -20,7 +20,7 @@ describe('Салбар ба агуулах (§8)', () => {
         .request(app)
         .post('/api/v1/branches')
         .set('Authorization', `Bearer ${token}`)
-        .send({ code: 'ER', name: 'Эрээн' });
+        .send({ code: 'UB', name: 'Улаанбаатар' });
       expect(res.status).to.equal(403);
     });
 
@@ -30,7 +30,7 @@ describe('Салбар ба агуулах (§8)', () => {
         .request(app)
         .post('/api/v1/branches')
         .set('Authorization', `Bearer ${token}`)
-        .send({ code: 'ER', name: 'Эрээн' });
+        .send({ code: 'UB', name: 'Улаанбаатар' });
       expect(res.status).to.equal(403);
     });
 
@@ -40,9 +40,9 @@ describe('Салбар ба агуулах (§8)', () => {
         .request(app)
         .post('/api/v1/branches')
         .set('Authorization', `Bearer ${token}`)
-        .send({ code: 'ER', name: 'Эрээн салбар', country: 'Хятад' });
+        .send({ code: 'UB', name: 'Улаанбаатар салбар', country: 'Монгол' });
       expect(res.status).to.equal(201);
-      expect(res.body.data.code).to.equal('ER');
+      expect(res.body.data.code).to.equal('UB');
     });
 
     it('Ажилтан салбарын жагсаалтыг харна (ачаа бүртгэхэд хэрэгтэй)', async () => {
@@ -56,18 +56,18 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('давхардсан кодыг хүлээж авахгүй', async () => {
-      await createBranch({ code: 'ER' });
+      await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
       const res = await chai
         .request(app)
         .post('/api/v1/branches')
         .set('Authorization', `Bearer ${token}`)
-        .send({ code: 'ER', name: 'Давхардсан' });
+        .send({ code: 'UB', name: 'Давхардсан' });
       expect(res.status).to.equal(409);
     });
 
     it('салбарын кодыг өөрчлөхийг хориглоно (байршлын код түүнээс хамаарна)', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       // Joi код талбарыг хүлээж авахгүй — 400 эсвэл өөрчлөгдөхгүй
@@ -81,7 +81,7 @@ describe('Салбар ба агуулах (§8)', () => {
       const reloaded = await (await import('mongoose')).default
         .model('Branch')
         .findById(branch._id);
-      expect(reloaded.code).to.equal('ER');
+      expect(reloaded.code).to.equal('UB');
     });
   });
 
@@ -91,7 +91,7 @@ describe('Салбар ба агуулах (§8)', () => {
    */
   describe('Нэг салбарын горим', () => {
     it('салбар заахгүйгээр байршил үүсгэнэ', async () => {
-      await createBranch({ code: 'ER' });
+      await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -101,11 +101,11 @@ describe('Салбар ба агуулах (§8)', () => {
         .send({ room: 2, shelf: 'B', row: 1, cell: 5 });
 
       expect(res.status).to.equal(201);
-      expect(res.body.data.code).to.equal('ER-02-B-15');
+      expect(res.body.data.code).to.equal('UB-02-B-15');
     });
 
     it('салбар заахгүйгээр тавиур үүсгэнэ', async () => {
-      await createBranch({ code: 'ER' });
+      await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -119,7 +119,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('салбар заахгүйгээр хоосон нүд санал болгоно', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       await createLocation(branch);
       const { token } = await createUserWithToken({ role: ROLES.STAFF });
 
@@ -133,8 +133,8 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('САЛБАР ОЛОН болвол заахыг шаардана', async () => {
-      await createBranch({ code: 'ER' });
       await createBranch({ code: 'UB' });
+      await createBranch({ code: 'DZ' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -161,7 +161,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('ажилтан үүсгэхэд ганц салбар автоматаар оногдоно', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -183,7 +183,7 @@ describe('Салбар ба агуулах (§8)', () => {
 
   describe('BR-22 — Байршлын код', () => {
     it('бүрдэл хэсгээс байршил үүсгэнэ', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -193,18 +193,18 @@ describe('Салбар ба агуулах (§8)', () => {
         .send({ branchId: branch._id, room: 2, shelf: 'B', row: 1, cell: 5 });
 
       expect(res.status).to.equal(201);
-      expect(res.body.data.code).to.equal('ER-02-B-15');
+      expect(res.body.data.code).to.equal('UB-02-B-15');
     });
 
     it('бүрэн кодоор байршил үүсгэнэ', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
         .request(app)
         .post('/api/v1/warehouse-locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ branchId: branch._id, code: 'ER-03-C-27' });
+        .send({ branchId: branch._id, code: 'UB-03-C-27' });
 
       expect(res.status).to.equal(201);
       expect(res.body.data.room).to.equal('03');
@@ -214,34 +214,34 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('өөр салбарын кодыг хүлээж авахгүй', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
         .request(app)
         .post('/api/v1/warehouse-locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ branchId: branch._id, code: 'UB-03-C-27' });
+        .send({ branchId: branch._id, code: 'DZ-03-C-27' });
 
       expect(res.status).to.equal(400);
       expect(res.body.message).to.include('таарахгүй');
     });
 
     it('форматгүй кодыг хүлээж авахгүй', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
         .request(app)
         .post('/api/v1/warehouse-locations')
         .set('Authorization', `Bearer ${token}`)
-        .send({ branchId: branch._id, code: 'ER-2-B-1' });
+        .send({ branchId: branch._id, code: 'UB-2-B-1' });
 
       expect(res.status).to.equal(400);
     });
 
     it('давхардсан байршлыг хүлээж авахгүй', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
       const payload = { branchId: branch._id, room: 2, shelf: 'B', row: 1, cell: 5 };
 
@@ -263,7 +263,7 @@ describe('Салбар ба агуулах (§8)', () => {
 
   describe('Тавиурын бүх нүдийг нэг дор үүсгэх', () => {
     it('мөр × нүдний тоогоор үүсгэнэ', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       const res = await chai
@@ -278,7 +278,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('дахин ажиллуулахад давхардал үүсгэхгүй (идемпотент)', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
       const payload = { branchId: branch._id, room: 1, shelf: 'A', rows: 3, cells: 4 };
 
@@ -302,7 +302,7 @@ describe('Салбар ба агуулах (§8)', () => {
 
   describe('§8 — Байршлаар хайх', () => {
     it('бүрэн кодоор олно', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       await createLocation(branch);
       const location = await WarehouseLocation.findOne({});
       const { token } = await createUserWithToken({ role: ROLES.STAFF });
@@ -317,7 +317,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('хэсэгчилсэн кодоор жагсаана', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       await chai
@@ -328,7 +328,7 @@ describe('Салбар ба агуулах (§8)', () => {
 
       const res = await chai
         .request(app)
-        .get('/api/v1/warehouse-locations?code=ER-02')
+        .get('/api/v1/warehouse-locations?code=UB-02')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).to.equal(200);
@@ -338,7 +338,7 @@ describe('Салбар ба агуулах (§8)', () => {
 
   describe('BR-23/BR-24 — Хоосон нүд санал болгох ба багтаамж', () => {
     it('багтаамж дүүрээгүй эхний нүдийг санал болгоно', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 
       await chai
@@ -362,7 +362,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('багтаамжгүй (хязгааргүй) нүдийг үргэлж санал болгоно', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       await createLocation(branch, { capacityCount: null, currentCount: 999 });
       const { token } = await createUserWithToken({ role: ROLES.STAFF });
 
@@ -376,7 +376,7 @@ describe('Салбар ба агуулах (§8)', () => {
     });
 
     it('isFull нь багтаамж дүүрснийг заана (BR-24 — сануулга, хориг биш)', async () => {
-      const branch = await createBranch({ code: 'ER' });
+      const branch = await createBranch({ code: 'UB' });
       const location = await createLocation(branch, { capacityCount: 2, currentCount: 2 });
       expect(location.isFull).to.equal(true);
     });

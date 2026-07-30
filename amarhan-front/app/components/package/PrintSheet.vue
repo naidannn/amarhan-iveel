@@ -50,8 +50,11 @@ const totals = computed(() =>
   )
 )
 
+// `typeof null === 'object'` тул `!== null` шалгалт ЗААВАЛ — тарифгүй ачаанд
+// `cargoTypeId` нь `null` (BR-01a) бөгөөд `null.name` нь render-ыг унагана.
 function typeName(pkg: CargoPackage) {
-  return typeof pkg.cargoTypeId === 'object' ? pkg.cargoTypeId.name : ''
+  const t = pkg.cargoTypeId
+  return typeof t === 'object' && t !== null ? t.name : ''
 }
 
 function print() {

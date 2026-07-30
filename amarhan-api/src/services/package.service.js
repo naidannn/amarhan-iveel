@@ -10,7 +10,12 @@ const settingService = require('./setting.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
 const { withTransaction } = require('../utils/transaction');
-const { calculatePrice, calculateVolumeM3, isWithinOverrideLimit } = require('../domain/pricing');
+const {
+  calculatePrice,
+  manualPrice,
+  calculateVolumeM3,
+  isWithinOverrideLimit,
+} = require('../domain/pricing');
 const { assertTrackingNumber } = require('../domain/tracking-number');
 const packageState = require('../domain/package-state');
 const {
@@ -125,25 +130,8 @@ class PackageService {
     // Атомик хамгаалалт нь DB индекс (доорх `handleWriteError`).
     const duplicateApproval = await this.resolveDuplicate(trackingNumber, data, actor);
 
-    const cargoType = await tariffService.getCargoType(data.cargoTypeId);
-    if (!cargoType.isActive) {
-      throw new APIError(
-        `"${cargoType.name}" ачааны төрөл идэвхгүй байна`,
-        httpStatus.UNPROCESSABLE_ENTITY
-      );
-    }
-    const tariffDoc = await tariffService.getActiveTariff(cargoType._id);
-
     const volumeM3 = this.resolveVolume(data);
-    const priced = this.computePrice({ weightKg: data.weightKg, volumeM3, tariff: tariffDoc });
-
-    // BR-04 — бүртгэх үед шууд override хийж болно (ажилтан жинлүүрийн
-    // алдаа, тусгай тохиролцоог тэр дор нь бүртгэх шаардлагатай)
-    const override = await this.resolveOverride(
-      { computedPrice: priced.final, requested: data.finalPrice, reason: data.priceOverrideReason },
-      actor
-    );
-
+    const pricing = await this.resolvePricing({ ...data, volumeM3 }, actor);
     const location = await this.resolveLocation(data, branch);
 
     const created = await withTransaction(async session => {
@@ -153,7 +141,7 @@ class PackageService {
         { actor, session, req }
       );
 
-      const finalPrice = override ? override.price : priced.final;
+      const { finalPrice } = pricing;
 
       const [pkg] = await packageRepository.model.create(
         [
@@ -168,22 +156,19 @@ class PackageService {
             customerPhone: customer.phone,
             branchId: branch._id,
             branchCode: branch.code,
-            cargoTypeId: cargoType._id,
+            cargoTypeId: pricing.cargoTypeId,
 
             quantity: data.quantity,
             weightKg: data.weightKg ?? null,
             volumeM3,
             dimensions: data.dimensions ?? null,
 
-            pricingSnapshot: {
-              ...tariffDoc.toTariff(),
-              tariffVersionId: tariffDoc._id,
-            },
-            computedPrice: priced.final,
-            priceSource: priced.source,
+            pricingSnapshot: pricing.snapshot,
+            computedPrice: pricing.computedPrice,
+            priceSource: pricing.priceSource,
             finalPrice,
-            priceOverridden: Boolean(override),
-            priceOverrideReason: override ? override.reason : null,
+            priceOverridden: pricing.overridden,
+            priceOverrideReason: pricing.overrideReason,
 
             paidAmount: 0,
             balance: finalPrice,
@@ -261,8 +246,11 @@ class PackageService {
         );
       }
 
-      // BR-04 — override нь мөнгөний шийдвэр тул ЗААВАЛ тусдаа бичлэгтэй
-      if (override) {
+      // BR-04 — override нь мөнгөний шийдвэр тул ЗААВАЛ тусдаа бичлэгтэй.
+      // Гараар заасан үнэ (BR-01a) нь override БИШ — бодсон дүн байхгүй тул
+      // "хуучин → шинэ" гэсэн харьцуулалт ч байхгүй. Тэрийг
+      // `package.create`-ийн `priceSource: 'manual'` илэрхийлнэ.
+      if (pricing.overridden) {
         await auditService.record(
           {
             actor,
@@ -272,9 +260,9 @@ class PackageService {
             entityLabel: pkg.trackingNumber,
             branchId: branch._id,
             field: 'finalPrice',
-            before: priced.final,
-            after: override.price,
-            reason: override.reason,
+            before: pricing.computedPrice,
+            after: pricing.finalPrice,
+            reason: pricing.overrideReason,
             req,
           },
           { session }
@@ -340,8 +328,16 @@ class PackageService {
     }
     if (data.dimensions !== undefined) patch.dimensions = data.dimensions;
 
-    // Жин/эзлэхүүн өөрчлөгдвөл үнэ дахин бодогдоно
-    if (changes.weightKg || changes.volumeM3) {
+    /**
+     * Жин/эзлэхүүн өөрчлөгдвөл үнэ дахин бодогдоно.
+     *
+     * `pricingSnapshot` байхгүй бол (гараар үнэ заасан ачаа, BR-01a) дахин
+     * бодох тариф БАЙХГҮЙ. Ийм ачаанд жин нэмэхэд өнөөдрийн тарифаар бодох нь
+     * BR-02-ыг зөрчинө — тариф хожим өссөн байж болно. Тиймээс жинг зөвхөн
+     * МЭДЭЭЛЭЛ болгож хадгалж, үнийг хөндөхгүй. Үнэ засах бол
+     * `PUT /:id/price` гэсэн тодорхой, audit-тай зам байна.
+     */
+    if ((changes.weightKg || changes.volumeM3) && pkg.pricingSnapshot) {
       const priced = this.computePrice({
         weightKg: next.weightKg,
         volumeM3: next.volumeM3,
@@ -399,21 +395,40 @@ class PackageService {
       throw new APIError('Үнэ өөрчлөгдөөгүй байна', httpStatus.BAD_REQUEST);
     }
 
-    const override = await this.resolveOverride(
-      { computedPrice: pkg.computedPrice, requested: price, reason },
-      actor
-    );
+    const overrideReason = this.requireReason(reason, 'Үнэ өөрчлөх шалтгаан');
 
-    const paymentStatus = packageState.resolvePaymentStatus(override.price, pkg.paidAmount);
+    /**
+     * BR-04-ийн ±% хязгаар нь ТАРИФААР бодогдсон ачаанд л үйлчилнэ: хязгаар
+     * гэдэг нь "бодсон дүнгээс хэр зөрч болох" гэсэн утга. Гараар үнэ заасан
+     * ачаанд (`pricingSnapshot: null`) харьцуулах бодсон дүн байхгүй тул
+     * хязгаар тооцох боломжгүй — хуучин гараар заасан дүнг "тариф" гэж үзвэл
+     * ажилтан хүссэн үнээ хэд хэдэн удаагийн жижиг өөрчлөлтөөр хүрч чадна.
+     *
+     * Тэр тохиолдолд хяналт нь: шалтгаан заавал + audit бичлэг.
+     */
+    if (pkg.pricingSnapshot) {
+      await this.resolveOverride(
+        { computedPrice: pkg.computedPrice, requested: price, reason: overrideReason },
+        actor
+      );
+    }
+
+    const paymentStatus = packageState.resolvePaymentStatus(price, pkg.paidAmount);
 
     return withTransaction(async session => {
       const updated = await packageRepository.updateByIdWithSession(
         id,
         {
-          finalPrice: override.price,
-          priceOverridden: true,
-          priceOverrideReason: override.reason,
-          balance: override.price - pkg.paidAmount,
+          finalPrice: price,
+          // Тарифаар бодогдсон ачаанд л "override" гэсэн утга бий. Гараар
+          // заасан ачааны үнэ өөрчлөгдөх нь шинэ гараар заалт.
+          priceOverridden: Boolean(pkg.pricingSnapshot),
+          priceOverrideReason: overrideReason,
+          // Гараар заасан ачаанд `computedPrice` нь үргэлж эцсийн үнэтэй
+          // тэнцүү байх ёстой — эс тэгвээс "хэдээс хэд болов" гэсэн хуурамч
+          // харьцуулалт үүснэ.
+          ...(pkg.pricingSnapshot ? {} : { computedPrice: price }),
+          balance: price - pkg.paidAmount,
           paymentStatus,
         },
         { session }
@@ -429,8 +444,8 @@ class PackageService {
           branchId: updated.branchId,
           field: 'finalPrice',
           before: pkg.finalPrice,
-          after: override.price,
-          reason: override.reason,
+          after: price,
+          reason: overrideReason,
           req,
         },
         { session }
@@ -794,6 +809,101 @@ class PackageService {
     return {
       existing,
       reason: this.requireReason(data.duplicateReason, 'Давхар бүртгэх шалтгаан'),
+    };
+  }
+
+  /**
+   * §1.2 — АЧААНЫ ҮНИЙГ ТОДОРХОЙЛОХ ГАНЦ ГАЗАР. Хоёр зам:
+   *
+   *   А. ХЭМЖСЭН (BR-01) — жин эсвэл эзлэхүүн өгсөн. Ачааны төрлийн
+   *      тарифаар бодогдож, snapshot хадгалагдана (BR-02). Ажилтан дээрээс
+   *      үнэ заасан бол тэр нь OVERRIDE — шалтгаан заавал, ажилтанд ±% хязгаар
+   *      үйлчилнэ (BR-04).
+   *
+   *   Б. ГАРААР ЗААСАН (BR-01a) — жин, эзлэхүүн хоёулаа байхгүй, ажилтан
+   *      үнийн дүнг шууд бичсэн. Тариф ОГТ хэрэглэгдэхгүй тул snapshot ч,
+   *      харьцуулах бодсон дүн ч байхгүй. Override биш учир шалтгаан
+   *      шаардахгүй.
+   *
+   * ⚠ ХЯЗГААРЫН ТАЛААР: Б замд ажилтны ±% хязгаар (BR-04) үйлчлэх боломжгүй —
+   * харьцуулах суурь байхгүй. Тиймээс ажилтан жин бичихгүйгээр дурын үнэ
+   * тавьж хязгаарыг тойрч гарах боломжтой. Энэ нь бизнесийн ЗӨВШӨӨРСӨН
+   * шийдвэр (жин үргэлж мэдэгддэггүй). Хяналт нь audit-аар хийгдэнэ:
+   * `priceSource: 'manual'` бүх бичлэг тайланд тусад нь харагдана.
+   *
+   * @returns {{ cargoTypeId, snapshot, computedPrice, priceSource, finalPrice,
+   *            overridden: boolean, overrideReason: string|null }}
+   */
+  async resolvePricing(data, actor) {
+    const measured = data.weightKg != null || (data.volumeM3 != null && data.volumeM3 > 0);
+
+    // ── Б зам: гараар заасан үнэ ──────────────────────────────────────────
+    if (!measured) {
+      if (data.finalPrice == null) {
+        throw new APIError(
+          'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулах шаардлагатай',
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      let manual;
+      try {
+        manual = manualPrice(data.finalPrice);
+      } catch (err) {
+        throw new APIError(err.message, httpStatus.BAD_REQUEST);
+      }
+
+      return {
+        cargoTypeId: data.cargoTypeId ?? null,
+        snapshot: null,
+        computedPrice: manual.computed,
+        priceSource: manual.source,
+        finalPrice: manual.final,
+        overridden: false,
+        overrideReason: null,
+      };
+    }
+
+    // ── А зам: хэмжсэн ачаа — тариф хэрэгтэй ──────────────────────────────
+    if (!data.cargoTypeId) {
+      throw new APIError(
+        'Жин/эзлэхүүнээр үнэ бодохын тулд ачааны төрлийг заана уу',
+        httpStatus.BAD_REQUEST
+      );
+    }
+
+    const cargoType = await tariffService.getCargoType(data.cargoTypeId);
+    if (!cargoType.isActive) {
+      throw new APIError(
+        `"${cargoType.name}" ачааны төрөл идэвхгүй байна`,
+        httpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+
+    const tariffDoc = await tariffService.getActiveTariff(cargoType._id);
+    const priced = this.computePrice({
+      weightKg: data.weightKg,
+      volumeM3: data.volumeM3,
+      tariff: tariffDoc,
+    });
+
+    const override = await this.resolveOverride(
+      {
+        computedPrice: priced.final,
+        requested: data.finalPrice,
+        reason: data.priceOverrideReason,
+      },
+      actor
+    );
+
+    return {
+      cargoTypeId: cargoType._id,
+      snapshot: { ...tariffDoc.toTariff(), tariffVersionId: tariffDoc._id },
+      computedPrice: priced.final,
+      priceSource: priced.source,
+      finalPrice: override ? override.price : priced.final,
+      overridden: Boolean(override),
+      overrideReason: override ? override.reason : null,
     };
   }
 

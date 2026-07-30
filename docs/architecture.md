@@ -142,10 +142,9 @@ module.exports = new PackageService();
 (`src/domain/package-state.js`) тодорхойлж, service түүнийг л ашиглана.
 
 ```js
+// Замын төлөв БАЙХГҮЙ — бүртгэл нь ачаа Монголд ирсний дараа (BR-07)
 const TRANSITIONS = {
-  registered:        ['in_transit', 'cancelled'],
-  in_transit:        ['arrived', 'cancelled'],
-  arrived:           ['notified', 'cancelled'],
+  registered:        ['notified', 'cancelled'],
   notified:          ['awaiting_payment', 'cancelled'],
   awaiting_payment:  ['paid', 'cancelled'],
   paid:              ['out_for_delivery', 'picked_up'],

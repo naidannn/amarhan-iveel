@@ -11,6 +11,8 @@ import {
   AlertTriangle,
   ExternalLink,
   Keyboard,
+  Calculator,
+  PenLine,
 } from 'lucide-vue-next'
 import { useDebounceFn, onKeyStroke } from '@vueuse/core'
 import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
@@ -25,13 +27,15 @@ import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
  *   • Хуудас ДАХИН АЧААЛАГДАХГҮЙ — `navigateTo` хийхгүй, форм л цэвэрлэгдэнэ
  *   • Фокус автоматаар ачааны дугаар руу ЭРГЭНЭ
  *   • Enter дарахад бүртгэгдэнэ — хулгана хүрэх шаардлагагүй
- *   • Ачааны төрөл, байршил, ирсэн огноо ЗАЛГАМЖИЛНА (sticky) — дараалсан
- *     ачаа ихэвчлэн ижил тавиур, ижил төрөлтэй байдаг
+ *   • Байршил, үнийн горим, ачааны төрөл ЗАЛГАМЖИЛНА (sticky)
  *   • Мэдэгдэл нь toast — `alert()` хуудсыг блоклож урсгалыг таслах болно
- *   • Үнэ бичих зуур урьдчилан харагдана (debounce 350мс)
  *
- * Хамгийн сүүлд бүртгэсэн ачаанууд баруун талд харагдана — ажилтан
- * "бүртгэгдсэн үү?" гэж эргэлзэж жагсаалт рүү орох шаардлагагүй.
+ * ҮНИЙН ХОЁР ГОРИМ (§1.2, BR-01 / BR-01a):
+ *   «Жингээр бодох»    — жин/хэмжээс оруулбал тарифаар бодогдоно
+ *   «Дүнг шууд бичих»  — жин мэдэгдэхгүй үед ажилтан үнийг өөрөө заана
+ *
+ * Процессийн хувьд ачааны дугаар ба утас л ирдэг тул хоёр дахь горим нь
+ * бодит ажлын гол зам болно — тиймээс нуугдмал биш, тэнцүү харагдана.
  */
 definePageMeta({ layout: 'admin', middleware: 'auth' })
 useHead({ title: 'Ачаа бүртгэх — Ивээл Карго' })
@@ -41,6 +45,8 @@ const toast = useToast()
 const auth = useAuthStore()
 
 const isManagement = computed(() => ['admin', 'manager'].includes(auth.user?.role ?? ''))
+
+type PriceMode = 'measured' | 'manual'
 
 // ── Формын төлөв ─────────────────────────────────────────────────────────
 function blankForm() {
@@ -54,7 +60,8 @@ function blankForm() {
     widthCm: null as number | null,
     heightCm: null as number | null,
     note: '',
-    finalPrice: null as number | null,
+    /** Горимоос хамаарч: `measured` үед override, `manual` үед үндсэн үнэ */
+    price: null as number | null,
     priceOverrideReason: '',
   }
 }
@@ -64,8 +71,10 @@ const form = reactive(blankForm())
 /**
  * ЗАЛГАМЖЛАХ талбарууд — бүртгэлийн дараа цэвэрлэгдэхгүй.
  * Ажилтан нэг тавиур дээр 30 ачаа тавихдаа байршлыг 30 удаа бичих ёсгүй.
+ * Үнийн горим ч мөн адил — ажлын нэг ээлжинд ихэвчлэн нэг зам хэрэглэнэ.
  */
 const sticky = reactive({
+  mode: 'manual' as PriceMode,
   cargoTypeId: null as string | null,
   locationCode: '',
 })
@@ -76,6 +85,8 @@ const recent = ref<CargoPackage[]>([])
 
 const trackingInput = ref<{ focus: () => void; select: () => void } | null>(null)
 
+const isMeasured = computed(() => sticky.mode === 'measured')
+
 // ── Үнийн урьдчилсан тооцоо (§1.2) ───────────────────────────────────────
 const quote = ref<{ final: number; source: string; volumeM3: number | null } | null>(null)
 const quoteError = ref<string | null>(null)
@@ -85,7 +96,7 @@ const hasDimensions = computed(
 )
 
 const canQuote = computed(
-  () => Boolean(sticky.cargoTypeId) && (form.weightKg != null || hasDimensions.value)
+  () => isMeasured.value && Boolean(sticky.cargoTypeId) && (form.weightKg != null || hasDimensions.value)
 )
 
 /**
@@ -124,20 +135,21 @@ const refreshQuote = useDebounceFn(async () => {
 }, 350)
 
 watch(
-  () => [
-    sticky.cargoTypeId,
-    form.weightKg,
-    form.lengthCm,
-    form.widthCm,
-    form.heightCm,
-  ],
+  () => [sticky.mode, sticky.cargoTypeId, form.weightKg, form.lengthCm, form.widthCm, form.heightCm],
   () => refreshQuote()
 )
 
-/** Override нь бодогдсон үнээс хэр хазайсныг ажилтанд харуулна (BR-04) */
+/** Хэрэглэгчид харагдах эцсийн дүн — горимоос хамаарна */
+const displayPrice = computed(() => {
+  if (!isMeasured.value) return form.price
+  if (form.price != null) return form.price
+  return quote.value?.final ?? null
+})
+
+/** Override нь бодогдсон үнээс хэр хазайсныг харуулна (зөвхөн `measured`) */
 const overrideDelta = computed(() => {
-  if (form.finalPrice == null || !quote.value) return null
-  const diff = form.finalPrice - quote.value.final
+  if (!isMeasured.value || form.price == null || !quote.value) return null
+  const diff = form.price - quote.value.final
   if (diff === 0) return null
   const percent = quote.value.final > 0 ? (diff / quote.value.final) * 100 : 0
   return { diff, percent: Math.round(percent * 10) / 10 }
@@ -159,7 +171,6 @@ onMounted(async () => {
   try {
     const types = await api.cargoTypes()
     cargoTypeOptions.value = types.data.map(t => ({ value: t.id, label: t.name }))
-    // Ганц төрөлтэй бол сонгуулах нь илүүц алхам
     if (cargoTypeOptions.value.length === 1) {
       sticky.cargoTypeId = cargoTypeOptions.value[0]!.value
     }
@@ -185,37 +196,61 @@ async function suggestLocation() {
   }
 }
 
+function setMode(mode: PriceMode) {
+  sticky.mode = mode
+  // Горим солиход нөгөө замын өгөгдөл үлдвэл backend хоёуланг хүлээж авч,
+  // ажилтны хүсээгүй тооцоолол хийнэ
+  if (mode === 'manual') {
+    form.weightKg = null
+    form.lengthCm = null
+    form.widthCm = null
+    form.heightCm = null
+    form.priceOverrideReason = ''
+    quote.value = null
+  } else {
+    form.price = null
+  }
+}
+
 // ── Бүртгэх ──────────────────────────────────────────────────────────────
 function buildPayload(extra: Record<string, any> = {}) {
-  return {
+  const base: Record<string, any> = {
     trackingNumber: form.trackingNumber.trim(),
     phone: form.phone.trim(),
     ...(form.customerName.trim() ? { customerName: form.customerName.trim() } : {}),
-    cargoTypeId: sticky.cargoTypeId,
     quantity: form.quantity,
-    ...(form.weightKg != null ? { weightKg: form.weightKg } : {}),
-    ...(hasDimensions.value
-      ? {
-          dimensions: {
-            lengthCm: form.lengthCm,
-            widthCm: form.widthCm,
-            heightCm: form.heightCm,
-          },
-        }
-      : {}),
     locationCode: sticky.locationCode.trim().toUpperCase(),
     ...(form.note.trim() ? { note: form.note.trim() } : {}),
-    ...(form.finalPrice != null
-      ? { finalPrice: form.finalPrice, priceOverrideReason: form.priceOverrideReason.trim() }
-      : {}),
     ...extra,
   }
+
+  if (isMeasured.value) {
+    base.cargoTypeId = sticky.cargoTypeId
+    if (form.weightKg != null) base.weightKg = form.weightKg
+    if (hasDimensions.value) {
+      base.dimensions = {
+        lengthCm: form.lengthCm,
+        widthCm: form.widthCm,
+        heightCm: form.heightCm,
+      }
+    }
+    // BR-04 — тарифын дүнг дарж бичих нь OVERRIDE, шалтгаан заавал
+    if (form.price != null) {
+      base.finalPrice = form.price
+      base.priceOverrideReason = form.priceOverrideReason.trim()
+    }
+  } else {
+    // BR-01a — гараар заасан үнэ. Ачааны төрөл, шалтгаан шаардахгүй.
+    base.finalPrice = form.price
+  }
+
+  return base
 }
 
 async function submit(extra: Record<string, any> = {}) {
   if (saving.value) return
 
-  // Хамгийн түгээмэл гурван алдааг backend хүртэл явахгүйгээр барина —
+  // Хамгийн түгээмэл алдаануудыг backend хүртэл явахгүйгээр барина —
   // сүлжээний нэг эргэлт хэмнэнэ
   if (!form.trackingNumber.trim()) {
     toast.error('Ачааны дугаарыг оруулна уу')
@@ -228,6 +263,14 @@ async function submit(extra: Record<string, any> = {}) {
   }
   if (!sticky.locationCode.trim()) {
     toast.error('Байршлын кодыг оруулна уу')
+    return
+  }
+  if (!isMeasured.value && form.price == null) {
+    toast.error('Үнийн дүнг оруулна уу')
+    return
+  }
+  if (isMeasured.value && form.weightKg == null && !hasDimensions.value) {
+    toast.error('Жин эсвэл хэмжээсийг оруулна уу')
     return
   }
 
@@ -267,7 +310,7 @@ function handleCreateError(e: any) {
   }
 
   if (e.code === ERROR_CODE.OVERRIDE_LIMIT_EXCEEDED) {
-    toast.error('Үнийн хязгаар хэтэрсэн', { description: e.message })
+    toast.error('Үнийн хязгаар хэтэрсэн', { description: e.message, duration: 9000 })
     return
   }
 
@@ -299,12 +342,11 @@ function resetForNext() {
   })
 }
 
-function clearSticky() {
+function clearLocation() {
   sticky.locationCode = ''
   toast.info('Байршил цэвэрлэгдлээ')
 }
 
-// Гарын хурдан товчлол — хулганаас бүрэн хамааралгүй ажиллана
 onKeyStroke('Escape', () => {
   if (duplicate.value) duplicate.value = null
 })
@@ -335,7 +377,12 @@ onKeyStroke('Escape', () => {
         </UiField>
 
         <div class="grid gap-5 sm:grid-cols-2">
-          <UiField label="Харилцагчийн утас" required for="phone" hint="Бүртгэлтэй бол автоматаар холбогдоно">
+          <UiField
+            label="Харилцагчийн утас"
+            required
+            for="phone"
+            hint="Бүртгэлтэй бол автоматаар холбогдоно"
+          >
             <UiTextInput
               id="phone"
               v-model="form.phone"
@@ -351,63 +398,173 @@ onKeyStroke('Escape', () => {
           </UiField>
         </div>
 
-        <div class="grid gap-5 sm:grid-cols-2">
-          <UiField label="Ачааны төрөл" required for="cargo-type" hint="Дараагийн ачаанд хадгалагдана">
-            <UiSelectInput
-              id="cargo-type"
-              v-model="sticky.cargoTypeId"
-              :options="cargoTypeOptions"
-              placeholder="Төрөл сонгоно уу"
-            />
-          </UiField>
-
-          <UiField label="Тоо хэмжээ" required for="quantity">
-            <UiTextInput
-              id="quantity"
-              v-model="form.quantity"
-              type="number"
-              :icon="PackageIcon"
-              tabular
-            />
-          </UiField>
-        </div>
-
-        <!-- Жин ба эзлэхүүн — BR-01: ядаж нэг нь заавал -->
+        <!-- ── ҮНЭ: хоёр горим (§1.2) ─────────────────────────────────── -->
         <div class="rounded-card border border-surface-border p-4">
           <p class="mb-3 text-body font-medium text-content">
-            Жин эсвэл хэмжээс
-            <span class="text-error">*</span>
+            Үнэ <span class="text-error">*</span>
           </p>
 
-          <div class="grid gap-4 sm:grid-cols-4">
-            <UiField label="Жин" for="weight">
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                !isMeasured
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="setMode('manual')"
+            >
+              <PenLine :size="18" class="mt-0.5 shrink-0" :class="!isMeasured ? 'text-primary' : 'text-content-secondary'" />
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Дүнг шууд бичих</span>
+                <span class="block text-body-sm text-content-secondary">
+                  Жин мэдэгдэхгүй үед
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                isMeasured
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="setMode('measured')"
+            >
+              <Calculator :size="18" class="mt-0.5 shrink-0" :class="isMeasured ? 'text-primary' : 'text-content-secondary'" />
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Жингээр бодох</span>
+                <span class="block text-body-sm text-content-secondary">
+                  Тарифаар автоматаар
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <!-- Горим Б: гараар үнэ -->
+          <div v-if="!isMeasured" class="mt-4 grid gap-4 sm:grid-cols-2">
+            <UiField label="Үнийн дүн" required for="manual-price">
               <UiTextInput
-                id="weight"
-                v-model="form.weightKg"
+                id="manual-price"
+                v-model="form.price"
                 type="number"
-                :icon="Weight"
-                suffix="кг"
-                placeholder="0.00"
+                suffix="₮"
+                placeholder="0"
                 tabular
               />
             </UiField>
 
-            <UiField label="Урт" for="length">
-              <UiTextInput id="length" v-model="form.lengthCm" type="number" suffix="см" tabular />
-            </UiField>
-            <UiField label="Өргөн" for="width">
-              <UiTextInput id="width" v-model="form.widthCm" type="number" suffix="см" tabular />
-            </UiField>
-            <UiField label="Өндөр" for="height">
-              <UiTextInput id="height" v-model="form.heightCm" type="number" suffix="см" tabular />
+            <UiField label="Тоо хэмжээ" for="quantity-manual">
+              <UiTextInput
+                id="quantity-manual"
+                v-model="form.quantity"
+                type="number"
+                :icon="PackageIcon"
+                tabular
+              />
             </UiField>
           </div>
 
-          <p class="mt-3 flex items-center gap-1.5 text-body-sm text-content-secondary">
-            <Ruler :size="14" />
-            Хэмжээс оруулбал эзлэхүүн автоматаар бодогдоно. Жин ба эзлэхүүний
-            <span class="font-medium text-content">өндөр дүнгээр</span> тооцогдоно.
-          </p>
+          <!-- Горим А: жин/хэмжээсээр -->
+          <div v-else class="mt-4 space-y-4">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiField label="Ачааны төрөл" required for="cargo-type">
+                <UiSelectInput
+                  id="cargo-type"
+                  v-model="sticky.cargoTypeId"
+                  :options="cargoTypeOptions"
+                  placeholder="Төрөл сонгоно уу"
+                />
+              </UiField>
+
+              <UiField label="Тоо хэмжээ" for="quantity">
+                <UiTextInput
+                  id="quantity"
+                  v-model="form.quantity"
+                  type="number"
+                  :icon="PackageIcon"
+                  tabular
+                />
+              </UiField>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-4">
+              <UiField label="Жин" for="weight">
+                <UiTextInput
+                  id="weight"
+                  v-model="form.weightKg"
+                  type="number"
+                  :icon="Weight"
+                  suffix="кг"
+                  placeholder="0.00"
+                  tabular
+                />
+              </UiField>
+
+              <UiField label="Урт" for="length">
+                <UiTextInput id="length" v-model="form.lengthCm" type="number" suffix="см" tabular />
+              </UiField>
+              <UiField label="Өргөн" for="width">
+                <UiTextInput id="width" v-model="form.widthCm" type="number" suffix="см" tabular />
+              </UiField>
+              <UiField label="Өндөр" for="height">
+                <UiTextInput id="height" v-model="form.heightCm" type="number" suffix="см" tabular />
+              </UiField>
+            </div>
+
+            <p class="flex items-center gap-1.5 text-body-sm text-content-secondary">
+              <Ruler :size="14" />
+              Хэмжээс оруулбал эзлэхүүн автоматаар бодогдоно. Жин ба эзлэхүүний
+              <span class="font-medium text-content">өндөр дүнгээр</span> тооцогдоно.
+            </p>
+
+            <!-- BR-04 — тарифын дүнг дарж бичих -->
+            <details class="rounded-input border border-surface-border p-3">
+              <summary class="cursor-pointer text-body font-medium text-content">
+                Бодогдсон үнийг дарж бичих
+                <span class="font-normal text-content-secondary">(шалтгаан заавал)</span>
+              </summary>
+
+              <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                <UiField label="Эцсийн үнэ" for="override-price">
+                  <UiTextInput
+                    id="override-price"
+                    v-model="form.price"
+                    type="number"
+                    suffix="₮"
+                    :placeholder="quote ? String(quote.final) : '0'"
+                    tabular
+                  />
+                </UiField>
+
+                <UiField label="Шалтгаан" for="override-reason" :required="form.price != null">
+                  <UiTextInput
+                    id="override-reason"
+                    v-model="form.priceOverrideReason"
+                    placeholder="Жишээ: жинлүүрийн зөрүү"
+                  />
+                </UiField>
+              </div>
+
+              <p
+                v-if="overrideDelta"
+                class="mt-3 text-body-sm"
+                :class="overrideDelta.diff > 0 ? 'text-warning' : 'text-primary-600'"
+              >
+                Бодогдсон үнээс
+                <span class="tabular font-semibold">
+                  {{ overrideDelta.diff > 0 ? '+' : '' }}{{ formatCurrency(overrideDelta.diff) }}
+                </span>
+                ({{ overrideDelta.percent > 0 ? '+' : '' }}{{ overrideDelta.percent }}%)
+                <span v-if="!isManagement && Math.abs(overrideDelta.percent) > 20">
+                  — Ажилтны хязгаараас давсан, Менежерээр хийлгэнэ
+                </span>
+              </p>
+            </details>
+          </div>
         </div>
 
         <!-- Байршил -->
@@ -417,62 +574,20 @@ onKeyStroke('Escape', () => {
               id="location"
               v-model="sticky.locationCode"
               :icon="MapPin"
-              placeholder="ER-02-B-15"
+              placeholder="UB-02-B-15"
               tabular
               class="flex-1"
             />
             <UiBtn variant="secondary" :icon="Wand2" @click="suggestLocation">Санал</UiBtn>
-            <UiBtn v-if="sticky.locationCode" variant="ghost" @click="clearSticky">Цэвэрлэх</UiBtn>
+            <UiBtn v-if="sticky.locationCode" variant="ghost" @click="clearLocation">
+              Цэвэрлэх
+            </UiBtn>
           </div>
         </UiField>
 
         <UiField label="Тайлбар" for="note">
           <UiTextArea id="note" v-model="form.note" :rows="2" placeholder="Сонголтоор" />
         </UiField>
-
-        <!-- Үнэ override — BR-04 -->
-        <details class="rounded-card border border-surface-border p-4">
-          <summary class="cursor-pointer text-body font-medium text-content">
-            Үнэ гараар өөрчлөх
-            <span class="font-normal text-content-secondary">(шалтгаан заавал)</span>
-          </summary>
-
-          <div class="mt-4 grid gap-4 sm:grid-cols-2">
-            <UiField label="Эцсийн үнэ" for="override-price">
-              <UiTextInput
-                id="override-price"
-                v-model="form.finalPrice"
-                type="number"
-                suffix="₮"
-                :placeholder="quote ? String(quote.final) : '0'"
-                tabular
-              />
-            </UiField>
-
-            <UiField label="Шалтгаан" for="override-reason" :required="form.finalPrice != null">
-              <UiTextInput
-                id="override-reason"
-                v-model="form.priceOverrideReason"
-                placeholder="Жишээ: жинлүүрийн зөрүү"
-              />
-            </UiField>
-          </div>
-
-          <p
-            v-if="overrideDelta"
-            class="mt-3 text-body-sm"
-            :class="overrideDelta.diff > 0 ? 'text-warning' : 'text-primary-600'"
-          >
-            Бодогдсон үнээс
-            <span class="tabular font-semibold">
-              {{ overrideDelta.diff > 0 ? '+' : '' }}{{ formatCurrency(overrideDelta.diff) }}
-            </span>
-            ({{ overrideDelta.percent > 0 ? '+' : '' }}{{ overrideDelta.percent }}%)
-            <span v-if="!isManagement && Math.abs(overrideDelta.percent) > 20">
-              — Ажилтны хязгаараас давсан, Менежерээр хийлгэнэ
-            </span>
-          </p>
-        </details>
 
         <div class="flex flex-wrap items-center gap-3 border-t border-surface-border pt-5">
           <UiBtn type="submit" :icon="Check" :loading="saving">Бүртгэх</UiBtn>
@@ -488,17 +603,21 @@ onKeyStroke('Escape', () => {
 
       <!-- ── Хажуугийн хэсэг ──────────────────────────────────────────── -->
       <div class="space-y-6">
-        <!-- Үнийн урьдчилсан тооцоо -->
         <div class="card">
-          <p class="text-body font-medium text-content-secondary">Бодогдох үнэ</p>
+          <p class="text-body font-medium text-content-secondary">
+            {{ isMeasured ? 'Бодогдох үнэ' : 'Төлөх үнэ' }}
+          </p>
 
-          <p v-if="quote" class="tabular mt-1 text-h2 font-bold text-primary">
-            {{ formatCurrency(quote.final) }}
+          <p v-if="displayPrice != null" class="tabular mt-1 text-h2 font-bold text-primary">
+            {{ formatCurrency(displayPrice) }}
           </p>
           <p v-else-if="quoteError" class="mt-1 text-body text-error">{{ quoteError }}</p>
           <p v-else class="mt-1 text-h3 text-content-disabled">—</p>
 
-          <dl v-if="quote" class="mt-4 space-y-2 border-t border-surface-border pt-4 text-body">
+          <dl
+            v-if="isMeasured && quote"
+            class="mt-4 space-y-2 border-t border-surface-border pt-4 text-body"
+          >
             <div class="flex justify-between">
               <dt class="text-content-secondary">Тооцооллын үндэс</dt>
               <dd class="font-medium text-content">
@@ -517,8 +636,11 @@ onKeyStroke('Escape', () => {
             </div>
           </dl>
 
-          <p v-else-if="!canQuote" class="mt-3 text-body-sm text-content-secondary">
+          <p v-else-if="isMeasured && !canQuote" class="mt-3 text-body-sm text-content-secondary">
             Ачааны төрөл ба жин/хэмжээс оруулахад үнэ харагдана.
+          </p>
+          <p v-else-if="!isMeasured" class="mt-3 text-body-sm text-content-secondary">
+            Ажилтны заасан дүн — тариф хэрэглэгдэхгүй.
           </p>
         </div>
 
@@ -585,7 +707,12 @@ onKeyStroke('Escape', () => {
           </div>
         </div>
 
-        <UiBtn variant="secondary" :icon-right="ExternalLink" :to="`/admin/packages/${duplicate.packageId}`" block>
+        <UiBtn
+          variant="secondary"
+          :icon-right="ExternalLink"
+          :to="`/admin/packages/${duplicate.packageId}`"
+          block
+        >
           Оршин буй ачааг харах
         </UiBtn>
 
@@ -596,11 +723,7 @@ onKeyStroke('Escape', () => {
             required
             hint="Тээвэрлэгч дугаараа дахин ашигласан бодит тохиолдолд. Audit-д бүртгэгдэнэ."
           >
-            <UiTextArea
-              v-model="duplicateReason"
-              :rows="2"
-              placeholder="Давхар бүртгэх шалтгаан"
-            />
+            <UiTextArea v-model="duplicateReason" :rows="2" placeholder="Давхар бүртгэх шалтгаан" />
           </UiField>
         </div>
 

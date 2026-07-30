@@ -69,7 +69,9 @@ function calculatePrice({ weightKg, volumeM3, tariff }) {
   const weight = toNonNegativeNumber(weightKg, 'Жин');
   const volume = toNonNegativeNumber(volumeM3, 'Эзлэхүүн');
 
-  // §1.1 — ачааны төрлөөс хамаарч жин эсвэл эзлэхүүний ЯДАЖ НЭГ нь заавал
+  // Жин ба эзлэхүүн хоёулаа байхгүй бол ТООЦООЛОХ юм байхгүй. Ийм ачааны
+  // үнийг ажилтан гараар заана (`manualPrice()`) — үүнийг ЭНД шийдэхгүй,
+  // дуудагч тал шийднэ (docs/business-rules.md BR-01a).
   if (weight === 0 && volume === 0) {
     throw new Error('Жин эсвэл эзлэхүүний ядаж нэгийг оруулах шаардлагатай');
   }
@@ -144,6 +146,37 @@ function resolveSource({ byWeight, byVolume, computed, minimumCharge }) {
   }
   // Тэнцүү үед жинг сонгоно — тогтвортой, урьдчилан таамаглах боломжтой байх ёстой
   return byWeight >= byVolume ? PRICE_SOURCE.WEIGHT : PRICE_SOURCE.VOLUME;
+}
+
+/**
+ * Ажилтан үнийн дүнг ШУУД заасан тохиолдол — BR-01a.
+ *
+ * ЯАГААД ЭНЭ ЗАМ БАЙНА: бодит ажил дээр жин үргэлж мэдэгддэггүй (жинлүүр
+ * ажиллахгүй, ачаа хэт том, эсвэл харилцагчтай тохирсон тогтмол үнэ). Ийм
+ * үед ажилтныг зохиомол жин бичихийг шаардвал өгөгдөл БУРУУ болно — тайлан,
+ * тарифын шинжилгээ бүхэн гажина. Тиймээс "жин мэдэгдэхгүй" гэдгийг
+ * тодорхой (`weightKg: null`, `priceSource: 'manual'`) илэрхийлэх нь зөв.
+ *
+ * `computed` нь `final`-тай тэнцүү: харьцуулах бодсон дүн БАЙХГҮЙ учир
+ * override-ийн хазайлт тооцох суурь ч байхгүй (BR-04 үйлчлэхгүй).
+ *
+ * @param {number} price — ажилтны заасан дүн (₮, бүхэл тоо)
+ * @returns {PriceResult}
+ */
+function manualPrice(price) {
+  if (!Number.isInteger(price) || price < 0) {
+    throw new Error(`Үнэ сөрөг бус бүхэл тоо (₮) байх ёстой: "${price}"`);
+  }
+
+  return {
+    byWeight: 0,
+    byVolume: 0,
+    computed: price,
+    final: price,
+    source: PRICE_SOURCE.MANUAL,
+    appliedBracket: null,
+    chargeableKg: 0,
+  };
 }
 
 /**
@@ -258,6 +291,7 @@ function toPositiveNumber(value, label) {
 module.exports = {
   GRAMS_PER_KG,
   calculatePrice,
+  manualPrice,
   calculateVolumeM3,
   isWithinOverrideLimit,
   assertValidBrackets,

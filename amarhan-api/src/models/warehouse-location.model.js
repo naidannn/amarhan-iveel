@@ -8,7 +8,7 @@ const Schema = mongoose.Schema;
  * Агуулахын байршил — introduction.md §8
  *
  * Салбар → Өрөө → Тавиур → Мөр → Нүд шатлалын НАВЧ (нүд) бүрт нэг бичлэг.
- * Жишээ код: `ER-02-B-15`
+ * Жишээ код: `UB-02-B-15`
  */
 const warehouseLocationSchema = new Schema(
   {
@@ -18,7 +18,7 @@ const warehouseLocationSchema = new Schema(
       unique: true,
       uppercase: true,
       trim: true,
-      match: [CODE_PATTERN, 'Байршлын кодын формат буруу (жишээ: ER-02-B-15)'],
+      match: [CODE_PATTERN, 'Байршлын кодын формат буруу (жишээ: UB-02-B-15)'],
     },
     branchId: {
       type: Schema.Types.ObjectId,

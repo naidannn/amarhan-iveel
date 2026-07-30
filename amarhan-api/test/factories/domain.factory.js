@@ -7,7 +7,7 @@ const Customer = require('../../src/models/customer.model');
 const WarehouseLocation = require('../../src/models/warehouse-location.model');
 
 let counter = 0;
-const BRANCH_CODES = ['ER', 'UB', 'DZ', 'KH', 'AR', 'BY', 'CH', 'GO'];
+const BRANCH_CODES = ['UB', 'ER', 'DZ', 'KH', 'AR', 'BY', 'CH', 'GO'];
 
 function nextCounter() {
   counter += 1;

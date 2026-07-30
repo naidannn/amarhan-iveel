@@ -9,8 +9,6 @@
 
 export type PackageStatusValue =
   | 'registered'
-  | 'in_transit'
-  | 'arrived'
   | 'notified'
   | 'awaiting_payment'
   | 'paid'
@@ -26,17 +24,18 @@ export interface CargoPackage {
   customerId: string | { id: string; phone: string; name: string | null }
   customerPhone: string
   branchCode: string
-  cargoTypeId: string | { id: string; code: string; name: string }
+  cargoTypeId: string | { id: string; code: string; name: string } | null
   quantity: number
   weightKg: number | null
   volumeM3: number | null
   dimensions: { lengthCm: number; widthCm: number; heightCm: number } | null
   computedPrice: number
   finalPrice: number
-  priceSource: 'weight' | 'volume' | 'minimum'
+  priceSource: 'weight' | 'volume' | 'minimum' | 'manual'
   priceOverridden: boolean
   priceOverrideReason: string | null
-  pricingSnapshot: Record<string, any>
+  // `null` = ажилтан үнийг гараар заасан (BR-01a)
+  pricingSnapshot: Record<string, any> | null
   paidAmount: number
   balance: number
   paymentStatus: 'unpaid' | 'partial' | 'paid'

@@ -78,6 +78,10 @@ exports.AUDIT_ACTION = {
   CUSTOMER_CREATE: 'customer.create',
   CUSTOMER_UPDATE: 'customer.update',
   CUSTOMER_LOYALTY_ADJUST: 'customer.loyalty_adjust',
+  // Phase 5 — харилцагч ӨӨРӨӨ хийсэн үйлдэл. `actor` нь ажилтан БИШ тул
+  // audit-д `actorId: null`, `actorName: 'Харилцагч'` гэж бичигдэнэ.
+  CUSTOMER_REGISTER: 'customer.register',
+  CUSTOMER_PHONE_LINK: 'customer.phone_link',
 
   // Ажилтан
   USER_CREATE: 'user.create',
@@ -228,6 +232,11 @@ exports.ERROR_CODE = {
   UNPAID_PACKAGES: 'UNPAID_PACKAGES',
   PACKAGE_IN_ACTIVE_DELIVERY: 'PACKAGE_IN_ACTIVE_DELIVERY',
   INVALID_DELIVERY_TRANSITION: 'INVALID_DELIVERY_TRANSITION',
+  // Phase 5 — харилцагчийн вэб
+  EMAIL_TAKEN: 'EMAIL_TAKEN',
+  PHONE_TAKEN: 'PHONE_TAKEN',
+  PHONE_REQUIRED: 'PHONE_REQUIRED',
+  INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
 };
 
 /**
@@ -263,10 +272,62 @@ exports.SETTING_KEY = {
   PRICING_OVERRIDE_LIMIT_PERCENT: 'pricing.override_limit_percent',
   PACKAGE_DELETE_WINDOW_HOURS: 'package.delete_window_hours',
   WAREHOUSE_SUGGEST_ENABLED: 'warehouse.suggest_enabled',
+
+  // Phase 5 — харилцагчийн вэбэд харагдах статик агуулга (§3).
+  // `content.*` угтвартай түлхүүр НЭВТРЭЭГҮЙ зочинд ч уншигдана — тиймээс
+  // энд дотоод/нууц утга ХЭЗЭЭ Ч хадгалахгүй.
+  CONTENT_ERENHOT_ADDRESS: 'content.erenhot_address',
+  CONTENT_CONTACT: 'content.contact',
+  CONTENT_FAQ: 'content.faq',
+  CONTENT_HOME_NOTICE: 'content.home_notice',
 };
+
+/**
+ * Нээлттэй уншигдах агуулгын түлхүүрүүд.
+ *
+ * Угтвараар (`content.`) шүүхгүй, ЖАГСААЛТААР зөвшөөрч байгаа шалтгаан: хожим
+ * `content.internal_*` төрлийн түлхүүр нэмэгдвэл угтварын шүүлт түүнийг
+ * чимээгүй нийтэлнэ. Тодорхой жагсаалт нь нэмэх бүрт ухамсартай шийдвэр шаардана.
+ */
+exports.PUBLIC_CONTENT_KEYS = [
+  exports.SETTING_KEY.CONTENT_ERENHOT_ADDRESS,
+  exports.SETTING_KEY.CONTENT_CONTACT,
+  exports.SETTING_KEY.CONTENT_FAQ,
+  exports.SETTING_KEY.CONTENT_HOME_NOTICE,
+];
 
 exports.SETTING_DEFAULTS = {
   [exports.SETTING_KEY.PRICING_OVERRIDE_LIMIT_PERCENT]: 20,
   [exports.SETTING_KEY.PACKAGE_DELETE_WINDOW_HOURS]: 24,
   [exports.SETTING_KEY.WAREHOUSE_SUGGEST_ENABLED]: true,
+
+  /**
+   * §3 — Эрээн дэх хүлээн авах хаяг. Энэ нь ЗӨВХӨН ХАРУУЛАХ ТЕКСТ: харилцагч
+   * Хятадын дэлгүүрт бичих хаяг бөгөөд системийн агуулахын байршил (§8) БИШ.
+   * Эрээний тал систем дээр бүртгэлгүй (§1.1).
+   *
+   * Утга нь бизнесийн мэдээлэл тул кодод хатуу бичихгүй — Админ вэбээс засна
+   * (5.10). Доорх нь зөвхөн бөглөгдөөгүй үеийн ЗАГВАР.
+   */
+  [exports.SETTING_KEY.CONTENT_ERENHOT_ADDRESS]: {
+    receiverName: '',
+    phone: '',
+    addressCn: '',
+    addressMn: '',
+    note: 'Хаягийн мэдээлэл хараахан бөглөгдөөгүй байна. Ажилтантай холбогдоно уу.',
+  },
+
+  [exports.SETTING_KEY.CONTENT_CONTACT]: {
+    phone: '',
+    email: '',
+    address: '',
+    workingHours: '',
+    facebook: '',
+  },
+
+  // [{ question, answer }]
+  [exports.SETTING_KEY.CONTENT_FAQ]: [],
+
+  // Нүүр хуудсанд харагдах зарлал. `null` = зарлал байхгүй.
+  [exports.SETTING_KEY.CONTENT_HOME_NOTICE]: null,
 };

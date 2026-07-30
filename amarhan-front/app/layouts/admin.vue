@@ -48,7 +48,9 @@ const navigation: NavItem[] = [
   { label: 'Тайлан', to: '/admin/reports', icon: BarChart3, roles: ['admin', 'manager'] },
   { label: 'Мэдэгдэл', to: '/admin/notifications', icon: Bell, roles: ['admin', 'manager'] },
   { label: 'Хяналтын бүртгэл', to: '/admin/audit', icon: ShieldCheck, roles: ['admin', 'manager'] },
-  { label: 'Тохиргоо', to: '/admin/settings', icon: Settings, roles: ['admin'] },
+  // Phase 5 — статик агуулга. `/admin/settings`-ийн бусад дэд хуудас хожим
+  // нэмэгдэх тул одоохондоо бэлэн байгаа хуудас руу шууд заана.
+  { label: 'Вэбийн агуулга', to: '/admin/settings/content', icon: Settings, roles: ['admin'] },
 ]
 
 const ROLE_LABELS: Record<string, string> = {

@@ -1,3 +1,5 @@
+import { CUSTOMER_TOKEN_KEY } from '~/stores/customer'
+
 /**
  * Апп эхлэхэд нэвтрэлтийн төлөвийг localStorage-оос сэргээнэ.
  *
@@ -15,6 +17,22 @@ export default defineNuxtPlugin({
 
   async setup() {
     const authStore = useAuthStore()
-    await authStore.checkAuth()
+    const customerStore = useCustomerStore()
+
+    /**
+     * Хоёр танилтыг ЗЭРЭГ сэргээнэ — нэг браузерт ажилтны ба харилцагчийн
+     * нэвтрэлт зэрэг байж болно (Phase 5).
+     *
+     * Токен БАЙВАЛ л сервер рүү явна: нээлттэй хуудас (нүүр, `/track/...`)
+     * зочны хувьд ямар ч нэмэлт хүсэлтгүй ачаалагдах ёстой.
+     */
+    await Promise.all([
+      localStorage.getItem('auth_token') ? authStore.checkAuth() : Promise.resolve(false),
+      localStorage.getItem(CUSTOMER_TOKEN_KEY)
+        ? customerStore.checkAuth()
+        : Promise.resolve(false),
+    ])
+
+    customerStore.ready = true
   },
 })

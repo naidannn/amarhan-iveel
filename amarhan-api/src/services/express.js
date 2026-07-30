@@ -12,7 +12,6 @@ const requestId = require('../middlewares/request-id');
 const sanitize = require('../middlewares/sanitize');
 const apiRouter = require('../routes/api');
 const passport = require('passport');
-const session = require('express-session');
 const passportJwt = require('../services/passport');
 const logger = require('../utils/logger');
 require('./passport-setup');
@@ -54,17 +53,18 @@ app.use(globalLimiter);
 // Logging
 if (config.env !== 'test') app.use(morgan('combined'));
 
-// Passport & session
-app.use(
-  session({
-    secret: config.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-  })
-);
+/**
+ * Passport — SESSION БАЙХГҮЙ.
+ *
+ * Танилт бүхэлдээ JWT дээр тогтоно (ажилтан `aud: staff`, харилцагч
+ * `aud: customer`). Boilerplate-ийн `express-session` нь ямар ч урсгалд
+ * ашиглагдахаа больсон: Google OAuth `session: false`-оор ажиллана.
+ * Хэрэглэгдэхгүй session нь production-д санах ой идэх MemoryStore үлдээж,
+ * CSRF-ийн гадаргууг ч нэмнэ (docs/security-and-permissions.md §6).
+ */
 app.use(passport.initialize());
-app.use(passport.session());
 passport.use('jwt', passportJwt.jwt);
+passport.use('jwt-customer', passportJwt.customerJwt);
 
 // Routes
 app.use('/api', apiRouter);

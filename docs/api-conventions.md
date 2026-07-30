@@ -205,7 +205,14 @@ router.use('/v1/packages', packageRouter);
 | `branchId` | салбарын ID | — |
 | Хугацаа | 8 цаг | 30 хоног |
 
-> **Заавал:** `aud` шалгагдана. Харилцагчийн токеноор админ endpoint рүү орох боломжгүй.
+> **Заавал:** `aud` шалгагдана. Харилцагчийн токеноор админ endpoint рүү орох
+> боломжгүй, эсрэгээр ч мөн адил. Хоёр ТУСДАА passport strategy (`jwt`,
+> `jwt-customer`) — нэг strategy-д хоёр audience зөвшөөрвөл тусгаарлалт нурна.
+
+Гурав дахь, **түр** audience байдаг: `customer_pending` (15 мин). Google-ээр
+эхний удаа нэвтэрсэн ч утсаа хараахан өгөөгүй хүнд олгоно. Ард нь бодит
+харилцагчийн бичлэг БАЙХГҮЙ тул `customer`-той адилтгахыг хориглоно —
+адилтгавал бүртгэлгүй хүн харилцагчийн endpoint рүү орно.
 
 ### Эрхийн бүлэг (`config/constants.js`)
 
@@ -235,33 +242,72 @@ applyBranchScope(query, actor) {
 
 ---
 
-## 8. Харилцагчийн API
+## 8. Харилцагчийн API (§3, Phase 5)
 
-Тусдаа зам, тусдаа middleware:
+> **`/v1/customer` (ганц тоо) ≠ `/v1/customers` (олон тоо).** Эхнийх нь
+> ХАРИЛЦАГЧ өөрөө ханддаг (`aud: 'customer'`), хоёр дахь нь АЖИЛТАН
+> харилцагчийг удирддаг (`aud: 'staff'`). Нэрийн ялгаа бага тул route
+> нэмэхдээ алийг нь өргөтгөж байгаагаа шалгана.
+
+Танилтгүй:
 
 ```
-POST   /api/v1/customer/auth/register
-POST   /api/v1/customer/auth/login
-POST   /api/v1/customer/auth/google
-POST   /api/v1/customer/auth/phone/request-otp
-POST   /api/v1/customer/auth/phone/verify
-GET    /api/v1/customer/me
+POST   /api/v1/customer/auth/register           # утас + нууц үг. Утас ЗААВАЛ (BR-26)
+POST   /api/v1/customer/auth/login              # identifier = утас ЭСВЭЛ имэйл
+GET    /api/v1/customer/auth/google             # → Google руу redirect
+GET    /api/v1/customer/auth/google/callback    # → frontend руу redirect (JSON БИШ)
+POST   /api/v1/customer/auth/google/complete    # түр токен + утас → бүртгэл дуусна
+```
+
+Танилт шаардсан (`authorizeCustomer()` → `req.customer`):
+
+```
+GET    /api/v1/customer/auth/me
+POST   /api/v1/customer/auth/logout
+POST   /api/v1/customer/auth/change-password
+PUT    /api/v1/customer/me                      # нэр, имэйл. `phone` БАЙХГҮЙ
+PUT    /api/v1/customer/me/addresses
+GET    /api/v1/customer/summary                 # нүүр самбарын тоо + үлдэгдэл
 GET    /api/v1/customer/packages
+GET    /api/v1/customer/packages/:packageId
 GET    /api/v1/customer/payments
-POST   /api/v1/customer/payments/qpay          # QPay нэхэмжлэх үүсгэх
-POST   /api/v1/customer/deliveries
-GET    /api/v1/customer/loyalty
+GET    /api/v1/customer/invoices
+GET    /api/v1/customer/deliveries
 ```
 
-Нээлттэй (танилтгүй):
+**Гурван дүрэм** (`customer-portal.service.js`):
+
+1. Хамрах хүрээ ҮРГЭЛЖ `req.customer._id`-ээс. Клиентээс ирсэн
+   `customerId`/`phone`-г ХЭЗЭЭ Ч авахгүй; Joi танигдахгүй параметрийг таслана.
+2. Эрхгүй бичлэгт **`404`**, `403` биш — `403` нь тухайн ID оршин байгааг батална.
+3. Хариу нь **цагаан жагсаалттай**. `note`, `locationCode`, `registeredBy`,
+   `pricingSnapshot` зэрэг дотоод талбар гарахгүй.
+
+Нээлттэй (танилтгүй, `publicLimiter`-т захирагдана):
 
 ```
-GET    /api/v1/public/track/:trackingNumber    # ачаа хайх
-GET    /api/v1/public/notifications            # §7 — нэвтрээгүй ч харна
-GET    /api/v1/public/content/:key             # Эрээний хаяг г.м.
+GET    /api/v1/public/track/:trackingNumber    # төлөв + масклагдсан утас
+GET    /api/v1/public/content                  # Эрээний хаяг, холбоо барих, FAQ
+GET    /api/v1/public/notifications            # §7 — Phase 6
 ```
 
-**QPay callback** (гадаад):
+> **`/public/*`-д нэмсэн зам БҮР интернэтэд ил.** `track` нь ҮНЭ, ҮЛДЭГДЭЛ,
+> агуулахын байршил, бүтэн утсыг БУЦААХГҮЙ — дугаар мэддэг хэн ч дуудна.
+> `content` нь `PUBLIC_CONTENT_KEYS` **жагсаалтад** байгаа түлхүүрийг л
+> буцаана (угтварын шүүлт биш).
+
+Тохиргоо / статик агуулга (Phase 5, 5.10):
+
+```
+GET    /api/v1/settings                        # унших: ажилтан ба дээш
+PUT    /api/v1/settings/:key                   # засах: ЗӨВХӨН Админ, audit-д
+```
+
+`:key` нь `SETTING_KEY`-д байгаа утга байх ёстой; утгын хэлбэрийг түлхүүр тус
+бүрээр Joi шалгана (`validations/setting.validation.js`) — `settings.value` нь
+Mongoose-д `Mixed` тул схемийн хамгаалалт өөр байхгүй.
+
+**QPay callback** (гадаад, Phase 5.6–5.7 — ХЭРЭГЖЭЭГҮЙ):
 ```
 POST   /api/v1/webhooks/qpay
 ```

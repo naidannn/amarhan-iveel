@@ -34,6 +34,7 @@ exports.ROLE_GROUP = {
 exports.AUDIT_ENTITY = {
   PACKAGE: 'package',
   PAYMENT: 'payment',
+  INVOICE: 'invoice',
   CUSTOMER: 'customer',
   USER: 'user',
   BRANCH: 'branch',
@@ -63,6 +64,8 @@ exports.AUDIT_ACTION = {
   // Төлбөр (Phase 3)
   PAYMENT_CREATE: 'payment.create',
   PAYMENT_VOID: 'payment.void',
+  INVOICE_CREATE: 'invoice.create',
+  INVOICE_CANCEL: 'invoice.cancel',
 
   // Харилцагч
   CUSTOMER_CREATE: 'customer.create',
@@ -130,6 +133,56 @@ exports.PAYMENT_STATUS = {
 exports.PAYMENT_STATUS_LIST = Object.values(exports.PAYMENT_STATUS);
 
 /**
+ * Төлбөр авах хэлбэр — §1.8.
+ *
+ * Хуваасан төлбөр гэдэг нь НЭГ ачааг олон хэлбэрээр төлөх (50% данс + 50%
+ * бэлэн). Хэлбэр бүр ТУСДАА `payments` бичлэг болно (BR-13) — нэг бичлэгт
+ * хоёр хэлбэр багтуулбал касс тулгахад аль дүн хаанаас орсныг ялгах
+ * боломжгүй болно.
+ */
+exports.PAYMENT_METHOD = {
+  CASH: 'cash',
+  BANK: 'bank',
+  CARD: 'card',
+  QPAY: 'qpay',
+};
+
+exports.PAYMENT_METHOD_LIST = Object.values(exports.PAYMENT_METHOD);
+
+/**
+ * `payments` бичлэгийн төлөв — BR-14, BR-18.
+ *
+ * `pending`   — онлайн төлбөр (QPay) үүссэн ч батлагдаагүй. Үлдэгдэлд
+ *               ТООЦОГДОХГҮЙ: батлагдаагүй мөнгийг төлөгдсөн гэж үзвэл
+ *               төлөөгүй ачаа хүргэлтэнд гарна.
+ * `completed` — мөнгө бодитоор орсон. ЗӨВХӨН энэ төлөв `paidAmount`-д тооцогдоно.
+ * `voided`    — буруу бүртгэлийг хүчингүй болгосон. Устгахгүй (BR-18).
+ */
+exports.PAYMENT_RECORD_STATUS = {
+  PENDING: 'pending',
+  COMPLETED: 'completed',
+  VOIDED: 'voided',
+};
+
+exports.PAYMENT_RECORD_STATUS_LIST = Object.values(exports.PAYMENT_RECORD_STATUS);
+
+/**
+ * Нэгтгэсэн нэхэмжлэхийн төлөв — §2.3.
+ *
+ * Нэхэмжлэх нь ТООЦООНЫ эх сурвалж БИШ — зөвхөн "ажилтан эдгээр ачааг нэг дор
+ * төлүүлэхээр сонгосон" гэсэн бүлэглэл. Ачааны `balance` нь үргэлж
+ * `payments.allocations`-аас гарна (BR-14), нэхэмжлэхээс биш. Ингэснээр
+ * нэхэмжлэхгүйгээр төлбөр авах зам ч хэвийн ажиллана.
+ */
+exports.INVOICE_STATUS = {
+  OPEN: 'open',
+  PAID: 'paid',
+  CANCELLED: 'cancelled',
+};
+
+exports.INVOICE_STATUS_LIST = Object.values(exports.INVOICE_STATUS);
+
+/**
  * Frontend-д програмчлан шалгах шаардлагатай алдааны кодууд.
  *
  * Мессежийн ТЕКСТЭД frontend хамаарах ёсгүй (текст өөрчлөгдөж болно) —
@@ -140,6 +193,11 @@ exports.ERROR_CODE = {
   OVERRIDE_LIMIT_EXCEEDED: 'OVERRIDE_LIMIT_EXCEEDED',
   INVALID_STATUS_TRANSITION: 'INVALID_STATUS_TRANSITION',
   DELETE_NOT_ALLOWED: 'DELETE_NOT_ALLOWED',
+  // Phase 3 — төлбөр
+  OVERPAYMENT: 'OVERPAYMENT',
+  ALLOCATION_MISMATCH: 'ALLOCATION_MISMATCH',
+  PAYMENT_ALREADY_VOIDED: 'PAYMENT_ALREADY_VOIDED',
+  MIXED_CUSTOMERS: 'MIXED_CUSTOMERS',
 };
 
 /**

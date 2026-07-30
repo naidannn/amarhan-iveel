@@ -33,12 +33,25 @@ const S = PACKAGE_STATUS;
  * ЯАГААД `registered`-ЭЭС ЭХЭЛДЭГ: ачааг Монголд ирсний ДАРАА бүртгэдэг тул
  * бүртгэл өөрөө "ирсэн" гэдгийг илэрхийлнэ. Эрээний тал, замын хөдөлгөөнийг
  * систем хянадаггүй — тэр үед ачаа системд ОГТ байхгүй.
+ *
+ * ТӨЛБӨРИЙН БОГИНО ЗАМ (Phase 3). `registered → paid` ба `notified → paid`
+ * нэмэгдсэн шалтгаан: хэрэглэгч ачаагаа авахаар ирээд ТУХАЙН МӨЧИД төлдөг —
+ * ажилтан түүнээс өмнө "мэдэгдсэн", "төлбөр хүлээгдэж буй" гэж дараалан
+ * дарах шаардлагагүй. Эдгээр нь зөвхөн СИСТЕМИЙН шилжилт (`paid` нь
+ * `SYSTEM_ONLY`) тул ажилтан гараар үсрэх боломжгүй — цорын ганц зам нь
+ * бодит төлбөр бүртгэгдэх.
+ *
+ * Эс тэгвээс нүх үүснэ: бүртгэмэгц бүрэн төлсөн ачаа `registered` төлөвт
+ * үлдэж, `paid`-д хүрэх ямар ч зам байхгүй болно (гараар оноох нь BR-09-оор
+ * хоригтой) — улмаас `picked_up` руу шилжиж чадахгүй, ачаа гацна.
  */
 const TRANSITIONS = Object.freeze({
-  [S.REGISTERED]: [S.NOTIFIED, S.CANCELLED],
-  [S.NOTIFIED]: [S.AWAITING_PAYMENT, S.CANCELLED],
+  [S.REGISTERED]: [S.NOTIFIED, S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
+  [S.NOTIFIED]: [S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
   [S.AWAITING_PAYMENT]: [S.PAID, S.CANCELLED],
-  [S.PAID]: [S.OUT_FOR_DELIVERY, S.PICKED_UP],
+  // `awaiting_payment` руу буцах нь төлбөр ХҮЧИНГҮЙ болсон үеийн залруулга
+  // (BR-18) — доорх `SYSTEM_ONLY_EDGES` гараар хийхийг хориглоно.
+  [S.PAID]: [S.OUT_FOR_DELIVERY, S.PICKED_UP, S.AWAITING_PAYMENT],
   [S.OUT_FOR_DELIVERY]: [S.DELIVERED, S.RETURNED],
   [S.PICKED_UP]: [S.DELIVERED],
   [S.RETURNED]: [S.OUT_FOR_DELIVERY, S.PICKED_UP],
@@ -73,6 +86,19 @@ const STATUS_LABEL = Object.freeze({
  * мөнгө үүсч, санхүүгийн тэнцэл эвдэрнэ.
  */
 const SYSTEM_ONLY = Object.freeze([S.PAID]);
+
+/**
+ * ЗӨВХӨН систем хийж болох ТОДОРХОЙ шилжилтүүд — `"<from>→<to>"`.
+ *
+ * `SYSTEM_ONLY`-ээс ялгаатай: тэр нь ЦЭГ (төлөв) хориглодог бол энэ нь ЗАМ
+ * (шилжилт) хориглоно. `awaiting_payment` нь өөрөө хоригтой төлөв БИШ (ажилтан
+ * ачааг төлбөр хүлээх төлөвт оруулах нь хэвийн), гэхдээ `paid`-ААС түүн рүү
+ * буцах нь зөвхөн төлбөр хүчингүй болсны залруулга байх ёстой (BR-18).
+ *
+ * Эс тэгвээс ажилтан төлөгдсөн ачааг гараар "төлбөр хүлээгдэж буй" болгож,
+ * төлбөрийн бүртгэлтэй зөрчилдсөн төлөв үүсгэж чадна.
+ */
+const SYSTEM_ONLY_EDGES = Object.freeze([`${S.PAID}→${S.AWAITING_PAYMENT}`]);
 
 /**
  * Төлбөр бүрэн төлөгдсөн байхыг шаардах төлөвүүд — BR-19, §5.2.
@@ -125,11 +151,29 @@ function allowedTransitions(from) {
 }
 
 /**
- * Шилжилт ТАБЛИЦАД байгаа эсэх. Нөхцөлт guard-ыг шалгахгүй —
- * "UI-д ямар товч харуулах" гэсэн асуултад хариулна.
+ * Шилжилт ТАБЛИЦАД байгаа эсэх. Нөхцөлт guard-ыг шалгахгүй.
  */
 function canTransition(from, to) {
   return allowedTransitions(from).includes(to);
+}
+
+/**
+ * АЖИЛТАН ГАРААР хийж болох шилжилтүүд — UI-д товч харуулахад ЭНЭ функц.
+ *
+ * `allowedTransitions()`-ыг шууд UI-д дамжуулж БОЛОХГҮЙ: тэр нь системийн
+ * шилжилтүүдийг ч агуулдаг тул "Төлбөр төлөгдсөн" гэсэн товч гарч, дарах бүрт
+ * 409 буцаана (BR-09). Ажилтан яагаад ажиллахгүйг ойлгохгүй.
+ *
+ * `cancelled` мөн ОРОХГҮЙ — хүчингүй болгох нь эрх ба шалтгаан шаарддаг
+ * тусдаа урсгал (BR-11), тусдаа товчоор гарна.
+ */
+function manualTransitions(from) {
+  return allowedTransitions(from).filter(
+    to =>
+      !SYSTEM_ONLY.includes(to) &&
+      !SYSTEM_ONLY_EDGES.includes(`${from}→${to}`) &&
+      to !== S.CANCELLED
+  );
 }
 
 function isTerminal(status) {
@@ -183,6 +227,14 @@ function assertTransition(from, to, { paymentStatus, system = false } = {}) {
     );
   }
 
+  // BR-18 — `paid → awaiting_payment` нь зөвхөн төлбөр хүчингүй болсны залруулга
+  if (SYSTEM_ONLY_EDGES.includes(`${from}→${to}`) && !system) {
+    throw new StatusTransitionError(
+      `"${label(from)}" төлөвөөс "${label(to)}" рүү гараар буцаах боломжгүй — ` +
+        'төлбөр хүчингүй болоход систем өөрөө залруулна'
+    );
+  }
+
   // BR-19 — төлбөргүй ачааг хүргэлтэнд гаргах / салбараас өгөхийг хориглоно
   if (REQUIRES_FULL_PAYMENT.includes(to) && paymentStatus !== PAYMENT_STATUS.PAID) {
     throw new StatusTransitionError(
@@ -211,6 +263,7 @@ module.exports = {
   TRANSITIONS,
   STATUS_LABEL,
   SYSTEM_ONLY,
+  SYSTEM_ONLY_EDGES,
   REQUIRES_FULL_PAYMENT,
   OCCUPIES_LOCATION,
   occupiesLocation,
@@ -218,6 +271,7 @@ module.exports = {
   label,
   isKnownStatus,
   allowedTransitions,
+  manualTransitions,
   canTransition,
   isTerminal,
   isCancellable,

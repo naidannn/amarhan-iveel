@@ -80,11 +80,24 @@ class PackageService {
 
     const auditLogs = await auditService.listForEntity(AUDIT_ENTITY.PACKAGE, pkg._id);
 
+    // Дугуй хамаарлаас сэргийлж энд шаардана: `payment.service` нь
+    // `package.service`-ийг модулийн дээд хэсэгт хэрэглэдэг.
+    const paymentRepository = require('../repositories/payment.repository');
+    const payments = await paymentRepository.listForPackage(pkg._id);
+
     return {
       package: pkg,
       auditLogs,
-      // UI-д ямар товч харуулахыг backend шийднэ — дүрэм ганц газарт байх ёстой
-      allowedTransitions: packageState.allowedTransitions(pkg.status),
+      // §2.2 — ачаанд орсон төлбөрүүд (хүчингүй болсныг ч харуулна)
+      payments,
+      /**
+       * UI-д ямар товч харуулахыг backend шийднэ — дүрэм ганц газарт байх ёстой.
+       *
+       * `manualTransitions` (БИШ `allowedTransitions`): системийн шилжилтүүд
+       * (`paid`, `paid → awaiting_payment`) орвол дарах бүрт 409 буцаах товч
+       * гарна (BR-09, BR-18). Хүчингүй болгох нь тусдаа товч (BR-11).
+       */
+      allowedTransitions: packageState.manualTransitions(pkg.status),
     };
   }
 

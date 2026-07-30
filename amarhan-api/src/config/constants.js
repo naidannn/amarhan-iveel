@@ -35,6 +35,7 @@ exports.AUDIT_ENTITY = {
   PACKAGE: 'package',
   PAYMENT: 'payment',
   INVOICE: 'invoice',
+  DELIVERY: 'delivery',
   CUSTOMER: 'customer',
   USER: 'user',
   BRANCH: 'branch',
@@ -66,6 +67,12 @@ exports.AUDIT_ACTION = {
   PAYMENT_VOID: 'payment.void',
   INVOICE_CREATE: 'invoice.create',
   INVOICE_CANCEL: 'invoice.cancel',
+
+  // Хүргэлт (Phase 4)
+  DELIVERY_CREATE: 'delivery.create',
+  DELIVERY_UPDATE: 'delivery.update',
+  DELIVERY_STATUS_CHANGE: 'delivery.status_change',
+  DELIVERY_CANCEL: 'delivery.cancel',
 
   // Харилцагч
   CUSTOMER_CREATE: 'customer.create',
@@ -183,6 +190,25 @@ exports.INVOICE_STATUS = {
 exports.INVOICE_STATUS_LIST = Object.values(exports.INVOICE_STATUS);
 
 /**
+ * Хүргэлтийн төлөв — introduction.md §5.1, BR-21.
+ * Шилжилтийн дүрмийг `src/domain/delivery-state.js` тодорхойлно.
+ *
+ * `cancelled` нь §5.1-ийн дөрвөн төлөвт БАЙГААГҮЙ, Phase 4-т нэмэгдсэн:
+ * буруу үүсгэсэн хүргэлтийг устгах нь "Устгал бараг байхгүй" дүрмийг
+ * (CLAUDE.md §5 дүрэм 4) зөрчинө, харин цуцлах зам байхгүй бол тэр хүргэлт
+ * доторх ачаа ҮҮРД "идэвхтэй хүргэлтэд байна" гэж түгжигдэнэ (BR-20a).
+ */
+exports.DELIVERY_STATUS = {
+  CREATED: 'created',
+  DISPATCHED: 'dispatched',
+  DELIVERED: 'delivered',
+  RETURNED: 'returned',
+  CANCELLED: 'cancelled',
+};
+
+exports.DELIVERY_STATUS_LIST = Object.values(exports.DELIVERY_STATUS);
+
+/**
  * Frontend-д програмчлан шалгах шаардлагатай алдааны кодууд.
  *
  * Мессежийн ТЕКСТЭД frontend хамаарах ёсгүй (текст өөрчлөгдөж болно) —
@@ -198,6 +224,10 @@ exports.ERROR_CODE = {
   ALLOCATION_MISMATCH: 'ALLOCATION_MISMATCH',
   PAYMENT_ALREADY_VOIDED: 'PAYMENT_ALREADY_VOIDED',
   MIXED_CUSTOMERS: 'MIXED_CUSTOMERS',
+  // Phase 4 — хүргэлт
+  UNPAID_PACKAGES: 'UNPAID_PACKAGES',
+  PACKAGE_IN_ACTIVE_DELIVERY: 'PACKAGE_IN_ACTIVE_DELIVERY',
+  INVALID_DELIVERY_TRANSITION: 'INVALID_DELIVERY_TRANSITION',
 };
 
 /**

@@ -86,7 +86,7 @@ const packageStatus = {
   // бусад төлөвтэй огт давхцахгүй — энэ нь бусад бүх төлөвөөс ялгаатай,
   // ачаа физикээр Монголд хараахан ирээгүй гэдгийг тодотгож харуулна.
   in_erlian: { label: 'Эрээнд байгаа', color: '#4338CA', bg: '#EEF2FF' },
-  registered: { label: 'Бүртгэгдсэн', color: '#6B7280', bg: '#F3F4F6' },
+  registered: { label: 'Улаанбаатарт ирсэн', color: '#6B7280', bg: '#F3F4F6' },
   notified: { label: 'Мэдэгдсэн', color: '#0891B2', bg: '#ECFEFF' },
   awaiting_payment: { label: 'Төлбөр хүлээгдэж буй', color: '#B45309', bg: '#FFFBEB' },
   paid: { label: 'Төлбөр төлөгдсөн', color: '#0D9488', bg: '#F0FDFA' },

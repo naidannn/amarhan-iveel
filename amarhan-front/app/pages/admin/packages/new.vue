@@ -4,7 +4,6 @@ import {
   Phone,
   Package as PackageIcon,
   Weight,
-  Ruler,
   Wand2,
   Check,
   AlertTriangle,
@@ -423,29 +422,26 @@ onKeyStroke('Escape', () => {
       </template>
     </UiPageHeader>
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
       <!-- ── Форм ─────────────────────────────────────────────────────── -->
-      <form class="card space-y-5" @submit.prevent="submit()">
-        <!-- Ачааны дугаар — фокус үргэлж энд эргэнэ -->
-        <UiField label="Ачааны дугаар" required for="tracking">
-          <UiTextInput
-            id="tracking"
-            ref="trackingInput"
-            v-model="form.trackingNumber"
-            :icon="BarcodeIcon"
-            placeholder="Жишээ: SF1234567890"
-            tabular
-            autofocus
-          />
-        </UiField>
+      <form
+        class="flex flex-col gap-3 rounded-card bg-surface-card p-4 shadow-card"
+        @submit.prevent="submit()"
+      >
+        <div class="grid gap-3 sm:grid-cols-3">
+          <UiField label="Ачааны дугаар" required for="tracking" class="sm:col-span-2">
+            <UiTextInput
+              id="tracking"
+              ref="trackingInput"
+              v-model="form.trackingNumber"
+              :icon="BarcodeIcon"
+              placeholder="Жишээ: SF1234567890"
+              tabular
+              autofocus
+            />
+          </UiField>
 
-        <div class="grid gap-5 sm:grid-cols-2">
-          <UiField
-            label="Харилцагчийн утас"
-            required
-            for="phone"
-            hint="Бүртгэлтэй бол автоматаар холбогдоно"
-          >
+          <UiField label="Харилцагчийн утас" required for="phone">
             <UiTextInput
               id="phone"
               v-model="form.phone"
@@ -455,111 +451,90 @@ onKeyStroke('Escape', () => {
               tabular
             />
           </UiField>
-
-          <UiField label="Харилцагчийн нэр" for="customer-name" hint="Шинэ харилцагч бол">
-            <UiTextInput id="customer-name" v-model="form.customerName" placeholder="Сонголтоор" />
-          </UiField>
         </div>
 
-        <!-- ── АЧААНЫ ТӨЛӨВ (BR-45) ──────────────────────────────────────── -->
-        <div class="rounded-card border border-surface-border p-4">
-          <p class="mb-3 text-body font-medium text-content">Ачааны төлөв</p>
+        <UiField label="Харилцагчийн нэр" for="customer-name" hint="Шинэ харилцагч бол — бүртгэлтэй бол автоматаар холбогдоно">
+          <UiTextInput id="customer-name" v-model="form.customerName" placeholder="Сонголтоор" />
+        </UiField>
 
-          <div class="grid gap-2 sm:grid-cols-2">
+        <!-- ── АЧААНЫ ТӨЛӨВ (BR-45) ──────────────────────────────────────── -->
+        <div>
+          <p class="mb-1 text-body-sm font-medium text-content">Ачааны төлөв</p>
+
+          <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              class="flex flex-1 items-center justify-center gap-1.5 rounded-btn border px-3 py-1.5 text-body-sm font-medium transition-colors duration-200"
               :class="
                 !isErlian
-                  ? 'border-primary bg-primary-50'
-                  : 'border-surface-border hover:border-primary-300'
+                  ? 'border-primary bg-primary-50 text-primary'
+                  : 'border-surface-border text-content-secondary hover:border-primary-300'
               "
               @click="setRegistrationStatus('registered')"
             >
-              <PackageCheck :size="18" class="mt-0.5 shrink-0" :class="!isErlian ? 'text-primary' : 'text-content-secondary'" />
-              <span class="min-w-0">
-                <span class="block text-body font-semibold text-content">Бүртгэгдсэн</span>
-                <span class="block text-body-sm text-content-secondary">
-                  Ачаа гар дээр байна — Монголд ирсэн
-                </span>
-              </span>
+              <PackageCheck :size="15" />
+              Улаанбаатарт ирсэн
             </button>
 
             <button
               type="button"
-              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              class="flex flex-1 items-center justify-center gap-1.5 rounded-btn border px-3 py-1.5 text-body-sm font-medium transition-colors duration-200"
               :class="
                 isErlian
-                  ? 'border-primary bg-primary-50'
-                  : 'border-surface-border hover:border-primary-300'
+                  ? 'border-primary bg-primary-50 text-primary'
+                  : 'border-surface-border text-content-secondary hover:border-primary-300'
               "
               @click="setRegistrationStatus('in_erlian')"
             >
-              <Globe2 :size="18" class="mt-0.5 shrink-0" :class="isErlian ? 'text-primary' : 'text-content-secondary'" />
-              <span class="min-w-0">
-                <span class="block text-body font-semibold text-content">Эрээнд байгаа</span>
-                <span class="block text-body-sm text-content-secondary">
-                  Зөвхөн дугаар+утсаар мэднэ
-                </span>
-              </span>
+              <Globe2 :size="15" />
+              Эрээнд байгаа
             </button>
           </div>
 
-          <p v-if="isErlian" class="mt-3 flex items-start gap-1.5 text-body-sm text-content-secondary">
-            <Globe2 :size="14" class="mt-0.5 shrink-0" />
-            Жин, үнэ, байршил хараахан мэдэгдэхгүй. Ачаа Монголд ирэхэд ачааны
-            дэлгэрэнгүй хуудаснаас "Ирц бүртгэх"-ээр гүйцээнэ.
+          <p v-if="isErlian" class="mt-1.5 flex items-start gap-1.5 text-body-sm text-content-secondary">
+            <Globe2 :size="13" class="mt-0.5 shrink-0" />
+            Жин, үнэ, байршил "Ирц бүртгэх"-ээр Монголд ирэхэд гүйцээгдэнэ.
           </p>
         </div>
 
         <!-- ── ҮНЭ: хоёр горим (§1.2) ─────────────────────────────────── -->
-        <div v-if="!isErlian" class="rounded-card border border-surface-border p-4">
-          <p class="mb-3 text-body font-medium text-content">
-            Үнэ <span class="text-error">*</span>
-          </p>
+        <div v-if="!isErlian" class="rounded-card border border-surface-border p-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-body-sm font-medium text-content">Үнэ <span class="text-error">*</span></p>
 
-          <div class="grid gap-2 sm:grid-cols-2">
-            <button
-              type="button"
-              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
-              :class="
-                !isMeasured
-                  ? 'border-primary bg-primary-50'
-                  : 'border-surface-border hover:border-primary-300'
-              "
-              @click="setMode('manual')"
-            >
-              <PenLine :size="18" class="mt-0.5 shrink-0" :class="!isMeasured ? 'text-primary' : 'text-content-secondary'" />
-              <span class="min-w-0">
-                <span class="block text-body font-semibold text-content">Дүнг шууд бичих</span>
-                <span class="block text-body-sm text-content-secondary">
-                  Жин мэдэгдэхгүй үед
-                </span>
-              </span>
-            </button>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-btn border px-2.5 py-1 text-body-sm font-medium transition-colors duration-200"
+                :class="
+                  !isMeasured
+                    ? 'border-primary bg-primary-50 text-primary'
+                    : 'border-surface-border text-content-secondary hover:border-primary-300'
+                "
+                @click="setMode('manual')"
+              >
+                <PenLine :size="14" />
+                Дүнг шууд бичих
+              </button>
 
-            <button
-              type="button"
-              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
-              :class="
-                isMeasured
-                  ? 'border-primary bg-primary-50'
-                  : 'border-surface-border hover:border-primary-300'
-              "
-              @click="setMode('measured')"
-            >
-              <Calculator :size="18" class="mt-0.5 shrink-0" :class="isMeasured ? 'text-primary' : 'text-content-secondary'" />
-              <span class="min-w-0">
-                <span class="block text-body font-semibold text-content">Жингээр бодох</span>
-                <span class="block text-body-sm text-content-secondary">
-                  Тарифаар автоматаар
-                </span>
-              </span>
-            </button>
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-btn border px-2.5 py-1 text-body-sm font-medium transition-colors duration-200"
+                :class="
+                  isMeasured
+                    ? 'border-primary bg-primary-50 text-primary'
+                    : 'border-surface-border text-content-secondary hover:border-primary-300'
+                "
+                @click="setMode('measured')"
+              >
+                <Calculator :size="14" />
+                Жингээр бодох
+              </button>
+            </div>
           </div>
 
           <!-- Горим Б: гараар үнэ -->
-          <div v-if="!isMeasured" class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div v-if="!isMeasured" class="mt-3 grid gap-3 sm:grid-cols-2">
             <UiField label="Үнийн дүн" required for="manual-price">
               <UiTextInput
                 id="manual-price"
@@ -583,8 +558,8 @@ onKeyStroke('Escape', () => {
           </div>
 
           <!-- Горим А: жин/хэмжээсээр -->
-          <div v-else class="mt-4 space-y-4">
-            <div class="grid gap-4 sm:grid-cols-2">
+          <div v-else class="mt-3 space-y-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <UiField label="Ачааны төрөл" required for="cargo-type">
                 <UiSelectInput
                   id="cargo-type"
@@ -605,7 +580,7 @@ onKeyStroke('Escape', () => {
               </UiField>
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-4">
+            <div class="grid gap-3 sm:grid-cols-4">
               <UiField label="Жин" for="weight">
                 <UiTextInput
                   id="weight"
@@ -629,20 +604,14 @@ onKeyStroke('Escape', () => {
               </UiField>
             </div>
 
-            <p class="flex items-center gap-1.5 text-body-sm text-content-secondary">
-              <Ruler :size="14" />
-              Хэмжээс оруулбал эзлэхүүн автоматаар бодогдоно. Жин ба эзлэхүүний
-              <span class="font-medium text-content">өндөр дүнгээр</span> тооцогдоно.
-            </p>
-
             <!-- BR-04 — тарифын дүнг дарж бичих -->
-            <details class="rounded-input border border-surface-border p-3">
-              <summary class="cursor-pointer text-body font-medium text-content">
+            <details class="rounded-input border border-surface-border p-2.5">
+              <summary class="cursor-pointer text-body-sm font-medium text-content">
                 Бодогдсон үнийг дарж бичих
                 <span class="font-normal text-content-secondary">(шалтгаан заавал)</span>
               </summary>
 
-              <div class="mt-3 grid gap-4 sm:grid-cols-2">
+              <div class="mt-2.5 grid gap-3 sm:grid-cols-2">
                 <UiField label="Эцсийн үнэ" for="override-price">
                   <UiTextInput
                     id="override-price"
@@ -665,7 +634,7 @@ onKeyStroke('Escape', () => {
 
               <p
                 v-if="overrideDelta"
-                class="mt-3 text-body-sm"
+                class="mt-2.5 text-body-sm"
                 :class="overrideDelta.diff > 0 ? 'text-warning' : 'text-primary-600'"
               >
                 Бодогдсон үнээс
@@ -683,33 +652,34 @@ onKeyStroke('Escape', () => {
 
         <!-- Байршил — 2026-07-31: чөлөөтэй бичихийг хассан, зөвхөн бодит
              оршин байгаа байршлаас сонгоно (§8) -->
-        <UiField
-          v-if="!isErlian"
-          label="Байршлын код"
-          required
-          for="location"
-          hint="Дараагийн ачаанд хадгалагдана"
-        >
-          <div class="flex gap-2">
-            <UiSelectInput
-              id="location"
-              v-model="sticky.locationCode"
-              :options="locationOptions"
-              placeholder="Байршил сонгоно уу"
-              class="flex-1"
-            />
-            <UiBtn variant="secondary" :icon="Wand2" @click="suggestLocation">Санал</UiBtn>
-            <UiBtn v-if="sticky.locationCode" variant="ghost" @click="clearLocation">
-              Цэвэрлэх
-            </UiBtn>
-          </div>
-        </UiField>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <UiField
+            v-if="!isErlian"
+            label="Байршлын код"
+            required
+            for="location"
+          >
+            <div class="flex gap-2">
+              <UiSelectInput
+                id="location"
+                v-model="sticky.locationCode"
+                :options="locationOptions"
+                placeholder="Байршил сонгоно уу"
+                class="flex-1"
+              />
+              <UiBtn variant="secondary" :icon="Wand2" @click="suggestLocation">Санал</UiBtn>
+              <UiBtn v-if="sticky.locationCode" variant="ghost" @click="clearLocation">
+                Цэвэрлэх
+              </UiBtn>
+            </div>
+          </UiField>
 
-        <UiField label="Тайлбар" for="note">
-          <UiTextArea id="note" v-model="form.note" :rows="2" placeholder="Сонголтоор" />
-        </UiField>
+          <UiField label="Тайлбар" for="note">
+            <UiTextArea id="note" v-model="form.note" :rows="1" placeholder="Сонголтоор" />
+          </UiField>
+        </div>
 
-        <div class="flex flex-wrap items-center gap-3 border-t border-surface-border pt-5">
+        <div class="mt-1 flex flex-wrap items-center gap-3 border-t border-surface-border pt-3">
           <UiBtn type="submit" :icon="Check" :loading="saving">Бүртгэх</UiBtn>
           <UiBtn variant="ghost" @click="resetForNext">Цэвэрлэх</UiBtn>
 
@@ -722,62 +692,51 @@ onKeyStroke('Escape', () => {
       </form>
 
       <!-- ── Хажуугийн хэсэг ──────────────────────────────────────────── -->
-      <div class="space-y-6">
-        <div v-if="isErlian" class="card">
-          <p class="flex items-center gap-2 text-body font-medium text-content-secondary">
-            <Globe2 :size="16" />
+      <div class="flex flex-col gap-3">
+        <div v-if="isErlian" class="rounded-card bg-surface-card p-3 shadow-card">
+          <p class="flex items-center gap-2 text-body-sm font-medium text-content-secondary">
+            <Globe2 :size="15" />
             Эрээнд байгаа
           </p>
-          <p class="mt-2 text-body-sm text-content-secondary">
+          <p class="mt-1.5 text-body-sm text-content-secondary">
             Жин, үнэ, байршил ачаа Монголд ирээд "Ирц бүртгэх"-ээр тодорхойлогдоно.
-            Одоо зөвхөн ачааны дугаар, харилцагчийн утас бүртгэгдэнэ.
           </p>
         </div>
 
-        <div v-else class="card">
-          <p class="text-body font-medium text-content-secondary">
-            {{ isMeasured ? 'Бодогдох үнэ' : 'Төлөх үнэ' }}
-          </p>
+        <div v-else class="rounded-card bg-surface-card p-3 shadow-card">
+          <div class="flex items-baseline justify-between gap-2">
+            <p class="text-body-sm font-medium text-content-secondary">
+              {{ isMeasured ? 'Бодогдох үнэ' : 'Төлөх үнэ' }}
+            </p>
+            <p v-if="isMeasured && quote" class="text-body-sm text-content-secondary">
+              {{
+                quote.source === 'weight'
+                  ? 'Жин'
+                  : quote.source === 'volume'
+                    ? 'Эзлэхүүн'
+                    : 'Доод хэмжээ'
+              }}<span v-if="quote.volumeM3"> · {{ quote.volumeM3 }} м³</span>
+            </p>
+          </div>
 
-          <p v-if="displayPrice != null" class="tabular mt-1 text-h2 font-bold text-primary">
+          <p v-if="displayPrice != null" class="tabular mt-0.5 text-h4 font-bold text-primary">
             {{ formatCurrency(displayPrice) }}
           </p>
-          <p v-else-if="quoteError" class="mt-1 text-body text-error">{{ quoteError }}</p>
-          <p v-else class="mt-1 text-h3 text-content-disabled">—</p>
+          <p v-else-if="quoteError" class="mt-0.5 text-body-sm text-error">{{ quoteError }}</p>
+          <p v-else class="mt-0.5 text-body text-content-disabled">—</p>
 
-          <dl
-            v-if="isMeasured && quote"
-            class="mt-4 space-y-2 border-t border-surface-border pt-4 text-body"
-          >
-            <div class="flex justify-between">
-              <dt class="text-content-secondary">Тооцооллын үндэс</dt>
-              <dd class="font-medium text-content">
-                {{
-                  quote.source === 'weight'
-                    ? 'Жин'
-                    : quote.source === 'volume'
-                      ? 'Эзлэхүүн'
-                      : 'Доод хэмжээ'
-                }}
-              </dd>
-            </div>
-            <div v-if="quote.volumeM3" class="flex justify-between">
-              <dt class="text-content-secondary">Эзлэхүүн</dt>
-              <dd class="tabular font-medium text-content">{{ quote.volumeM3 }} м³</dd>
-            </div>
-          </dl>
-
-          <p v-else-if="isMeasured && !canQuote" class="mt-3 text-body-sm text-content-secondary">
+          <p v-if="isMeasured && !canQuote" class="mt-1.5 text-body-sm text-content-secondary">
             Ачааны төрөл ба жин/хэмжээс оруулахад үнэ харагдана.
           </p>
-          <p v-else-if="!isMeasured" class="mt-3 text-body-sm text-content-secondary">
+          <p v-else-if="!isMeasured" class="mt-1.5 text-body-sm text-content-secondary">
             Ажилтны заасан дүн — тариф хэрэглэгдэхгүй.
           </p>
         </div>
 
-        <!-- Сүүлд бүртгэсэн — ажилтан эргэлзэж жагсаалт рүү орох шаардлагагүй -->
-        <div class="card">
-          <p class="mb-3 text-body font-medium text-content">
+        <!-- Сүүлд бүртгэсэн — ажилтан эргэлзэж жагсаалт рүү орох шаардлагагүй.
+             Жагсаалт өөрөө scroll хийгдэнэ, хуудсыг сунгахгүй. -->
+        <div class="min-h-0 flex-1 rounded-card bg-surface-card p-3 shadow-card">
+          <p class="mb-2 text-body-sm font-medium text-content">
             Энэ ээлжинд бүртгэсэн
             <span v-if="recent.length" class="tabular text-content-secondary">
               ({{ recent.length }})
@@ -788,14 +747,14 @@ onKeyStroke('Escape', () => {
             Бүртгэсэн ачаа энд харагдана.
           </p>
 
-          <ul v-else v-auto-animate class="-mx-2 divide-y divide-surface-border">
+          <ul v-else v-auto-animate class="-mx-2 max-h-64 divide-y divide-surface-border overflow-y-auto">
             <li v-for="pkg in recent" :key="pkg.id">
               <NuxtLink
                 :to="`/admin/packages/${pkg.id}`"
-                class="flex items-center gap-2 rounded-btn px-2 py-2.5 transition-colors duration-200 hover:bg-surface-hover"
+                class="flex items-center gap-2 rounded-btn px-2 py-1.5 transition-colors duration-200 hover:bg-surface-hover"
               >
                 <div class="min-w-0 flex-1">
-                  <p class="tabular truncate text-body font-semibold text-content">
+                  <p class="tabular truncate text-body-sm font-semibold text-content">
                     {{ pkg.trackingNumber }}
                   </p>
                   <p class="tabular truncate text-body-sm text-content-secondary">
@@ -803,7 +762,7 @@ onKeyStroke('Escape', () => {
                     {{ pkg.status === 'in_erlian' ? 'Эрээнд байгаа' : pkg.locationCode }}
                   </p>
                 </div>
-                <p class="tabular shrink-0 text-body font-semibold text-content">
+                <p class="tabular shrink-0 text-body-sm font-semibold text-content">
                   {{ pkg.status === 'in_erlian' ? '—' : formatCurrency(pkg.finalPrice) }}
                 </p>
               </NuxtLink>

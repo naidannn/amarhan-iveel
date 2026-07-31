@@ -356,7 +356,7 @@ async function applyArrive() {
   busy.value = true
   try {
     await api.completeArrival(id.value, payload)
-    toast.success('Ирц бүртгэгдлээ — ачаа "Бүртгэгдсэн" боллоо')
+    toast.success('Ирц бүртгэгдлээ — ачаа "Улаанбаатарт ирсэн" боллоо')
     arriveOpen.value = false
     await load()
   } catch (e: any) {
@@ -1083,7 +1083,7 @@ const printOpen = ref(false)
 
         <template #footer>
           <UiBtn variant="secondary" @click="arriveOpen = false">Болих</UiBtn>
-          <UiBtn :loading="busy" @click="applyArrive">Бүртгэгдсэн болгох</UiBtn>
+          <UiBtn :loading="busy" @click="applyArrive">Улаанбаатарт ирсэн болгох</UiBtn>
         </template>
       </UiModal>
 

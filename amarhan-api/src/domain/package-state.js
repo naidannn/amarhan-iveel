@@ -76,7 +76,7 @@ const TRANSITIONS = Object.freeze({
  */
 const STATUS_LABEL = Object.freeze({
   [S.IN_ERLIAN]: 'Эрээнд байгаа',
-  [S.REGISTERED]: 'Бүртгэгдсэн',
+  [S.REGISTERED]: 'Улаанбаатарт ирсэн',
   [S.NOTIFIED]: 'Хэрэглэгчид мэдэгдсэн',
   [S.AWAITING_PAYMENT]: 'Төлбөр хүлээгдэж буй',
   [S.PAID]: 'Төлбөр төлөгдсөн',

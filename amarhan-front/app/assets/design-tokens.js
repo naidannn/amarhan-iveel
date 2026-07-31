@@ -82,6 +82,10 @@ const text = {
  * `domain/package-state.js`-тай ЯГ таарах ёстой.
  */
 const packageStatus = {
+  // BR-45 — "Эрээнд байгаа" урьдчилсан бүртгэл (2026-07-31). Индиго өнгө нь
+  // бусад төлөвтэй огт давхцахгүй — энэ нь бусад бүх төлөвөөс ялгаатай,
+  // ачаа физикээр Монголд хараахан ирээгүй гэдгийг тодотгож харуулна.
+  in_erlian: { label: 'Эрээнд байгаа', color: '#4338CA', bg: '#EEF2FF' },
   registered: { label: 'Бүртгэгдсэн', color: '#6B7280', bg: '#F3F4F6' },
   notified: { label: 'Мэдэгдсэн', color: '#0891B2', bg: '#ECFEFF' },
   awaiting_payment: { label: 'Төлбөр хүлээгдэж буй', color: '#B45309', bg: '#FFFBEB' },

@@ -55,6 +55,9 @@ router
 // §1.2 — үнэ override (BR-04)
 router.put('/:packageId/price', validate(validation.overridePrice), controller.overridePrice);
 
+// BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ирц гүйцээх (жин/үнэ/байршил)
+router.put('/:packageId/arrive', validate(validation.arrive), controller.arrive);
+
 // §1.5 — төлөв өөрчлөх (BR-07, BR-08)
 router.put('/:packageId/status', validate(validation.changeStatus), controller.changeStatus);
 

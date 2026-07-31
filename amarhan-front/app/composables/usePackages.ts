@@ -8,6 +8,7 @@
  */
 
 export type PackageStatusValue =
+  | 'in_erlian'
   | 'registered'
   | 'notified'
   | 'awaiting_payment'
@@ -31,7 +32,7 @@ export interface CargoPackage {
   dimensions: { lengthCm: number; widthCm: number; heightCm: number } | null
   computedPrice: number
   finalPrice: number
-  priceSource: 'weight' | 'volume' | 'minimum' | 'manual'
+  priceSource: 'weight' | 'volume' | 'minimum' | 'manual' | 'pending'
   priceOverridden: boolean
   priceOverrideReason: string | null
   // `null` = ажилтан үнийг гараар заасан (BR-01a)
@@ -169,6 +170,12 @@ export function usePackages() {
       allowedTransitions: PackageStatusValue[]
     }>(() => $axios.get(`${API}/packages/${id}`))
 
+  /** §1.3 — бүтэн (яг тохирсон) дугаараар ганц ачаа хайх */
+  const getByTracking = (trackingNumber: string) =>
+    call<CargoPackage>(() =>
+      $axios.get(`${API}/packages/tracking/${encodeURIComponent(trackingNumber)}`)
+    )
+
   const create = (payload: Record<string, any>) =>
     call<{ package: CargoPackage; warnings: string[] }>(() => $axios.post(`${API}/packages`, payload))
 
@@ -195,6 +202,13 @@ export function usePackages() {
 
   const overridePrice = (id: string, price: number, reason: string) =>
     call<CargoPackage>(() => $axios.put(`${API}/packages/${id}/price`, { price, reason }))
+
+  /**
+   * BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд жин/үнэ/байршил нэмж
+   * "Бүртгэгдсэн" болгоно. Шинэ бичлэг ҮҮСГЭХГҮЙ.
+   */
+  const completeArrival = (id: string, payload: Record<string, any>) =>
+    call<CargoPackage>(() => $axios.put(`${API}/packages/${id}/arrive`, payload))
 
   const cancel = (id: string, reason: string) =>
     call<CargoPackage>(() => $axios.put(`${API}/packages/${id}/cancel`, { reason }))
@@ -255,11 +269,13 @@ export function usePackages() {
   return {
     list,
     detail,
+    getByTracking,
     create,
     update,
     changeStatus,
     changeStatusBulk,
     overridePrice,
+    completeArrival,
     cancel,
     remove,
     moveLocation,

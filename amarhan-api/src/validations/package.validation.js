@@ -123,6 +123,15 @@ module.exports = {
 
   create: {
     body: Joi.object({
+      /**
+       * BR-45 — "Эрээнд байгаа" (эрт бүртгэл) эсвэл "Бүртгэгдсэн" (одоогийн,
+       * Монголд ирсэн үеийн бүртгэл). Ажилтан бүртгэх мөчид ЭНЭ ХОЁРЫН аль
+       * нэгийг л сонгоно — бусад төлөв рүү шууд бүртгэх боломжгүй хэвээр.
+       */
+      status: Joi.string()
+        .valid(PACKAGE_STATUS.IN_ERLIAN, PACKAGE_STATUS.REGISTERED)
+        .default(PACKAGE_STATUS.REGISTERED),
+
       trackingNumber: trackingNumber.required(),
       phone: phone.required(),
       // Харилцагч шинээр үүсэх бол нэрийг хамт бүртгэнэ (BR-29)
@@ -170,7 +179,58 @@ module.exports = {
        * Joi-ийн хоёр `.or()` нь ИЖИЛ `object.missing` кодтой тул нэг мессеж
        * хоёуланг дарж, "жин оруулна уу" гэсэн алдаа байршил дутуу үед ч
        * гардаг байсан. Байршлыг `resolveLocation()` тодорхой мессежээр шалгана.
+       *
+       * `in_erlian` үед энэ шаардлага огт ХАМААРАХГҮЙ (доорх `.when()`) — тэр
+       * үед ажилтан жин ч, үнэ ч мэдэхгүй, зөвхөн дугаар+утас л бичдэг (BR-45).
        */
+      // `ancestor: 0` ЗААВАЛ: `.when()`-ийг схемийн ROOT дээр өөрөө дуудаж
+      // байгаа тул `status` sibling-ийг ӨӨРТӨӨ (нэг түвшин дээш БИШ) хайхыг
+      // тодорхой зааж өгөх ёстой — эс тэгвээс Joi "exceeds the schema root"
+      // алдаа шидэнэ (Joi 17: `.when()` анхдагчаар нэг түвшин дээш хайдаг).
+      .when(Joi.ref('status', { ancestor: 0 }), {
+        is: PACKAGE_STATUS.IN_ERLIAN,
+        then: Joi.object({
+          cargoTypeId: Joi.forbidden(),
+          weightKg: Joi.forbidden(),
+          volumeM3: Joi.forbidden(),
+          dimensions: Joi.forbidden(),
+          locationId: Joi.forbidden(),
+          locationCode: Joi.forbidden(),
+          finalPrice: Joi.forbidden(),
+          priceOverrideReason: Joi.forbidden(),
+        }),
+        otherwise: Joi.object().or('weightKg', 'volumeM3', 'dimensions', 'finalPrice').messages({
+          'object.missing': 'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулна уу',
+        }),
+      }),
+  },
+
+  /**
+   * §1.1, BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ЯГ ТЭР бичлэг дээрээ
+   * жин/эзлэхүүн/үнэ/байршил нэмж "Бүртгэгдсэн" болгоно. `create`-ийн
+   * жин/үнэ шаардлагатай ижил (`resolveLocation`-ий байршлын шаардлагыг
+   * `create`-тэй адил зорилгоор энд ч Joi түвшинд БИШ, service давхаргад
+   * тодорхой мессежээр шалгана).
+   */
+  arrive: {
+    params: Joi.object({ packageId: objectId.required() }),
+    body: Joi.object({
+      cargoTypeId: objectId.optional(),
+      quantity: Joi.number().integer().min(1).max(100000).optional(),
+
+      weightKg: weightKg.optional(),
+      volumeM3: volumeM3.optional(),
+      dimensions: dimensions.optional(),
+
+      locationId: objectId.optional(),
+      locationCode: locationCode.optional(),
+
+      arrivedAt: Joi.date().max('now').optional(),
+      note: Joi.string().trim().max(1000).allow('', null).optional(),
+
+      finalPrice: money.optional(),
+      priceOverrideReason: reason.optional(),
+    })
       .or('weightKg', 'volumeM3', 'dimensions', 'finalPrice')
       .messages({
         'object.missing': 'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулна уу',

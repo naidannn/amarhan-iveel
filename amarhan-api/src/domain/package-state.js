@@ -21,18 +21,25 @@ const S = PACKAGE_STATUS;
  *
  * Хоосон массив = ТӨГСГӨЛИЙН төлөв, хаашаа ч шилжихгүй.
  *
- *   registered → notified → awaiting_payment → paid
- *                                               ↓
- *                       out_for_delivery / picked_up
- *                                               ↓
- *                                          delivered
+ *   in_erlian → registered → notified → awaiting_payment → paid
+ *                                                            ↓
+ *                                out_for_delivery / picked_up
+ *                                                            ↓
+ *                                                       delivered
  *
  *   out_for_delivery → returned → (out_for_delivery | picked_up)
- *   registered…awaiting_payment → cancelled
+ *   in_erlian…awaiting_payment → cancelled
  *
- * ЯАГААД `registered`-ЭЭС ЭХЭЛДЭГ: ачааг Монголд ирсний ДАРАА бүртгэдэг тул
- * бүртгэл өөрөө "ирсэн" гэдгийг илэрхийлнэ. Эрээний тал, замын хөдөлгөөнийг
- * систем хянадаггүй — тэр үед ачаа системд ОГТ байхгүй.
+ * ЯАГААД `registered`-ЭЭС (БУС `in_erlian`-аас) бодит бүртгэл ЭХЭЛДЭГ: ачааг
+ * Монголд ирсний ДАРАА бүртгэдэг тул `registered` өөрөө "ирсэн" гэдгийг
+ * илэрхийлнэ (BR-45). `in_erlian` бол 2026-07-31 шийдвэрээр нэмэгдсэн
+ * УРЬДЧИЛСАН тэмдэглэл — ачааны дугаар + утсаар л мэдэгдэж байгаа үед,
+ * ачаа Монголд ирэхээс ӨМНӨ бичигддэг (`roadmap.md` §2.19). Энэ нь хуучин
+ * татгалзсан "Эрээнд бүртгэгдсэн / Монгол руу илгээгдсэн / Монголд ирсэн"
+ * гэсэн гурван шатны замын төлөв ОГТ БИШ — `in_erlian` дангаараа ганцхан
+ * шат бөгөөд `MANUAL_EDGES_REQUIRING_DATA`-ийн ачаар зөвхөн тусгай "ирц
+ * гүйцээх" замаар (`completeArrival`, жин/үнэ/байршил хамт) `registered`
+ * рүү шилждэг — энгийн `changeStatus`-аар ХЭЗЭЭ Ч биш.
  *
  * ТӨЛБӨРИЙН БОГИНО ЗАМ (Phase 3). `registered → paid` ба `notified → paid`
  * нэмэгдсэн шалтгаан: хэрэглэгч ачаагаа авахаар ирээд ТУХАЙН МӨЧИД төлдөг —
@@ -46,6 +53,7 @@ const S = PACKAGE_STATUS;
  * хоригтой) — улмаас `picked_up` руу шилжиж чадахгүй, ачаа гацна.
  */
 const TRANSITIONS = Object.freeze({
+  [S.IN_ERLIAN]: [S.REGISTERED, S.CANCELLED],
   [S.REGISTERED]: [S.NOTIFIED, S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
   [S.NOTIFIED]: [S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
   [S.AWAITING_PAYMENT]: [S.PAID, S.CANCELLED],
@@ -67,6 +75,7 @@ const TRANSITIONS = Object.freeze({
  * Frontend өөрийн хуулбартай — design token дотор (`packageStatus`).
  */
 const STATUS_LABEL = Object.freeze({
+  [S.IN_ERLIAN]: 'Эрээнд байгаа',
   [S.REGISTERED]: 'Бүртгэгдсэн',
   [S.NOTIFIED]: 'Хэрэглэгчид мэдэгдсэн',
   [S.AWAITING_PAYMENT]: 'Төлбөр хүлээгдэж буй',
@@ -99,6 +108,19 @@ const SYSTEM_ONLY = Object.freeze([S.PAID]);
  * төлбөрийн бүртгэлтэй зөрчилдсөн төлөв үүсгэж чадна.
  */
 const SYSTEM_ONLY_EDGES = Object.freeze([`${S.PAID}→${S.AWAITING_PAYMENT}`]);
+
+/**
+ * ЗӨВХӨН нэмэлт мэдээлэлтэй (жин/үнэ/байршил) "ирц гүйцээх" замаар хийгдэх
+ * шилжилтүүд — BR-45. `SYSTEM_ONLY_EDGES`-ээс ялгаатай: энэ бол СИСТЕМ БИШ,
+ * ажилтан өөрөө гараар хийдэг шилжилт, гэхдээ энгийн `changeStatus`
+ * (зөвхөн `status` талбар өөрчилдөг) дамжуулж болохгүй — учир нь
+ * `in_erlian` ачаанд жин/үнэ/байршил байхгүй, тэдгээрийг зэрэг өгөхгүйгээр
+ * `registered` болговол §1.1-ийн цөм баталгааг зөрчинө (байршилгүй, үнэгүй
+ * "бүртгэгдсэн" ачаа үүснэ). Иймд `assertTransition`-д `viaArrival: true`
+ * контекст ЗААВАЛ дамжуулах ёстой — үүнийг зөвхөн `completeArrival()`
+ * (package.service.js) хийнэ.
+ */
+const MANUAL_EDGES_REQUIRING_DATA = Object.freeze([`${S.IN_ERLIAN}→${S.REGISTERED}`]);
 
 /**
  * Төлбөр бүрэн төлөгдсөн байхыг шаардах төлөвүүд — BR-19, §5.2.
@@ -166,12 +188,17 @@ function canTransition(from, to) {
  *
  * `cancelled` мөн ОРОХГҮЙ — хүчингүй болгох нь эрх ба шалтгаан шаарддаг
  * тусдаа урсгал (BR-11), тусдаа товчоор гарна.
+ *
+ * `in_erlian → registered` мөн ОРОХГҮЙ (BR-45) — энэ шилжилт жин/үнэ/байршил
+ * зэрэг нэмэлт мэдээлэл шаарддаг тул энгийн "Төлөв өөрчлөх" товчоор биш,
+ * тусдаа "Ирц бүртгэх" маягтаар (`completeArrival`) хийгдэнэ.
  */
 function manualTransitions(from) {
   return allowedTransitions(from).filter(
     to =>
       !SYSTEM_ONLY.includes(to) &&
       !SYSTEM_ONLY_EDGES.includes(`${from}→${to}`) &&
+      !MANUAL_EDGES_REQUIRING_DATA.includes(`${from}→${to}`) &&
       to !== S.CANCELLED
   );
 }
@@ -192,9 +219,10 @@ function isCancellable(status) {
  * @param {object} [ctx]
  * @param {string} [ctx.paymentStatus] — `PAYMENT_STATUS`-ийн утга (BR-19 шалгахад)
  * @param {boolean} [ctx.system]       — систем өөрөө хийж байгаа шилжилт (BR-09)
+ * @param {boolean} [ctx.viaArrival]   — "ирц гүйцээх" замаар хийгдэж байгаа эсэх (BR-45)
  * @throws {StatusTransitionError}
  */
-function assertTransition(from, to, { paymentStatus, system = false } = {}) {
+function assertTransition(from, to, { paymentStatus, system = false, viaArrival = false } = {}) {
   if (!isKnownStatus(from)) {
     throw new StatusTransitionError(`Танигдахгүй одоогийн төлөв: "${from}"`);
   }
@@ -235,6 +263,15 @@ function assertTransition(from, to, { paymentStatus, system = false } = {}) {
     );
   }
 
+  // BR-45 — `in_erlian → registered` зөвхөн жин/үнэ/байршилтай хамт, "ирц
+  // гүйцээх" замаар (`completeArrival`) хийгдэнэ
+  if (MANUAL_EDGES_REQUIRING_DATA.includes(`${from}→${to}`) && !viaArrival) {
+    throw new StatusTransitionError(
+      `"${label(from)}" төлөвөөс "${label(to)}" рүү шилжихэд жин/үнэ/байршил ` +
+        'мэдээлэл зайлшгүй шаардлагатай — "Ирц бүртгэх" цонхыг ашиглана уу'
+    );
+  }
+
   // BR-19 — төлбөргүй ачааг хүргэлтэнд гаргах / салбараас өгөхийг хориглоно
   if (REQUIRES_FULL_PAYMENT.includes(to) && paymentStatus !== PAYMENT_STATUS.PAID) {
     throw new StatusTransitionError(
@@ -264,6 +301,7 @@ module.exports = {
   STATUS_LABEL,
   SYSTEM_ONLY,
   SYSTEM_ONLY_EDGES,
+  MANUAL_EDGES_REQUIRING_DATA,
   REQUIRES_FULL_PAYMENT,
   OCCUPIES_LOCATION,
   occupiesLocation,

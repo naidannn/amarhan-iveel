@@ -3,7 +3,6 @@ import {
   Barcode as BarcodeIcon,
   Phone,
   Package as PackageIcon,
-  MapPin,
   Weight,
   Ruler,
   Wand2,
@@ -13,6 +12,8 @@ import {
   Keyboard,
   Calculator,
   PenLine,
+  PackageCheck,
+  Globe2,
 } from 'lucide-vue-next'
 import { useDebounceFn, onKeyStroke } from '@vueuse/core'
 import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
@@ -36,11 +37,20 @@ import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
  *
  * Процессийн хувьд ачааны дугаар ба утас л ирдэг тул хоёр дахь горим нь
  * бодит ажлын гол зам болно — тиймээс нуугдмал биш, тэнцүү харагдана.
+ *
+ * АЧААНЫ ТӨЛӨВ (BR-45, 2026-07-31): ажилтан бүртгэх мөчид 2 сонголтын аль
+ * нэгийг сонгоно —
+ *   «Бүртгэгдсэн»    — ачаа гар дээр байна (одоогийн, цорын ганц урсгал байсан)
+ *   «Эрээнд байгаа»  — зөвхөн дугаар+утсаар мэднэ, ачаа Монголд хараахан
+ *                       ирээгүй тул жин/үнэ/байршил хоосон үлдэнэ
+ * Хоёр дахь сонголтын үед үнэ/байршлын хэсгүүд нуугдана — тэдгээрийг
+ * "Ирц бүртгэх" цонхоор (`[id].vue`) дараа нь нэмнэ.
  */
 definePageMeta({ layout: 'admin', middleware: 'auth' })
 useHead({ title: 'Ачаа бүртгэх — Ивээл Карго' })
 
 const api = usePackages()
+const locationApi = useWarehouseLocations()
 const toast = useToast()
 const auth = useAuthStore()
 
@@ -73,15 +83,23 @@ const form = reactive(blankForm())
  * Ажилтан нэг тавиур дээр 30 ачаа тавихдаа байршлыг 30 удаа бичих ёсгүй.
  * Үнийн горим ч мөн адил — ажлын нэг ээлжинд ихэвчлэн нэг зам хэрэглэнэ.
  */
+type RegistrationStatus = 'registered' | 'in_erlian'
+
 const sticky = reactive({
   mode: 'manual' as PriceMode,
   cargoTypeId: null as string | null,
   locationCode: '',
+  // BR-45 — ажилтан ихэвчлэн нэг зэрэг олон ижил төрлийн ачаа бүртгэдэг тул
+  // залгамжилна (жишээ: тэс дараалан "Эрээнд байгаа" олон дугаар оруулах үе)
+  registrationStatus: 'registered' as RegistrationStatus,
 })
 
 const cargoTypeOptions = ref<Array<{ value: string; label: string }>>([])
+const locationOptions = ref<Array<{ value: string; label: string }>>([])
 const saving = ref(false)
 const recent = ref<CargoPackage[]>([])
+
+const isErlian = computed(() => sticky.registrationStatus === 'in_erlian')
 
 const trackingInput = ref<{ focus: () => void; select: () => void } | null>(null)
 
@@ -166,6 +184,26 @@ const duplicate = ref<{
 } | null>(null)
 const duplicateReason = ref('')
 
+/** Сонголт бүрт одоогийн ачааллыг харуулна — "UB-02-B-15 (3/5)" (BR-24) */
+function locationLabel(loc: { code: string; currentCount: number; capacityCount: number | null }) {
+  const capacity = loc.capacityCount != null ? `${loc.currentCount}/${loc.capacityCount}` : `${loc.currentCount}`
+  return `${loc.code} (${capacity})`
+}
+
+/**
+ * §8 — байршлын кодыг ЧӨЛӨӨТЭЙ БИЧИХГҮЙ, зөвхөн бодит оршин байгаа
+ * байршлаас СОНГОНО (2026-07-31 шийдвэр) — андуурч байхгүй код бичих,
+ * алдаатай тэмдэгт зэргээс сэргийлнэ.
+ */
+async function loadLocations() {
+  try {
+    const locations = await locationApi.list()
+    locationOptions.value = locations.map(loc => ({ value: loc.code, label: locationLabel(loc) }))
+  } catch (e: any) {
+    toast.error('Байршлын жагсаалт ачаалагдсангүй', { description: e.message })
+  }
+}
+
 // ── Ачаалах ──────────────────────────────────────────────────────────────
 onMounted(async () => {
   try {
@@ -178,6 +216,8 @@ onMounted(async () => {
     toast.error('Ачааны төрөл ачаалагдсангүй', { description: e.message })
   }
 
+  await loadLocations()
+
   trackingInput.value?.focus()
 })
 
@@ -189,11 +229,20 @@ async function suggestLocation() {
       toast.info('Автомат санал тохиргоогоор унтраалттай байна')
       return
     }
+    // Санал болгосон код select-ийн жагсаалтад байхгүй бол (жишээ: шинэ
+    // ачаалал өөр ажилтны бүртгэлээс өөрчлөгдсөн) дахин ачаална
+    if (!locationOptions.value.some(o => o.value === suggestion.code)) {
+      await loadLocations()
+    }
     sticky.locationCode = suggestion.code
     toast.success(`Санал: ${suggestion.code}`)
   } catch (e: any) {
     toast.error('Хоосон нүд олдсонгүй', { description: e.message })
   }
+}
+
+function setRegistrationStatus(status: RegistrationStatus) {
+  sticky.registrationStatus = status
 }
 
 function setMode(mode: PriceMode) {
@@ -219,10 +268,18 @@ function buildPayload(extra: Record<string, any> = {}) {
     phone: form.phone.trim(),
     ...(form.customerName.trim() ? { customerName: form.customerName.trim() } : {}),
     quantity: form.quantity,
-    locationCode: sticky.locationCode.trim().toUpperCase(),
     ...(form.note.trim() ? { note: form.note.trim() } : {}),
     ...extra,
   }
+
+  // BR-45 — "Эрээнд байгаа": жин/үнэ/байршил АЛЬ Ч ТАЛБАРЫГ илгээхгүй,
+  // тэдгээрийг ажилтан хараахан мэдэхгүй тул backend `forbidden` болгосон.
+  if (isErlian.value) {
+    base.status = 'in_erlian'
+    return base
+  }
+
+  base.locationCode = sticky.locationCode.trim().toUpperCase()
 
   if (isMeasured.value) {
     base.cargoTypeId = sticky.cargoTypeId
@@ -261,17 +318,21 @@ async function submit(extra: Record<string, any> = {}) {
     toast.error('Харилцагчийн утсыг оруулна уу')
     return
   }
-  if (!sticky.locationCode.trim()) {
-    toast.error('Байршлын кодыг оруулна уу')
-    return
-  }
-  if (!isMeasured.value && form.price == null) {
-    toast.error('Үнийн дүнг оруулна уу')
-    return
-  }
-  if (isMeasured.value && form.weightKg == null && !hasDimensions.value) {
-    toast.error('Жин эсвэл хэмжээсийг оруулна уу')
-    return
+  // BR-45 — "Эрээнд байгаа" үед жин/үнэ/байршил ХАРААХАН мэдэгдэхгүй тул
+  // доорх шалгалтууд ХАМААРАХГҮЙ
+  if (!isErlian.value) {
+    if (!sticky.locationCode.trim()) {
+      toast.error('Байршлын кодыг оруулна уу')
+      return
+    }
+    if (!isMeasured.value && form.price == null) {
+      toast.error('Үнийн дүнг оруулна уу')
+      return
+    }
+    if (isMeasured.value && form.weightKg == null && !hasDimensions.value) {
+      toast.error('Жин эсвэл хэмжээсийг оруулна уу')
+      return
+    }
   }
 
   saving.value = true
@@ -286,7 +347,9 @@ async function submit(extra: Record<string, any> = {}) {
     if (recent.value.length > 12) recent.value.pop()
 
     toast.success(`${result.package.trackingNumber} бүртгэгдлээ`, {
-      description: `${formatCurrency(result.package.finalPrice)} · ${result.package.locationCode}`,
+      description: isErlian.value
+        ? 'Эрээнд байгаа — ирэхэд "Ирц бүртгэх"-ээр гүйцээнэ'
+        : `${formatCurrency(result.package.finalPrice)} · ${result.package.locationCode}`,
     })
 
     // BR-24 — багтаамжийн сануулга. Хориглохгүй, зөвхөн мэдэгдэнэ.
@@ -398,8 +461,59 @@ onKeyStroke('Escape', () => {
           </UiField>
         </div>
 
-        <!-- ── ҮНЭ: хоёр горим (§1.2) ─────────────────────────────────── -->
+        <!-- ── АЧААНЫ ТӨЛӨВ (BR-45) ──────────────────────────────────────── -->
         <div class="rounded-card border border-surface-border p-4">
+          <p class="mb-3 text-body font-medium text-content">Ачааны төлөв</p>
+
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                !isErlian
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="setRegistrationStatus('registered')"
+            >
+              <PackageCheck :size="18" class="mt-0.5 shrink-0" :class="!isErlian ? 'text-primary' : 'text-content-secondary'" />
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Бүртгэгдсэн</span>
+                <span class="block text-body-sm text-content-secondary">
+                  Ачаа гар дээр байна — Монголд ирсэн
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                isErlian
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="setRegistrationStatus('in_erlian')"
+            >
+              <Globe2 :size="18" class="mt-0.5 shrink-0" :class="isErlian ? 'text-primary' : 'text-content-secondary'" />
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Эрээнд байгаа</span>
+                <span class="block text-body-sm text-content-secondary">
+                  Зөвхөн дугаар+утсаар мэднэ
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <p v-if="isErlian" class="mt-3 flex items-start gap-1.5 text-body-sm text-content-secondary">
+            <Globe2 :size="14" class="mt-0.5 shrink-0" />
+            Жин, үнэ, байршил хараахан мэдэгдэхгүй. Ачаа Монголд ирэхэд ачааны
+            дэлгэрэнгүй хуудаснаас "Ирц бүртгэх"-ээр гүйцээнэ.
+          </p>
+        </div>
+
+        <!-- ── ҮНЭ: хоёр горим (§1.2) ─────────────────────────────────── -->
+        <div v-if="!isErlian" class="rounded-card border border-surface-border p-4">
           <p class="mb-3 text-body font-medium text-content">
             Үнэ <span class="text-error">*</span>
           </p>
@@ -567,15 +681,21 @@ onKeyStroke('Escape', () => {
           </div>
         </div>
 
-        <!-- Байршил -->
-        <UiField label="Байршлын код" required for="location" hint="Дараагийн ачаанд хадгалагдана">
+        <!-- Байршил — 2026-07-31: чөлөөтэй бичихийг хассан, зөвхөн бодит
+             оршин байгаа байршлаас сонгоно (§8) -->
+        <UiField
+          v-if="!isErlian"
+          label="Байршлын код"
+          required
+          for="location"
+          hint="Дараагийн ачаанд хадгалагдана"
+        >
           <div class="flex gap-2">
-            <UiTextInput
+            <UiSelectInput
               id="location"
               v-model="sticky.locationCode"
-              :icon="MapPin"
-              placeholder="UB-02-B-15"
-              tabular
+              :options="locationOptions"
+              placeholder="Байршил сонгоно уу"
               class="flex-1"
             />
             <UiBtn variant="secondary" :icon="Wand2" @click="suggestLocation">Санал</UiBtn>
@@ -603,7 +723,18 @@ onKeyStroke('Escape', () => {
 
       <!-- ── Хажуугийн хэсэг ──────────────────────────────────────────── -->
       <div class="space-y-6">
-        <div class="card">
+        <div v-if="isErlian" class="card">
+          <p class="flex items-center gap-2 text-body font-medium text-content-secondary">
+            <Globe2 :size="16" />
+            Эрээнд байгаа
+          </p>
+          <p class="mt-2 text-body-sm text-content-secondary">
+            Жин, үнэ, байршил ачаа Монголд ирээд "Ирц бүртгэх"-ээр тодорхойлогдоно.
+            Одоо зөвхөн ачааны дугаар, харилцагчийн утас бүртгэгдэнэ.
+          </p>
+        </div>
+
+        <div v-else class="card">
           <p class="text-body font-medium text-content-secondary">
             {{ isMeasured ? 'Бодогдох үнэ' : 'Төлөх үнэ' }}
           </p>
@@ -668,11 +799,12 @@ onKeyStroke('Escape', () => {
                     {{ pkg.trackingNumber }}
                   </p>
                   <p class="tabular truncate text-body-sm text-content-secondary">
-                    {{ pkg.customerPhone }} · {{ pkg.locationCode }}
+                    {{ pkg.customerPhone }} ·
+                    {{ pkg.status === 'in_erlian' ? 'Эрээнд байгаа' : pkg.locationCode }}
                   </p>
                 </div>
                 <p class="tabular shrink-0 text-body font-semibold text-content">
-                  {{ formatCurrency(pkg.finalPrice) }}
+                  {{ pkg.status === 'in_erlian' ? '—' : formatCurrency(pkg.finalPrice) }}
                 </p>
               </NuxtLink>
             </li>

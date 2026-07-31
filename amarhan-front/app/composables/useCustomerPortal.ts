@@ -102,6 +102,11 @@ export function usePublicContent() {
     return $fetch<{ data: any }>(`${base}/api/v1/public/content`).then(r => r.data)
   }
 
+  /** Нүүр хуудасны "Энгийн, ил тод тариф" хэсэг — компанийн нийтэлсэн үнийн жагсаалт */
+  async function pricing() {
+    return $fetch<{ data: any }>(`${base}/api/v1/public/pricing`).then(r => r.data)
+  }
+
   async function track(trackingNumber: string) {
     const res = await $fetch<{ data: any }>(
       `${base}/api/v1/public/track/${encodeURIComponent(trackingNumber)}`
@@ -109,7 +114,19 @@ export function usePublicContent() {
     return res.data
   }
 
-  return { content, track }
+  /**
+   * Утасны дугаараар хайх (нүүр хуудасны хайлтын карт).
+   * Backend `packageRepository.search`-тай ижил `{ data, pagination }` хэлбэртэй буцаана.
+   */
+  async function trackByPhone(phone: string, params: { page?: number; limit?: number } = {}) {
+    const res = await $fetch<{ data: any[]; pagination: any }>(
+      `${base}/api/v1/public/track-by-phone/${encodeURIComponent(phone)}`,
+      { params }
+    )
+    return res
+  }
+
+  return { content, pricing, track, trackByPhone }
 }
 
 /** Хоосон/тодорхойгүй параметрийг query-д оруулахгүй */

@@ -9,6 +9,7 @@ import tokens from '~/assets/design-tokens'
  */
 
 export type PackageStatus =
+  | 'in_erlian'
   | 'registered'
   | 'notified'
   | 'awaiting_payment'
@@ -45,7 +46,13 @@ export function usePackageStatus() {
     return style(status).label
   }
 
-  /** Дэвшлийн мөрөнд ашиглах — төлөв урсгалын хэдэн дэх алхам вэ */
+  /**
+   * Дэвшлийн мөрөнд ашиглах — төлөв урсгалын хэдэн дэх алхам вэ.
+   *
+   * `in_erlian` ЗОРИУДААР ОРОХГҮЙ: прогресс зөвхөн Монголд ирсний дараах
+   * урсгалыг хардаг (BR-45) — "Эрээнд байгаа" үед `progress()` 0 буцаана,
+   * энэ зөв: бодит бүртгэлийн урсгал хараахан эхлээгүй гэсэн үг.
+   */
   const FLOW: PackageStatus[] = [
     'registered',
     'notified',

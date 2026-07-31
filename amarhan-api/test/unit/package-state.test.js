@@ -72,10 +72,14 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
       expect(state.canTransition(S.AWAITING_PAYMENT, S.NOTIFIED)).to.be.false;
     });
 
-    it('Эрээний/замын төлөв БАЙХГҮЙ — бүртгэл нь Монголд ирсний дараа хийгддэг', () => {
-      expect(state.isKnownStatus('in_transit')).to.be.false;
-      expect(state.isKnownStatus('arrived')).to.be.false;
-    });
+    it(
+      'хуучин, татгалзсан замын төлөв (in_transit/arrived) БАЙХГҮЙ хэвээр — ' +
+        'бодит бүртгэл (жин/үнэ/байршил) нь Монголд ирсний дараа хийгддэг (§1.1, BR-45)',
+      () => {
+        expect(state.isKnownStatus('in_transit')).to.be.false;
+        expect(state.isKnownStatus('arrived')).to.be.false;
+      }
+    );
 
     it('алдааны мессеж зөвшөөрөгдөх төлөвүүдийг МОНГОЛООР санал болгоно', () => {
       // `registered → delivered` нь ХҮСНЭГТЭД ч байхгүй — тиймээс зөвшөөрөгдөх
@@ -113,7 +117,7 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
   });
 
   describe('BR-07 — хүчингүй болгох', () => {
-    const cancellable = [S.REGISTERED, S.NOTIFIED, S.AWAITING_PAYMENT];
+    const cancellable = [S.IN_ERLIAN, S.REGISTERED, S.NOTIFIED, S.AWAITING_PAYMENT];
 
     cancellable.forEach(status => {
       it(`${status} төлөвөөс хүчингүй болгоно`, () => {
@@ -201,6 +205,46 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
       [S.OUT_FOR_DELIVERY, S.PICKED_UP, S.DELIVERED, S.CANCELLED].forEach(
         s => expect(state.occupiesLocation(s), s).to.be.false
       );
+    });
+
+    it('in_erlian ачаа физикээр Монголд байхгүй тул нүд эзэлдэггүй (BR-45)', () => {
+      expect(state.occupiesLocation(S.IN_ERLIAN)).to.be.false;
+    });
+  });
+
+  describe('BR-45 — "Эрээнд байгаа" урьдчилсан бүртгэл', () => {
+    it('in_erlian → registered, in_erlian → cancelled зөвшөөрөгдөнө', () => {
+      expect(state.canTransition(S.IN_ERLIAN, S.REGISTERED)).to.be.true;
+      expect(state.canTransition(S.IN_ERLIAN, S.CANCELLED)).to.be.true;
+    });
+
+    it('in_erlian-аас бусад руу шилжихгүй', () => {
+      const others = PACKAGE_STATUS_LIST.filter(s => ![S.REGISTERED, S.CANCELLED].includes(s));
+      others.forEach(to => {
+        expect(state.canTransition(S.IN_ERLIAN, to), to).to.be.false;
+      });
+    });
+
+    it('in_erlian → registered-ыг viaArrival ФЛАГГҮЙГЭЭР энгийн changeStatus-аар хийж болохгүй', () => {
+      expect(() => state.assertTransition(S.IN_ERLIAN, S.REGISTERED)).to.throw(/Ирц бүртгэх/);
+    });
+
+    it('in_erlian → registered viaArrival: true үед зөвшөөрөгдөнө', () => {
+      expect(() =>
+        state.assertTransition(S.IN_ERLIAN, S.REGISTERED, { viaArrival: true })
+      ).to.not.throw();
+    });
+
+    it('manualTransitions(in_erlian)-д registered ОРОХГҮЙ (нэмэлт мэдээлэл шаарддаг тул)', () => {
+      expect(state.manualTransitions(S.IN_ERLIAN)).to.not.include(S.REGISTERED);
+    });
+
+    it('manualTransitions(in_erlian)-д cancelled ч ОРОХГҮЙ (тусдаа урсгал, BR-11)', () => {
+      expect(state.manualTransitions(S.IN_ERLIAN)).to.not.include(S.CANCELLED);
+    });
+
+    it('manualTransitions(in_erlian) хоосон — цорын ганц боломж тусгай маягтуудаар', () => {
+      expect(state.manualTransitions(S.IN_ERLIAN)).to.deep.equal([]);
     });
   });
 

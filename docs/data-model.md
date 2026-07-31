@@ -241,7 +241,7 @@ notifications, settings  (бие даасан)
 | `locationId` | ObjectId → `warehouse_locations` \| null | |
 | `locationCode` | String \| null | Хайлтад зориулж хуулбарласан |
 | **Бусад** | | |
-| `arrivedAt` | Date | Ирсэн огноо (§1.1) |
+| `arrivedAt` | Date | Ирсэн огноо (§1.1). `in_erlian` төлөвт байх үед энд "Эрээнд бүртгэсэн огноо" түр хадгалагдана — "Ирц бүртгэх"-д (`completeArrival`) бодит Монголд ирсэн огноогоор ДАРЖ бичигдэнэ (BR-45) |
 | `note` | String | |
 | `registeredBy` | ObjectId → `users` | |
 | `isDuplicateApproved` | Boolean | §1.3 — Менежер зөвшөөрсөн давхардал |
@@ -249,12 +249,16 @@ notifications, settings  (бие даасан)
 
 ### Төлөвийн enum (§1.5)
 
-> **9 утга.** `in_transit` ба `arrived` БАЙХГҮЙ — бүртгэл нь ачаа Монголд ирсний
-> дараа хийгддэг тул `registered` өөрөө «ирсэн» гэдгийг илэрхийлнэ
-> ([`business-rules.md` BR-07](business-rules.md)).
+> **10 утга.** Хуучин `in_transit` ба `arrived` БАЙХГҮЙ хэвээр — бодит бүртгэл
+> (жин/үнэ/байршил) нь ачаа Монголд ирсний дараа хийгддэг тул `registered` өөрөө
+> «ирсэн» гэдгийг илэрхийлнэ ([`business-rules.md` BR-07](business-rules.md)).
+> `in_erlian` (BR-45, 2026-07-31) нь үүнийг зөрчихгүй, зөвхөн Монголд ирэхээс
+> ӨМНӨ ажилтан дугаар+утсаар шинээр бичих сонголт — жин/эзлэхүүн/үнэ/байршил
+> бүгд `null`/`0`, байршлын нүд эзэлдэггүй ([`business-rules.md` BR-45](business-rules.md)).
 
 | Утга | Монгол |
 |---|---|
+| `in_erlian` | Эрээнд байгаа (зөвхөн дугаар+утас мэдэгдэж байна; сонголтоор) |
 | `registered` | Бүртгэгдсэн (= Монголд ирсэн, агуулахад байна) |
 | `notified` | Хэрэглэгчид мэдэгдсэн |
 | `awaiting_payment` | Төлбөр хүлээгдэж буй |

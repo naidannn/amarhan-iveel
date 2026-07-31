@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, Plus, X, Truck, RefreshCw, Printer } from 'lucide-vue-next'
+import { Search, Plus, X, Truck, RefreshCw, Printer, PackageCheck } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import type { Column } from '~/components/ui/DataTable.vue'
 import type { CargoPackage, Pagination } from '~/composables/usePackages'
@@ -143,8 +143,10 @@ const selectedRows = computed(() => rows.value.filter(r => selected.value.includ
 
 const bulkOptions = computed(() =>
   Object.entries(status.all)
-    // Хүчингүй болгох нь шалтгаан + эрх шаарддаг тусдаа урсгал (BR-11)
-    .filter(([value]) => value !== 'cancelled')
+    // Хүчингүй болгох нь шалтгаан + эрх шаарддаг тусдаа урсгал (BR-11).
+    // `in_erlian` мөн хасав (BR-45) — ямар ч төлөвөөс энэ рүү шилжих зам
+    // байхгүй, зөвхөн бүртгэх мөчид эхэлдэг тул сонговол backend алдаа өгнө.
+    .filter(([value]) => value !== 'cancelled' && value !== 'in_erlian')
     .map(([value, style]) => ({ value, label: style.label }))
 )
 
@@ -189,6 +191,9 @@ async function applyBulk() {
 // ── Шошго хэвлэх (§1.10) ─────────────────────────────────────────────────
 const printOpen = ref(false)
 
+// ── Хүлээлгэн өгөх (§1.9) — утсаар хайж, төлбөр + хүлээлгэн өгөхийг нэг цонхонд ──
+const handoverOpen = ref(false)
+
 function formatMeasure(pkg: CargoPackage) {
   const parts: string[] = []
   if (pkg.weightKg != null) parts.push(`${pkg.weightKg} кг`)
@@ -215,6 +220,9 @@ function typeName(pkg: CargoPackage) {
       <template #actions>
         <UiBtn variant="secondary" :icon="RefreshCw" :loading="loading" @click="load">
           Сэргээх
+        </UiBtn>
+        <UiBtn variant="secondary" :icon="PackageCheck" @click="handoverOpen = true">
+          Хүлээлгэн өгөх
         </UiBtn>
         <UiBtn :icon="Plus" to="/admin/packages/new">Ачаа бүртгэх</UiBtn>
       </template>
@@ -363,5 +371,12 @@ function typeName(pkg: CargoPackage) {
 
     <!-- §1.10 — шошго хэвлэх -->
     <PackagePrintSheet v-model="printOpen" :packages="selectedRows" />
+
+    <!-- §1.9 — утсаар хайж, төлбөр + хүлээлгэн өгөхийг нэг цонхонд -->
+    <PackageHandoverModal
+      v-model="handoverOpen"
+      :initial-query="filters.phone"
+      @handed-over="load"
+    />
   </div>
 </template>

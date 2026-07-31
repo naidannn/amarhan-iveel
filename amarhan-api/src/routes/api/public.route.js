@@ -22,6 +22,12 @@ router.use(publicLimiter);
 // §3 — ачаа хайх. Хариу нь төлөв + маскласан утас, үнэ БАЙХГҮЙ.
 router.get('/track/:trackingNumber', validate(validation.track), controller.track);
 
+// §3 — утасны дугаараар хайх (ЯГ БҮТЭН тааралт, prefix БИШ — public.service.js-ийг үзнэ үү)
+router.get('/track-by-phone/:phone', validate(validation.trackByPhone), controller.trackByPhone);
+
+// §3, roadmap 5.10 — нүүр хуудасны нийтэлсэн үнийн жагсаалт (rate card)
+router.get('/pricing', controller.pricing);
+
 // §3, roadmap 5.9/5.10 — Эрээний хаяг, холбоо барих, түгээмэл асуулт
 router.get('/content', controller.content);
 

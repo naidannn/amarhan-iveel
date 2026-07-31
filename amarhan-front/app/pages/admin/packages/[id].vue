@@ -12,6 +12,8 @@ import {
   AlertTriangle,
   Wallet,
   Truck,
+  Globe2,
+  PackageCheck,
 } from 'lucide-vue-next'
 import { ERROR_CODE, type CargoPackage, type PackageStatusValue } from '~/composables/usePackages'
 import { usePayments, type Payment } from '~/composables/usePayments'
@@ -32,6 +34,7 @@ definePageMeta({ layout: 'admin', middleware: 'auth' })
 const route = useRoute()
 const api = usePackages()
 const paymentApi = usePayments()
+const locationApi = useWarehouseLocations()
 const toast = useToast()
 const status = usePackageStatus()
 const auth = useAuthStore()
@@ -267,6 +270,102 @@ async function applyLocation() {
   }
 }
 
+// ── Ирц бүртгэх (BR-45) ──────────────────────────────────────────────────
+// "Эрээнд байгаа" ачаа Монголд ирэхэд жин/үнэ/байршил нэмж "Бүртгэгдсэн"
+// болгоно. `new.vue`-гийн хоёр горимтой яг адил зарчим (BR-01/BR-01a).
+const arriveOpen = ref(false)
+type ArriveMode = 'measured' | 'manual'
+const arriveMode = ref<ArriveMode>('manual')
+const arriveCargoTypeId = ref<string | null>(null)
+const arriveWeightKg = ref<number | null>(null)
+const arriveLengthCm = ref<number | null>(null)
+const arriveWidthCm = ref<number | null>(null)
+const arriveHeightCm = ref<number | null>(null)
+const arrivePrice = ref<number | null>(null)
+const arrivePriceReason = ref('')
+const arriveLocationCode = ref<string | null>(null)
+
+const arriveCargoTypeOptions = ref<Array<{ value: string; label: string }>>([])
+const arriveLocationOptions = ref<Array<{ value: string; label: string }>>([])
+
+const arriveHasDimensions = computed(
+  () => arriveLengthCm.value != null && arriveWidthCm.value != null && arriveHeightCm.value != null
+)
+
+async function openArrive() {
+  arriveMode.value = 'manual'
+  arriveCargoTypeId.value = null
+  arriveWeightKg.value = null
+  arriveLengthCm.value = null
+  arriveWidthCm.value = null
+  arriveHeightCm.value = null
+  arrivePrice.value = null
+  arrivePriceReason.value = ''
+  arriveLocationCode.value = null
+
+  try {
+    const [types, locations] = await Promise.all([api.cargoTypes(), locationApi.list()])
+    arriveCargoTypeOptions.value = types.data.map(t => ({ value: t.id, label: t.name }))
+    arriveLocationOptions.value = locations.map(loc => ({
+      value: loc.code,
+      label: loc.capacityCount != null
+        ? `${loc.code} (${loc.currentCount}/${loc.capacityCount})`
+        : `${loc.code} (${loc.currentCount})`,
+    }))
+  } catch (e: any) {
+    toast.error('Төрөл/байршил ачаалагдсангүй', { description: e.message })
+  }
+
+  arriveOpen.value = true
+}
+
+async function applyArrive() {
+  if (!arriveLocationCode.value) {
+    toast.error('Байршлын кодыг сонгоно уу')
+    return
+  }
+  if (arriveMode.value === 'manual' && arrivePrice.value == null) {
+    toast.error('Үнийн дүнг оруулна уу')
+    return
+  }
+  if (arriveMode.value === 'measured' && arriveWeightKg.value == null && !arriveHasDimensions.value) {
+    toast.error('Жин эсвэл хэмжээсийг оруулна уу')
+    return
+  }
+
+  const payload: Record<string, any> = { locationCode: arriveLocationCode.value }
+
+  if (arriveMode.value === 'measured') {
+    payload.cargoTypeId = arriveCargoTypeId.value
+    if (arriveWeightKg.value != null) payload.weightKg = arriveWeightKg.value
+    if (arriveHasDimensions.value) {
+      payload.dimensions = {
+        lengthCm: arriveLengthCm.value,
+        widthCm: arriveWidthCm.value,
+        heightCm: arriveHeightCm.value,
+      }
+    }
+    if (arrivePrice.value != null) {
+      payload.finalPrice = arrivePrice.value
+      payload.priceOverrideReason = arrivePriceReason.value.trim()
+    }
+  } else {
+    payload.finalPrice = arrivePrice.value
+  }
+
+  busy.value = true
+  try {
+    await api.completeArrival(id.value, payload)
+    toast.success('Ирц бүртгэгдлээ — ачаа "Бүртгэгдсэн" боллоо')
+    arriveOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Ирц бүртгэгдсэнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
 // ── Хүчингүй болгох ба устгах (§1.6) ─────────────────────────────────────
 const cancelOpen = ref(false)
 const cancelReason = ref('')
@@ -339,6 +438,10 @@ const printOpen = ref(false)
         <template #actions>
           <UiBtn variant="ghost" :icon="ArrowLeft" to="/admin/packages">Жагсаалт</UiBtn>
           <UiBtn variant="secondary" :icon="Printer" @click="printOpen = true">Хэвлэх</UiBtn>
+          <!-- BR-45 — "Эрээнд байгаа" ачааны цорын ганц дараагийн алхам -->
+          <UiBtn v-if="pkg.status === 'in_erlian'" :icon="PackageCheck" @click="openArrive">
+            Ирц бүртгэх
+          </UiBtn>
           <UiBtn
             v-if="transitionOptions.length"
             :icon-right="ArrowRight"
@@ -360,6 +463,21 @@ const printOpen = ref(false)
           <p class="mt-0.5 text-content-secondary">
             {{ pkg.cancelledAt ? formatDateTime(pkg.cancelledAt) : '' }} ·
             {{ pkg.cancelReason }}
+          </p>
+        </div>
+      </div>
+
+      <!-- BR-45 — "Эрээнд байгаа": физикээр Монголд хараахан ирээгүй -->
+      <div
+        v-if="pkg.status === 'in_erlian'"
+        class="mb-6 flex items-start gap-3 rounded-card bg-primary-50 p-4"
+      >
+        <Globe2 :size="20" class="mt-0.5 shrink-0 text-primary" />
+        <div class="min-w-0 text-body">
+          <p class="font-semibold text-content">Энэ ачаа Эрээнд байгаа — Монголд хараахан ирээгүй</p>
+          <p class="mt-0.5 text-content-secondary">
+            Зөвхөн ачааны дугаар, харилцагчийн утас мэдэгдэж байна. Ачаа Монголд
+            ирэхэд "Ирц бүртгэх" товчоор жин, үнэ, байршлыг нэмнэ.
           </p>
         </div>
       </div>
@@ -612,8 +730,10 @@ const printOpen = ref(false)
               Төлбөр авах
             </UiBtn>
 
+            <!-- BR-45 — "Эрээнд байгаа" үед үнэ ХАРААХАН ТОДОРХОЙГҮЙ (pending) тул
+                 гараар өөрчлөх боломжгүй — "Ирц бүртгэх"-ээр анх удаа тодорхойлно -->
             <UiBtn
-              v-if="pkg.status !== 'cancelled'"
+              v-if="pkg.status !== 'cancelled' && pkg.status !== 'in_erlian'"
               class="mt-2"
               variant="secondary"
               :icon="Pencil"
@@ -723,10 +843,15 @@ const printOpen = ref(false)
               Байршил
             </h2>
 
-            <p class="tabular text-h3 font-bold text-content">{{ pkg.locationCode || '—' }}</p>
+            <p v-if="pkg.status === 'in_erlian'" class="text-body text-content-secondary">
+              Эрээнд байгаа — байршил хараахан тодорхойгүй
+            </p>
+            <p v-else class="tabular text-h3 font-bold text-content">{{ pkg.locationCode || '—' }}</p>
 
+            <!-- BR-45 — "Эрээнд байгаа" үед байршил "Ирц бүртгэх"-ээр анх удаа
+                 тодорхойлогдоно, шилжүүлэх зүйл байхгүй -->
             <UiBtn
-              v-if="pkg.status !== 'cancelled'"
+              v-if="pkg.status !== 'cancelled' && pkg.status !== 'in_erlian'"
               class="mt-4"
               variant="secondary"
               block
@@ -857,6 +982,108 @@ const printOpen = ref(false)
         <template #footer>
           <UiBtn variant="secondary" @click="locationOpen = false">Болих</UiBtn>
           <UiBtn :loading="busy" @click="applyLocation">Шилжүүлэх</UiBtn>
+        </template>
+      </UiModal>
+
+      <!-- BR-45 — Ирц бүртгэх: "Эрээнд байгаа" → "Бүртгэгдсэн" -->
+      <UiModal v-model="arriveOpen" title="Ирц бүртгэх" size="lg">
+        <div class="space-y-4">
+          <p class="text-body text-content-secondary">
+            Ачаа Монголд ирлээ гэдгийг бүртгэж, жин, үнэ, байршлыг нэмнэ.
+          </p>
+
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                arriveMode === 'manual'
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="arriveMode = 'manual'"
+            >
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Дүнг шууд бичих</span>
+                <span class="block text-body-sm text-content-secondary">Жин мэдэгдэхгүй үед</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="flex items-start gap-2.5 rounded-card border p-3 text-left transition-all duration-200"
+              :class="
+                arriveMode === 'measured'
+                  ? 'border-primary bg-primary-50'
+                  : 'border-surface-border hover:border-primary-300'
+              "
+              @click="arriveMode = 'measured'"
+            >
+              <span class="min-w-0">
+                <span class="block text-body font-semibold text-content">Жингээр бодох</span>
+                <span class="block text-body-sm text-content-secondary">Тарифаар автоматаар</span>
+              </span>
+            </button>
+          </div>
+
+          <div v-if="arriveMode === 'manual'">
+            <UiField label="Үнийн дүн" required>
+              <UiTextInput v-model="arrivePrice" type="number" suffix="₮" tabular />
+            </UiField>
+          </div>
+
+          <div v-else class="space-y-4">
+            <UiField label="Ачааны төрөл" required>
+              <UiSelectInput
+                v-model="arriveCargoTypeId"
+                :options="arriveCargoTypeOptions"
+                placeholder="Төрөл сонгоно уу"
+              />
+            </UiField>
+
+            <div class="grid gap-4 sm:grid-cols-4">
+              <UiField label="Жин">
+                <UiTextInput v-model="arriveWeightKg" type="number" suffix="кг" tabular />
+              </UiField>
+              <UiField label="Урт">
+                <UiTextInput v-model="arriveLengthCm" type="number" suffix="см" tabular />
+              </UiField>
+              <UiField label="Өргөн">
+                <UiTextInput v-model="arriveWidthCm" type="number" suffix="см" tabular />
+              </UiField>
+              <UiField label="Өндөр">
+                <UiTextInput v-model="arriveHeightCm" type="number" suffix="см" tabular />
+              </UiField>
+            </div>
+
+            <details class="rounded-input border border-surface-border p-3">
+              <summary class="cursor-pointer text-body font-medium text-content">
+                Бодогдсон үнийг дарж бичих
+                <span class="font-normal text-content-secondary">(шалтгаан заавал)</span>
+              </summary>
+              <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                <UiField label="Эцсийн үнэ">
+                  <UiTextInput v-model="arrivePrice" type="number" suffix="₮" tabular />
+                </UiField>
+                <UiField label="Шалтгаан" :required="arrivePrice != null">
+                  <UiTextInput v-model="arrivePriceReason" placeholder="Жишээ: жинлүүрийн зөрүү" />
+                </UiField>
+              </div>
+            </details>
+          </div>
+
+          <UiField label="Байршлын код" required>
+            <UiSelectInput
+              v-model="arriveLocationCode"
+              :options="arriveLocationOptions"
+              placeholder="Байршил сонгоно уу"
+            />
+          </UiField>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="arriveOpen = false">Болих</UiBtn>
+          <UiBtn :loading="busy" @click="applyArrive">Бүртгэгдсэн болгох</UiBtn>
         </template>
       </UiModal>
 

@@ -24,6 +24,7 @@ const {
   ERROR_CODE,
   PACKAGE_STATUS,
   PAYMENT_STATUS,
+  PRICE_SOURCE,
   ROLES,
   SETTING_KEY,
 } = require('../config/constants');
@@ -150,9 +151,29 @@ class PackageService {
     // Атомик хамгаалалт нь DB индекс (доорх `handleWriteError`).
     const duplicateApproval = await this.resolveDuplicate(trackingNumber, data, actor);
 
-    const volumeM3 = this.resolveVolume(data);
-    const pricing = await this.resolvePricing({ ...data, volumeM3 }, actor);
-    const location = await this.resolveLocation(data, branch);
+    /**
+     * BR-45 — "Эрээнд байгаа": ажилтан зөвхөн ачааны дугаар + утсаар мэднэ,
+     * тэр үед жин ч, тариф ч, байршил ч байхгүй. Тиймээс `resolvePricing()`/
+     * `resolveLocation()`-ыг ОГТ дуудахгүй (Joi validation аль хэдийн эдгээр
+     * талбарыг `forbidden` болгосон тул `data`-д ирэхгүй). Ачаа Монголд ирэхэд
+     * `completeArrival()` яг энэ бичлэг дээр үнэ/байршлыг тодорхойлно.
+     */
+    const isErlian = data.status === PACKAGE_STATUS.IN_ERLIAN;
+
+    const volumeM3 = isErlian ? null : this.resolveVolume(data);
+    const pricing = isErlian
+      ? {
+          cargoTypeId: null,
+          snapshot: null,
+          computedPrice: 0,
+          priceSource: PRICE_SOURCE.PENDING,
+          finalPrice: 0,
+          overridden: false,
+          overrideReason: null,
+        }
+      : await this.resolvePricing({ ...data, volumeM3 }, actor);
+    const location = isErlian ? null : await this.resolveLocation(data, branch);
+    const initialStatus = isErlian ? PACKAGE_STATUS.IN_ERLIAN : PACKAGE_STATUS.REGISTERED;
 
     const created = await withTransaction(async session => {
       const { customer } = await customerService.findOrCreateByPhone(
@@ -194,11 +215,11 @@ class PackageService {
             balance: finalPrice,
             paymentStatus: PAYMENT_STATUS.UNPAID,
 
-            status: PACKAGE_STATUS.REGISTERED,
+            status: initialStatus,
             statusHistory: [
               {
                 from: null,
-                to: PACKAGE_STATUS.REGISTERED,
+                to: initialStatus,
                 at: new Date(),
                 by: actor?._id ?? null,
                 byName: auditService.describeActor(actor),
@@ -209,6 +230,9 @@ class PackageService {
             locationId: location?._id ?? null,
             locationCode: location?.code ?? null,
 
+            // `in_erlian` үед энд "Эрээнд бүртгэсэн огноо" гэсэн утгатай түр
+            // хадгарна — `completeArrival()` бодит Монголд ирсэн огноогоор
+            // ДАРЖ бичнэ (BR-45; давхар талбар зориудаар нэмээгүй).
             arrivedAt: data.arrivedAt ?? new Date(),
             note: data.note ?? null,
             registeredBy: actor?._id ?? null,
@@ -297,6 +321,131 @@ class PackageService {
       // BR-24 — багтаамжийн сануулга. ХОРИГЛОХГҮЙ, зөвхөн мэдэгдэнэ
       warnings: this.buildWarnings(location),
     };
+  }
+
+  /**
+   * §1.1, BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ЯГ ТЭР бичлэг дээрээ
+   * жин/эзлэхүүн/үнэ/байршил нэмж "Бүртгэгдсэн" болгоно. ШИНЭ бичлэг
+   * ҮҮСГЭХГҮЙ — ажилтан анх бүртгэсэн дугаар/утас хадгалагдана.
+   *
+   * `create()`-тэй ижил дараалал (тариф/байршил шийдвэрлэлт), `changeStatus()`-
+   * той ижил статус шилжилт+audit хэв маяг — гэхдээ БҮГД НЭГ транзакцад.
+   */
+  async completeArrival(id, data, actor, req) {
+    const pkg = await this.getById(id);
+
+    if (pkg.status !== PACKAGE_STATUS.IN_ERLIAN) {
+      throw new APIError(
+        `"${packageState.label(pkg.status)}" төлөвтэй ачаанд ирц бүртгэх боломжгүй`,
+        httpStatus.UNPROCESSABLE_ENTITY
+      );
+    }
+
+    const branch = await branchResolver.resolveBranch(pkg.branchId);
+
+    const volumeM3 = this.resolveVolume(data);
+    const pricing = await this.resolvePricing({ ...data, volumeM3 }, actor);
+    // Ирц гүйцээхэд байршил ЗААВАЛ — "Эрээнд байгаа" үед байхгүй байсан
+    // мэдээлэл энд заавал бөглөгдөнө (BR-45).
+    const location = await this.resolveLocation(data, branch, { required: true });
+
+    try {
+      packageState.assertTransition(pkg.status, PACKAGE_STATUS.REGISTERED, { viaArrival: true });
+    } catch (err) {
+      throw new APIError(err.message, httpStatus.CONFLICT, {
+        code: ERROR_CODE.INVALID_STATUS_TRANSITION,
+        details: { from: pkg.status, to: PACKAGE_STATUS.REGISTERED },
+      });
+    }
+
+    // Бодит Монголд ирсэн огноо — "Эрээнд байгаа" үеийн `arrivedAt`
+    // (бүртгэсэн огноо) энэ мөчид ДАРЖ бичигдэнэ.
+    const arrivedAt = data.arrivedAt ?? new Date();
+
+    return withTransaction(async session => {
+      const updated = await packageRepository.updateByIdWithSession(
+        id,
+        {
+          cargoTypeId: pricing.cargoTypeId,
+          quantity: data.quantity ?? pkg.quantity,
+          weightKg: data.weightKg ?? null,
+          volumeM3,
+          dimensions: data.dimensions ?? null,
+
+          pricingSnapshot: pricing.snapshot,
+          computedPrice: pricing.computedPrice,
+          priceSource: pricing.priceSource,
+          finalPrice: pricing.finalPrice,
+          priceOverridden: pricing.overridden,
+          priceOverrideReason: pricing.overrideReason,
+
+          balance: pricing.finalPrice,
+          paymentStatus: PAYMENT_STATUS.UNPAID,
+
+          locationId: location._id,
+          locationCode: location.code,
+
+          arrivedAt,
+          note: data.note !== undefined ? data.note : pkg.note,
+
+          status: PACKAGE_STATUS.REGISTERED,
+          $push: {
+            statusHistory: {
+              from: pkg.status,
+              to: PACKAGE_STATUS.REGISTERED,
+              at: new Date(),
+              by: actor?._id ?? null,
+              byName: auditService.describeActor(actor),
+              reason: null,
+            },
+          },
+        },
+        { session }
+      );
+
+      // Шинээр байршил эзэлж байна — `in_erlian` нүд эзэлдэггүй байсан тул
+      // `syncLocationLoad()` энд ашиглахгүй (тэр зөвхөн `pkg.locationId` аль
+      // хэдийн байгаа үед ажилладаг no-op).
+      await this.adjustLocationLoad(location._id, updated, +1, { session });
+
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: updated._id,
+          entityLabel: updated.trackingNumber,
+          branchId: updated.branchId,
+          field: 'status',
+          before: pkg.status,
+          after: PACKAGE_STATUS.REGISTERED,
+          reason: null,
+          req,
+        },
+        { session }
+      );
+
+      await auditService.recordChanges(
+        {
+          actor,
+          action: AUDIT_ACTION.PACKAGE_UPDATE,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: updated._id,
+          entityLabel: updated.trackingNumber,
+          branchId: updated.branchId,
+          req,
+        },
+        {
+          weightKg: { before: null, after: updated.weightKg },
+          volumeM3: { before: null, after: updated.volumeM3 },
+          finalPrice: { before: 0, after: updated.finalPrice },
+          locationCode: { before: null, after: updated.locationCode },
+        },
+        { session }
+      );
+
+      return updated;
+    });
   }
 
   /**

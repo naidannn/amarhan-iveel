@@ -542,7 +542,82 @@ describe('Харилцагчийн вэб (§3)', () => {
     });
   });
 
+  describe('Утасны дугаараар хайх — нэвтрэхгүйгээр (§3)', () => {
+    it('бүтэн утсаар хайхад тухайн дугаарын бүх ачаа харагдана', async () => {
+      await registerPackage({ phone: '99112233' });
+      await registerPackage({ phone: '99112233' });
+      await registerPackage({ phone: '88223344' });
+
+      const res = await chai.request(app).get(`${PUBLIC}/track-by-phone/99112233`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.lengthOf(2);
+      expect(res.body.pagination.total).to.equal(2);
+    });
+
+    it('дутуу (prefix) дугаараар олохгүй — enumeration хамгаалалт', async () => {
+      await registerPackage({ phone: '99112233' });
+
+      const res = await chai.request(app).get(`${PUBLIC}/track-by-phone/9911`);
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('ҮНЭ, ҮЛДЭГДЭЛ, ДОТООД мэдээлэл, бүтэн утас ХАРАГДАХГҮЙ', async () => {
+      await registerPackage({ phone: '99112233', price: 45000 });
+
+      const res = await chai.request(app).get(`${PUBLIC}/track-by-phone/99112233`);
+
+      expect(JSON.stringify(res.body)).to.not.contain('45000');
+      expect(JSON.stringify(res.body)).to.not.contain('99112233');
+      expect(res.body.data[0]).to.not.have.property('locationCode');
+      expect(res.body.data[0]).to.not.have.property('customerId');
+    });
+
+    it('хүчингүй болсон ачаа хариунд ОРОХГҮЙ', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const manager = await createUserWithToken({ role: ROLES.MANAGER, branchId: branch._id });
+      await chai
+        .request(app)
+        .put(`${PACKAGES}/${pkg.id}/cancel`)
+        .set('Authorization', `Bearer ${manager.token}`)
+        .send({ reason: 'тест' });
+
+      const res = await chai.request(app).get(`${PUBLIC}/track-by-phone/99112233`);
+
+      expect(res.body.data.find(p => p.trackingNumber === pkg.trackingNumber)).to.be.undefined;
+    });
+
+    it('олдоогүй дугаарт хоосон жагсаалт буцаана (алдаа биш)', async () => {
+      const res = await chai.request(app).get(`${PUBLIC}/track-by-phone/99998888`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.lengthOf(0);
+    });
+  });
+
   // ── Статик агуулга (5.9, 5.10) ──────────────────────────────────────────
+
+  describe('Нийтэлсэн үнийн жагсаалт (§3)', () => {
+    it('энгийн ачааны идэвхтэй тарифыг нэвтрэхгүйгээр буцаана', async () => {
+      const res = await chai.request(app).get(`${PUBLIC}/pricing`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data.pricePerKgAbove).to.equal(2000);
+      expect(res.body.data.pricePerM3).to.equal(400000);
+      expect(res.body.data.weightBrackets).to.have.lengthOf(3);
+    });
+
+    it('тариф олдоогүй бол алдаа биш, null буцаана', async () => {
+      const CargoType = require('../../src/models/cargo-type.model');
+      await CargoType.deleteMany({ code: 'standard' });
+
+      const res = await chai.request(app).get(`${PUBLIC}/pricing`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.equal(null);
+    });
+  });
 
   describe('Статик агуулга (§3)', () => {
     it('нэвтрэхгүйгээр Эрээний хаяг уншигдана', async () => {

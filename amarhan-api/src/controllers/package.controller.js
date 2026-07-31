@@ -59,6 +59,16 @@ exports.update = async (req, res, next) => {
   }
 };
 
+// BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ирц гүйцээх
+exports.arrive = async (req, res, next) => {
+  try {
+    const pkg = await packageService.completeArrival(req.params.packageId, req.body, req.user, req);
+    return success(res, pkg);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.overridePrice = async (req, res, next) => {
   try {
     const pkg = await packageService.overridePrice(

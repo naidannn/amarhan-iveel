@@ -32,14 +32,30 @@ const rows = computed(() =>
   ].filter(row => row.value)
 )
 
-const copied = ref<string | null>(null)
+/**
+ * Хуулах бүрэн текст — зөвхөн хаягийн мөрүүд (нэр, утас, хаяг), мөр мөрөөр.
+ * Тэмдэглэл (`note`) энд ОРОХГҮЙ: энэ бол харилцагчид зориулсан заавар текст,
+ * Хятадын дэлгүүрийн хаягийн талбарт paste хийх зүйл биш.
+ */
+const fullText = computed(() =>
+  [
+    address.value?.receiverName,
+    address.value?.phone,
+    address.value?.addressCn,
+    address.value?.addressMn,
+  ]
+    .filter(Boolean)
+    .join('\n')
+)
 
-async function copy(label: string, value: string) {
+const copied = ref(false)
+
+async function copyAll() {
   try {
-    await navigator.clipboard.writeText(value)
-    copied.value = label
+    await navigator.clipboard.writeText(fullText.value)
+    copied.value = true
     setTimeout(() => {
-      if (copied.value === label) copied.value = null
+      copied.value = false
     }, 2000)
   } catch {
     // Clipboard эрх өгөөгүй — хэрэглэгч гараар сонгож хуулна
@@ -72,26 +88,24 @@ useHead({ title: 'Хүлээн авах хаяг — Ивээл Карго' })
     </div>
 
     <template v-else>
-      <div class="divide-y divide-surface-border rounded-card border border-surface-border bg-surface-card">
-        <div
-          v-for="row in rows"
-          :key="row.label"
-          class="flex items-start justify-between gap-3 px-5 py-4"
-        >
-          <div class="min-w-0">
-            <p class="text-body-sm text-content-secondary">{{ row.label }}</p>
-            <p class="mt-0.5 break-words text-body font-medium text-content">{{ row.value }}</p>
-          </div>
-
+      <div class="rounded-card border border-surface-border bg-surface-card">
+        <div class="flex items-center justify-between gap-3 px-5 pt-4">
+          <p class="text-body-sm font-semibold text-content">Хаягийн мэдээлэл</p>
           <UiBtn
             variant="ghost"
             size="sm"
-            :icon="copied === row.label ? Check : Copy"
-            :aria-label="`${row.label} хуулах`"
-            @click="copy(row.label, row.value!)"
+            :icon="copied ? Check : Copy"
+            @click="copyAll"
           >
-            {{ copied === row.label ? 'Хуулагдлаа' : 'Хуулах' }}
+            {{ copied ? 'Хуулагдлаа' : 'Бүгдийг хуулах' }}
           </UiBtn>
+        </div>
+
+        <div class="mt-1 divide-y divide-surface-border">
+          <div v-for="row in rows" :key="row.label" class="px-5 py-4">
+            <p class="text-body-sm text-content-secondary">{{ row.label }}</p>
+            <p class="mt-0.5 break-words text-body font-medium text-content">{{ row.value }}</p>
+          </div>
         </div>
       </div>
 

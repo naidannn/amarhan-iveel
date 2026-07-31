@@ -627,6 +627,161 @@ describe('Ачааны модуль (§1)', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('BR-45 — "Эрээнд байгаа" урьдчилсан бүртгэл', () => {
+    function changeStatus(actor, id, payload) {
+      return chai
+        .request(app)
+        .put(`${BASE}/${id}/status`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send(payload);
+    }
+
+    function arrive(actor, id, payload) {
+      return chai
+        .request(app)
+        .put(`${BASE}/${id}/arrive`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send(payload);
+    }
+
+    async function registerErlian(actor = staff, overrides = {}) {
+      const res = await post(actor, {
+        trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`,
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+        ...overrides,
+      });
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      return res.body.data.package;
+    }
+
+    it('дугаар+утсаар л бүртгэнэ — жин/үнэ/байршил null, priceSource: pending', async () => {
+      const pkg = await registerErlian();
+
+      expect(pkg.status).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(pkg.weightKg).to.be.null;
+      expect(pkg.locationCode).to.be.null;
+      expect(pkg.finalPrice).to.equal(0);
+      expect(pkg.balance).to.equal(0);
+      expect(pkg.priceSource).to.equal(PRICE_SOURCE.PENDING);
+    });
+
+    it('жин/үнэ/байршил зэрэг талбар илгээвэл 400', async () => {
+      const res = await post(staff, {
+        trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`,
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+        weightKg: 2,
+      });
+      expect(res.status).to.equal(400);
+    });
+
+    it('физикээр Монголд байхгүй тул байршлын нүд эзэлдэггүй', async () => {
+      await registerErlian();
+      expect((await WarehouseLocation.findById(location._id)).currentCount).to.equal(0);
+    });
+
+    it('энгийн "Төлөв өөрчлөх"-өөр registered рүү шилжиж болохгүй (нэмэлт мэдээлэл дутуу)', async () => {
+      const pkg = await registerErlian();
+      const res = await changeStatus(staff, pkg.id, { status: PACKAGE_STATUS.REGISTERED });
+      expect(res.status).to.equal(409);
+      expect(res.body.message).to.include('Ирц бүртгэх');
+      expect(await Package.findById(pkg.id)).to.have.property('status', PACKAGE_STATUS.IN_ERLIAN);
+    });
+
+    it('PUT /:id/arrive — ирц гүйцээхэд жин/үнэ/байршил нэмэгдэж registered болно', async () => {
+      const pkg = await registerErlian();
+
+      const res = await arrive(staff, pkg.id, {
+        weightKg: 0.4,
+        cargoTypeId: String(cargoType._id),
+        locationCode: location.code,
+      });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal(PACKAGE_STATUS.REGISTERED);
+      expect(res.body.data.weightKg).to.equal(0.4);
+      expect(res.body.data.locationCode).to.equal(location.code);
+      expect(res.body.data.finalPrice).to.be.greaterThan(0);
+      expect(res.body.data.balance).to.equal(res.body.data.finalPrice);
+
+      const history = res.body.data.statusHistory;
+      expect(history[history.length - 1].from).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(history[history.length - 1].to).to.equal(PACKAGE_STATUS.REGISTERED);
+
+      // §8 — шинээр байршил эзэлнэ
+      expect((await WarehouseLocation.findById(location._id)).currentCount).to.equal(1);
+    });
+
+    it('ирц гүйцээх дараа тухайн ачаа payableByPhone-д гарч ирнэ', async () => {
+      const pkg = await registerErlian();
+      await arrive(staff, pkg.id, {
+        weightKg: 0.4,
+        cargoTypeId: String(cargoType._id),
+        locationCode: location.code,
+      });
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/payments/invoices/payable/99112233')
+        .set('Authorization', `Bearer ${staff.token}`);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.packages.map(p => p.trackingNumber)).to.include(pkg.trackingNumber);
+    });
+
+    it('in_erlian ачаа payableByPhone-д ХАРАГДАХГҮЙ (үнэ хараахан тодорхойгүй)', async () => {
+      const pkg = await registerErlian();
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/payments/invoices/payable/99112233')
+        .set('Authorization', `Bearer ${staff.token}`);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.packages.map(p => p.trackingNumber)).to.not.include(pkg.trackingNumber);
+    });
+
+    it('registered ачаанд /arrive дуудвал 422', async () => {
+      const pkg = await register();
+      const res = await arrive(staff, pkg.id, { weightKg: 1, locationCode: location.code });
+      expect(res.status).to.equal(422);
+    });
+
+    it('ирц гүйцээхэд байршил заавал — дутуу бол тодорхой алдаа', async () => {
+      const pkg = await registerErlian();
+      const res = await arrive(staff, pkg.id, {
+        weightKg: 0.4,
+        cargoTypeId: String(cargoType._id),
+      });
+      expect(res.status).to.equal(400);
+      expect(res.body.message).to.include('Байршлын код шаардлагатай');
+    });
+
+    it('§9.2 — ирц гүйцээх status_change БА update audit-д хоёулаа бичигдэнэ', async () => {
+      const pkg = await registerErlian();
+      await arrive(staff, pkg.id, {
+        weightKg: 0.4,
+        cargoTypeId: String(cargoType._id),
+        locationCode: location.code,
+      });
+
+      const statusLog = await AuditLog.findOne({
+        action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE,
+        entityId: pkg.id,
+      });
+      expect(statusLog.before).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(statusLog.after).to.equal(PACKAGE_STATUS.REGISTERED);
+
+      const updateLog = await AuditLog.findOne({
+        action: AUDIT_ACTION.PACKAGE_UPDATE,
+        entityId: pkg.id,
+      });
+      expect(updateLog).to.not.be.null;
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('§1.6 — Хүчингүй болгох ба устгах (BR-10…BR-12)', () => {
     function cancel(actor, id, payload) {
       return chai

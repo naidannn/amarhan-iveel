@@ -92,7 +92,7 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface-bg">
+  <div class="admin-shell min-h-screen bg-surface-bg">
     <!-- Мобайл дэвсгэр -->
     <div
       v-if="sidebarOpen"
@@ -102,10 +102,10 @@ watch(
 
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-sidebar flex-col border-r border-surface-border bg-surface-card transition-transform duration-200 ease-out lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-surface-border bg-surface-card transition-transform duration-200 ease-out lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
-      <div class="flex h-navbar shrink-0 items-center gap-2.5 px-5">
+      <div class="flex h-14 shrink-0 items-center gap-2 px-4">
         <div class="min-w-0">
           <LandingBrandLogo compact />
           <p class="truncate text-body-sm leading-tight text-content-secondary">
@@ -127,7 +127,7 @@ watch(
           v-for="item in visibleNav"
           :key="item.to"
           :to="item.to"
-          class="flex items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium transition-colors duration-200"
+          class="flex items-center gap-3 rounded-btn px-3 py-2.5 text-[14px] leading-5 font-medium transition-colors duration-200"
           :class="
             isActive(item.to)
               ? 'bg-primary-50 text-primary-600'
@@ -141,7 +141,7 @@ watch(
 
       <div class="shrink-0 border-t border-surface-border p-3">
         <button
-          class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-error"
+          class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-[14px] leading-5 font-medium text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-error"
           @click="logout"
         >
           <LogOut :size="19" :stroke-width="2" />
@@ -151,9 +151,9 @@ watch(
     </aside>
 
     <!-- Үндсэн хэсэг -->
-    <div class="lg:pl-sidebar">
+    <div class="lg:pl-60">
       <header
-        class="sticky top-0 z-20 flex h-navbar items-center gap-3 border-b border-surface-border bg-surface-card px-4 sm:px-6"
+        class="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-surface-border bg-surface-card px-3 sm:px-4"
       >
         <button
           class="rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
@@ -187,7 +187,7 @@ watch(
         </div>
       </header>
 
-      <main class="p-4 sm:p-6">
+      <main class="p-3 sm:p-4">
         <slot />
       </main>
     </div>

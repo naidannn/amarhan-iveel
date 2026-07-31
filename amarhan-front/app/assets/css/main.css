@@ -65,6 +65,106 @@
   .table-row {
     @apply border-b border-surface-border transition-colors duration-200 hover:bg-surface-hover;
   }
+
+  /*
+   * Админ хэсэг нь олон мөрийн мэдээлэлтэй өдөр тутам ажилладаг тул public
+   * дэлгэцээс арай нягт байна. `.admin-density-panel` нь Teleport-оор body
+   * руу гардаг админ modal-уудад яг ижил хэмжээг үргэлжлүүлнэ.
+   */
+  .admin-shell,
+  .admin-density-panel {
+    font-size: 13px;
+  }
+
+  .admin-shell .card,
+  .admin-density-panel .card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .admin-shell .text-h1,
+  .admin-density-panel .text-h1 {
+    font-size: 28px;
+    line-height: 36px;
+  }
+
+  .admin-shell .text-h2,
+  .admin-density-panel .text-h2 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .admin-shell .text-h3,
+  .admin-density-panel .text-h3 {
+    font-size: 20px;
+    line-height: 28px;
+  }
+
+  .admin-shell .text-h4,
+  .admin-density-panel .text-h4 {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .admin-shell .text-body-lg,
+  .admin-density-panel .text-body-lg {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .admin-shell .text-body,
+  .admin-density-panel .text-body {
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .admin-shell .text-body-sm,
+  .admin-density-panel .text-body-sm {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .admin-shell input:not([type='checkbox']):not([type='radio']),
+  .admin-shell select,
+  .admin-density-panel input:not([type='checkbox']):not([type='radio']),
+  .admin-density-panel select {
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .admin-shell textarea,
+  .admin-density-panel textarea {
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .admin-shell label,
+  .admin-density-panel label {
+    font-size: 13px;
+  }
+
+  .admin-shell table thead th,
+  .admin-density-panel table thead th {
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .admin-shell table tbody td,
+  .admin-density-panel table tbody td {
+    padding: 9px 12px;
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .admin-shell nav[aria-label='Хуудаслалт'] button,
+  .admin-density-panel nav[aria-label='Хуудаслалт'] button {
+    height: 32px;
+    min-width: 32px;
+    width: 32px;
+    padding: 0;
+  }
 }
 
 @layer utilities {

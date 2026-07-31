@@ -27,6 +27,8 @@ const SIZES = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' } as const
 
 const panel = ref<HTMLElement | null>(null)
 const isOpen = computed(() => props.modelValue)
+const route = useRoute()
+const isAdminModal = computed(() => route.path.startsWith('/admin'))
 
 // Модал нээлттэй үед дэвсгэр гүйлгэхээс сэргийлнэ
 const locked = useScrollLock(import.meta.client ? document.body : null)
@@ -67,7 +69,7 @@ onKeyStroke('Escape', () => {
           aria-modal="true"
           :aria-label="title"
           class="max-h-[92vh] w-full overflow-y-auto rounded-t-card bg-surface-card shadow-dropdown outline-none sm:rounded-card"
-          :class="SIZES[size]"
+          :class="[SIZES[size], isAdminModal && 'admin-density-panel']"
         >
           <header
             v-if="title || $slots.header"

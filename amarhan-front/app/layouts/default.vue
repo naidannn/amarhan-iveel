@@ -54,9 +54,14 @@ watch(
   <div class="flex min-h-screen flex-col bg-surface-bg">
     <header class="sticky top-0 z-30 border-b border-surface-border bg-surface-card">
       <div class="mx-auto flex h-navbar max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <NuxtLink to="/" class="flex shrink-0 items-center gap-2.5">
-          <img src="/logo-mark.png" alt="Ивээлт Карго" class="h-9 w-9 rounded-btn object-cover" width="36" height="36" />
-          <span class="font-bold text-content">Ивээл Карго</span>
+        <NuxtLink to="/" class="flex shrink-0 items-center">
+          <img
+            src="/logo-full.png"
+            alt="ИВЭЭЛТ КАРГО"
+            class="h-9 w-[172px] object-contain object-left"
+            width="172"
+            height="36"
+          />
         </NuxtLink>
 
         <nav class="ml-6 hidden items-center gap-1 md:flex">

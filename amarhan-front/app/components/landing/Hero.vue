@@ -21,7 +21,7 @@ defineProps<{ notice?: string | null }>()
           class="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-body-sm text-slate-500 shadow-sm"
         >
           <span class="h-1.5 w-1.5 rounded-full bg-primary-500" />
-          Хятад → Монгол · 3–5 хоногт хүргэнэ
+          Хятад → Монгол
         </div>
 
         <h1 class="text-balance text-4xl font-bold leading-[1.08] tracking-tight text-slate-900 sm:text-5xl lg:text-[56px]">

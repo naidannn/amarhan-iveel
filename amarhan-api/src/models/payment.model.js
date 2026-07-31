@@ -154,6 +154,8 @@ paymentSchema.index({ method: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
 paymentSchema.index({ invoiceId: 1 });
 paymentSchema.index({ branchId: 1, createdAt: -1 });
+// Dashboard-ын completed төлбөрийн 30 хоногийн орлогын график.
+paymentSchema.index({ branchId: 1, status: 1, createdAt: -1 });
 
 /**
  * ИДЕМПОТЕНТ ВЕБХҮҮК (архитектур §4.4). QPay нэг төлбөрийн мэдэгдлийг хэд ч

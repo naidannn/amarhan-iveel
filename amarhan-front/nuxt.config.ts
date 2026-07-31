@@ -57,7 +57,7 @@ export default defineNuxtConfig({
           content:
             'Ивээл Карго — Хятадаас Монгол руу ачаа тээвэрлэх үйлчилгээ. Ачаагаа онлайнаар хянаж, төлбөрөө төлж, хүргэлт захиална.',
         },
-        { property: 'og:title', content: 'Ивээл Карго' },
+        { property: 'og:title', content: 'ИВЭЭЛТ КАРГО' },
         {
           property: 'og:description',
           content: 'Олон улсын карго тээврийг илүү хялбар, илүү ил тод.',

@@ -44,9 +44,14 @@ const navLinks = [
 
     <header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl">
       <div class="mx-auto flex h-[72px] max-w-7xl items-center gap-3 px-5 sm:px-8">
-        <NuxtLink to="/" class="flex shrink-0 items-center gap-2.5">
-          <img src="/logo-mark.png" alt="Ивээл Карго" class="h-9 w-9 rounded-xl object-cover" width="36" height="36" />
-          <span class="font-semibold tracking-tight text-slate-900">Ивээл Карго</span>
+        <NuxtLink to="/" class="flex shrink-0 items-center">
+          <img
+            src="/logo-full.png"
+            alt="ИВЭЭЛТ КАРГО"
+            class="h-9 w-[172px] object-contain object-left"
+            width="172"
+            height="36"
+          />
         </NuxtLink>
 
         <nav class="ml-8 hidden items-center gap-1 lg:flex">
@@ -122,9 +127,14 @@ const navLinks = [
       <div class="mx-auto max-w-7xl">
         <div class="flex flex-col gap-10 sm:flex-row sm:justify-between">
           <div class="max-w-xs">
-            <div class="flex items-center gap-2.5">
-              <img src="/logo-mark.png" alt="Ивээл Карго" class="h-8 w-8 rounded-lg object-cover" />
-              <span class="font-semibold text-slate-900">Ивээл Карго</span>
+            <div class="flex items-center">
+              <img
+                src="/logo-full.png"
+                alt="ИВЭЭЛТ КАРГО"
+                class="h-8 w-[154px] object-contain object-left"
+                width="154"
+                height="32"
+              />
             </div>
             <p class="mt-3 text-body-sm text-slate-500">
               Хятад — Монгол чиглэлийн ачаа тээврийг илүү хурдан, илүү ил тод болгож байна.

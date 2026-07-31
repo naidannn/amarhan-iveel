@@ -159,6 +159,8 @@ deliverySchema.pre('validate', function validatePackages(next) {
 
 // §5 — өдрийн маршрут: "өнөөдөр гарах ёстой хүргэлтүүд"
 deliverySchema.index({ status: 1, scheduledDate: 1 });
+// Dashboard-ын өнөөдрийн хүргэлтийн нэгтгэл (салбар + төлөв + товлосон огноо).
+deliverySchema.index({ branchId: 1, status: 1, scheduledDate: 1 });
 deliverySchema.index({ customerId: 1, createdAt: -1 });
 // BR-20a — "энэ ачаа идэвхтэй хүргэлтэд байна уу"
 deliverySchema.index({ packageIds: 1 });

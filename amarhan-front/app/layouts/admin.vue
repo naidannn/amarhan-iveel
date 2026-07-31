@@ -106,15 +106,8 @@ watch(
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <div class="flex h-navbar shrink-0 items-center gap-2.5 px-5">
-        <img
-          src="/logo-mark.png"
-          alt="ИВЭЭЛТ КАРГО"
-          class="h-10 w-12 shrink-0 object-contain"
-          width="48"
-          height="40"
-        />
         <div class="min-w-0">
-          <p class="truncate font-bold leading-tight text-content">ИВЭЭЛТ КАРГО</p>
+          <LandingBrandLogo compact />
           <p class="truncate text-body-sm leading-tight text-content-secondary">
             Удирдлагын систем
           </p>

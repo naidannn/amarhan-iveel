@@ -65,13 +65,7 @@ const navLinks = [
     <header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl">
       <div class="mx-auto flex h-[72px] max-w-7xl items-center gap-3 px-5 sm:px-8">
         <NuxtLink to="/" class="flex shrink-0 items-center">
-          <img
-            src="/logo-full.png"
-            alt="ИВЭЭЛТ КАРГО"
-            class="h-9 w-[172px] object-contain object-left"
-            width="172"
-            height="36"
-          />
+          <LandingBrandLogo aria-label="ИВЭЭЛТ КАРГО" />
         </NuxtLink>
 
         <nav class="ml-8 hidden items-center gap-1 lg:flex">
@@ -148,13 +142,7 @@ const navLinks = [
         <div class="grid gap-10 lg:grid-cols-[1fr_1.25fr]">
           <div class="max-w-xs">
             <div class="flex items-center">
-              <img
-                src="/logo-full.png"
-                alt="ИВЭЭЛТ КАРГО"
-                class="h-8 w-[154px] object-contain object-left"
-                width="154"
-                height="32"
-              />
+              <LandingBrandLogo compact aria-label="ИВЭЭЛТ КАРГО" />
             </div>
             <p class="mt-3 text-body-sm text-slate-500">
               Хятад — Монгол чиглэлийн ачаа тээврийг ойлгомжтой, хялбар болгож байна.

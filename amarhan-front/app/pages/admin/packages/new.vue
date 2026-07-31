@@ -197,8 +197,8 @@ function locationLabel(loc: { code: string; currentCount: number; capacityCount:
  */
 async function loadLocations() {
   try {
-    const locations = await locationApi.list()
-    locationOptions.value = locations.map(loc => ({ value: loc.code, label: locationLabel(loc) }))
+    const result = await locationApi.list()
+    locationOptions.value = result.data.map(loc => ({ value: loc.code, label: locationLabel(loc) }))
   } catch (e: any) {
     toast.error('Байршлын жагсаалт ачаалагдсангүй', { description: e.message })
   }

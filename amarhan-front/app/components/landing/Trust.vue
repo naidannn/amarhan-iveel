@@ -27,15 +27,15 @@ const pillars = [
 </script>
 
 <template>
-  <section class="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-    <div class="grid gap-5 rounded-[24px] border border-slate-200/80 bg-slate-50 p-8 sm:grid-cols-3 sm:p-10">
+  <section class="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-12">
+    <div class="grid gap-6 rounded-[28px] bg-slate-900 p-7 sm:grid-cols-3 sm:p-9">
       <div v-for="item in pillars" :key="item.title" class="flex items-start gap-4">
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary-600 shadow-sm">
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-primary-200 ring-1 ring-white/10">
           <component :is="item.icon" :size="19" :stroke-width="1.8" />
         </div>
         <div class="min-w-0">
-          <p class="font-semibold text-slate-900">{{ item.title }}</p>
-          <p class="mt-1 text-body-sm leading-relaxed text-slate-500">{{ item.body }}</p>
+          <p class="font-semibold text-white">{{ item.title }}</p>
+          <p class="mt-1 text-body-sm leading-relaxed text-slate-300">{{ item.body }}</p>
         </div>
       </div>
     </div>

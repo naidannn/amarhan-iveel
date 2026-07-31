@@ -11,7 +11,7 @@ function toggle(i: number) {
 </script>
 
 <template>
-  <section id="faq" class="mx-auto max-w-3xl px-5 py-20 sm:px-8 sm:py-28">
+  <section id="faq" class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-16">
     <div class="mx-auto max-w-xl text-center">
       <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Түгээмэл асуулт</h2>
       <p class="mt-4 text-body-lg text-slate-500">Хамгийн олон асуудаг зүйлсийн хариулт.</p>

@@ -66,7 +66,7 @@ async function copyAll() {
 </script>
 
 <template>
-  <section class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+  <section class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
     <div class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16">
       <div class="text-center lg:text-left">
         <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Хятад дахь хүлээн авах хаяг</h2>

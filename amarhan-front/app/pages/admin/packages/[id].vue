@@ -306,7 +306,7 @@ async function openArrive() {
   try {
     const [types, locations] = await Promise.all([api.cargoTypes(), locationApi.list()])
     arriveCargoTypeOptions.value = types.data.map(t => ({ value: t.id, label: t.name }))
-    arriveLocationOptions.value = locations.map(loc => ({
+    arriveLocationOptions.value = locations.data.map(loc => ({
       value: loc.code,
       label: loc.capacityCount != null
         ? `${loc.code} (${loc.currentCount}/${loc.capacityCount})`

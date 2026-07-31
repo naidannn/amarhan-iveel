@@ -8,8 +8,8 @@ const validate = require('../../middlewares/validate');
 const userValidation = require('../../validations/user.validation');
 const Constants = require('../../config/constants');
 
-// All user management routes require at least management role
-router.use(authorize(Constants.ROLE_GROUP.MANAGEMENT));
+// Ажилтны эрхийг зөвхөн Админ удирдана (§9.1).
+router.use(authorize(Constants.ROLE_GROUP.ADMIN));
 
 router
   .route('/')

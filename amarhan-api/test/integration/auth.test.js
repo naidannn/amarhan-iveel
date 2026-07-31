@@ -155,6 +155,17 @@ describe('Танилт ба эрх (§9.1)', () => {
       expect(res.status).to.equal(403);
     });
 
+    it('Менежер ажилтны эрхийг удирдаж чадахгүй', async () => {
+      const { token } = await createUserWithToken({ role: ROLES.MANAGER });
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/users')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(403);
+    });
+
     it('Админ ажилтныг жагсаана', async () => {
       const { token } = await createUserWithToken({ role: ROLES.ADMIN });
 

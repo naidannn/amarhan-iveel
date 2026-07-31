@@ -37,6 +37,8 @@ const contact = reactive({
   address: '',
   workingHours: '',
   facebook: '',
+  messenger: '',
+  wechat: '',
   website: '',
   googleMapsUrl: '',
 })
@@ -219,6 +221,12 @@ const canEdit = computed(() => auth.isAdmin)
           </UiField>
           <UiField label="Facebook" for="facebook">
             <UiTextInput id="facebook" v-model="contact.facebook" :disabled="!canEdit" />
+          </UiField>
+          <UiField label="Messenger холбоос" for="messenger">
+            <UiTextInput id="messenger" v-model="contact.messenger" :disabled="!canEdit" placeholder="https://m.me/..." />
+          </UiField>
+          <UiField label="WeChat ID / холбоос" for="wechat">
+            <UiTextInput id="wechat" v-model="contact.wechat" :disabled="!canEdit" />
           </UiField>
           <UiField label="Вэб хуудас" for="website">
             <UiTextInput

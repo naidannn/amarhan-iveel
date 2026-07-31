@@ -54,8 +54,12 @@ function switchMode(next: 'tracking' | 'phone') {
 
 <template>
   <div
-    class="w-full rounded-[24px] border border-slate-200/80 bg-white/90 p-2 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
+    class="w-full rounded-[28px] border border-white/80 bg-white/95 p-3 shadow-[0_28px_70px_-24px_rgba(15,23,42,0.26)] ring-1 ring-slate-200/70 backdrop-blur-2xl sm:p-4"
   >
+    <div class="px-1 pb-3 pt-1">
+      <p class="text-lg font-bold tracking-tight text-slate-900">Ачаагаа хайх</p>
+      <p class="mt-0.5 text-body-sm text-slate-500">Cargo number эсвэл phone number оруулна уу</p>
+    </div>
     <!-- Горим сонгох таб -->
     <div class="flex gap-1 rounded-2xl bg-slate-100 p-1">
       <button
@@ -76,7 +80,7 @@ function switchMode(next: 'tracking' | 'phone') {
       </button>
     </div>
 
-    <form v-if="mode === 'tracking'" class="flex flex-col gap-2 p-2 sm:flex-row" @submit.prevent="searchTracking">
+    <form v-if="mode === 'tracking'" class="flex flex-col gap-2 pt-3 sm:flex-row" @submit.prevent="searchTracking">
       <UiTextInput
         v-model="trackingQuery"
         placeholder="Жишээ: TRK20260731001"
@@ -85,11 +89,11 @@ function switchMode(next: 'tracking' | 'phone') {
         aria-label="Ачааны дугаар"
       />
       <UiBtn type="submit" size="md" :icon-right="ArrowRight" :disabled="!trackingQuery.trim()" class="sm:w-auto">
-        Хайх
+        Ачаа хайх
       </UiBtn>
     </form>
 
-    <form v-else class="flex flex-col gap-2 p-2 sm:flex-row" @submit.prevent="searchPhone">
+    <form v-else class="flex flex-col gap-2 pt-3 sm:flex-row" @submit.prevent="searchPhone">
       <UiTextInput
         v-model="phoneQuery"
         type="tel"
@@ -99,7 +103,7 @@ function switchMode(next: 'tracking' | 'phone') {
         aria-label="Утасны дугаар"
       />
       <UiBtn type="submit" size="md" :loading="loading" :disabled="!phoneQuery.trim()" class="sm:w-auto">
-        Хайх
+        Ачаа хайх
       </UiBtn>
     </form>
 

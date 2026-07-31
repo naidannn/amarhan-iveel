@@ -23,7 +23,7 @@ exports.get = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const user = await userService.create(req.body);
+    const user = await userService.create(req.body, req.user, req);
     return created(res, user);
   } catch (error) {
     next(error);
@@ -32,7 +32,7 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const user = await userService.update(req.params.userId, req.body);
+    const user = await userService.update(req.params.userId, req.body, req.user, req);
     return success(res, user);
   } catch (error) {
     next(error);

@@ -23,18 +23,47 @@ const rows = computed(() =>
     { icon: Globe, label: 'Вэбсайт', value: props.contact?.website },
   ].filter(row => row.value)
 )
+
+// API key шаардахгүй Google Maps query embed. Админаас оруулсан хаяг өөрчлөгдвөл
+// газрын зураг ч дагаж шинэчлэгдэнэ; Google Maps холбоос нь тусдаа "томоор нээх" үйлдэл хэвээр.
+const mapEmbedUrl = computed(() =>
+  props.contact?.address
+    ? `https://www.google.com/maps?q=${encodeURIComponent(props.contact.address)}&output=embed`
+    : null
+)
 </script>
 
 <template>
-  <section id="mongolia-warehouse" class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
-    <div class="mx-auto max-w-xl text-center">
-      <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Монгол дахь агуулах</h2>
-      <p class="mt-4 text-body-lg text-slate-500">Хүргэлт захиалахгүйгээр ачаагаа өөрөө ирж авах бол энд.</p>
-    </div>
+  <section id="mongolia-warehouse" class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
+    <div class="grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
+      <div class="text-center lg:text-left">
+        <p class="text-body-sm font-semibold text-primary-600">Хүлээн авах цэг</p>
+        <h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Монгол дахь агуулах</h2>
+        <p class="mx-auto mt-4 max-w-md text-body-lg leading-relaxed text-slate-500 lg:mx-0">Хүргэлт захиалахгүйгээр ачаагаа өөрөө ирж авах бол доорх хаягаар очно уу.</p>
+        <a
+          v-if="contact?.googleMapsUrl"
+          :href="contact.googleMapsUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-6 inline-flex items-center gap-1.5 text-body-sm font-semibold text-primary-600 hover:text-primary-700"
+        >
+          Google Maps дээр томоор харах
+          <ExternalLink :size="15" />
+        </a>
+      </div>
 
-    <div class="mt-14 grid gap-5 lg:grid-cols-[1fr_1fr] lg:items-stretch">
-      <!-- Газрын зураг (жинхэнэ Google Maps холбоос байвал шинэ табаар нээнэ) -->
-      <div class="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-[24px] border border-slate-200/80 bg-slate-50">
+      <div class="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_42px_-20px_rgba(15,23,42,0.2)]">
+        <!-- Хаяг байвал бодит Google Maps, байхгүй бол мэдээлэл оруулах хүртэлх саармаг төлөв. -->
+        <div v-if="mapEmbedUrl" class="relative h-[260px] bg-slate-100 sm:h-[300px]">
+          <iframe
+            :src="mapEmbedUrl"
+            title="Ивээл Карго агуулахын байршил"
+            class="absolute inset-0 h-full w-full border-0"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+          />
+        </div>
+        <div v-else class="relative flex min-h-[220px] items-center justify-center overflow-hidden bg-slate-50">
         <div
           class="absolute inset-0 opacity-70"
           style="
@@ -48,21 +77,11 @@ const rows = computed(() =>
           <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
             <MapIcon :size="24" class="text-primary-600" :stroke-width="1.7" />
           </div>
-          <a
-            v-if="contact?.googleMapsUrl"
-            :href="contact.googleMapsUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-body-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900"
-          >
-            Google Maps дээр харах
-            <ExternalLink :size="14" />
-          </a>
-          <p v-else class="max-w-[220px] text-body-sm text-slate-400">Байршлын зураг удахгүй нэмэгдэнэ</p>
+          <p class="max-w-[220px] text-body-sm text-slate-400">Агуулахын хаяг оруулмагц газрын зураг энд харагдана.</p>
         </div>
-      </div>
+        </div>
 
-      <div class="rounded-[24px] border border-slate-200/80 bg-white p-7 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.1)]">
+        <div class="p-5 sm:p-6">
         <div v-if="rows.length" class="divide-y divide-slate-100">
           <div v-for="row in rows" :key="row.label" class="flex items-start gap-3 py-3.5 first:pt-0 last:pb-0">
             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
@@ -77,6 +96,7 @@ const rows = computed(() =>
         <p v-else class="py-6 text-center text-body-sm text-slate-400">
           Холбоо барих мэдээлэл хараахан бөглөгдөөгүй байна.
         </p>
+        </div>
       </div>
     </div>
   </section>

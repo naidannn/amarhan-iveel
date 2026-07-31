@@ -1,52 +1,63 @@
 <script setup lang="ts">
-import { Zap, Eye, ShieldCheck, Wallet } from 'lucide-vue-next'
+import { BellRing, CreditCard, PackageSearch, Warehouse } from 'lucide-vue-next'
 
 const features = [
   {
-    icon: Zap,
-    title: 'Хурдан хүргэлт',
-    body: 'Хятадаас Монгол хүртэл 3–5 хоногийн дотор ачаагаа хүлээн авна.',
+    icon: PackageSearch,
+    title: 'Ачааны дугаараар төлвөө шалгана',
+    body: 'Монголд бүртгэгдсэн ачааг дугаар эсвэл утасны дугаараар хайна.',
+    accent: 'bg-white text-slate-900 ring-1 ring-slate-200/80',
+    iconStyle: 'bg-primary-50 text-primary-600',
   },
   {
-    icon: Eye,
-    title: 'Ил тод хяналт',
-    body: 'Ачаа Монголд ирж бүртгэгдсэн мөчөөс эхлэн төлөвийг бодит цагт харна.',
+    icon: BellRing,
+    title: 'Ирсэн даруйд мэдэгдэл авна',
+    body: 'Улаанбаатар агуулахад бүртгэгдмэгц ачааны төлөв танд харагдана.',
+    accent: 'bg-white text-slate-900 ring-1 ring-slate-200/80',
+    iconStyle: 'bg-amber-50 text-amber-600',
   },
   {
-    icon: ShieldCheck,
-    title: 'Аюулгүй тээвэрлэлт',
-    body: 'Ачаа бүр хамгаалалттай агуулахад хадгалагдаж, аудит бүртгэлтэйгээр шилждэг.',
+    icon: Warehouse,
+    title: 'Улаанбаатар агуулахаас авна',
+    body: 'Өөрөө ирж авах эсвэл хүргэлт захиалах боломжтой.',
+    accent: 'bg-white text-slate-900 ring-1 ring-slate-200/80',
+    iconStyle: 'bg-primary-50 text-primary-600',
   },
   {
-    icon: Wallet,
-    title: 'Уян хатан төлбөр',
-    body: 'Жингийн болон эзлэхүүний тарифаас аль өндөр гарсанаар нь тодорхой тооцно.',
+    icon: CreditCard,
+    title: 'Төлбөрийн сонголттой',
+    body: 'QPay, банкаар шилжүүлэх эсвэл бэлэн мөнгөөр төлнө.',
+    accent: 'bg-primary-50 text-slate-900 ring-1 ring-primary-100',
+    iconStyle: 'bg-primary-100 text-primary-700',
   },
 ]
 </script>
 
 <template>
-  <section class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
-    <div class="mx-auto max-w-xl text-center">
-      <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Яагаад биднийг сонгох вэ</h2>
+  <section class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="text-body-sm font-semibold text-primary-600">Үйлчилгээ</p>
+      <h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Ивээл Карго ямар үйлчилгээ үзүүлдэг вэ</h2>
       <p class="mt-4 text-body-lg text-slate-500">
-        Карго тээврийг хялбар, ил тод, найдвартай болгохын төлөө бүтээсэн.
+        Ачаагаа хүлээн авах хүртэл хэрэгтэй мэдээллийг товч, ойлгомжтой харуулна.
       </p>
     </div>
 
-    <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div
         v-for="item in features"
         :key="item.title"
-        class="group rounded-[20px] border border-slate-200/80 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_32px_-12px_rgba(15,23,42,0.14)]"
+        class="group min-h-[218px] rounded-[24px] p-6 shadow-[0_8px_26px_-16px_rgba(15,23,42,0.2)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_36px_-18px_rgba(15,23,42,0.26)]"
+        :class="item.accent"
       >
         <div
-          class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-50 to-primary-100 text-primary-600 transition-transform duration-300 group-hover:scale-110"
+          class="flex h-12 w-12 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110"
+          :class="item.iconStyle"
         >
-          <component :is="item.icon" :size="21" :stroke-width="1.8" />
+          <component :is="item.icon" :size="23" :stroke-width="1.8" />
         </div>
-        <h3 class="mt-5 font-semibold text-slate-900">{{ item.title }}</h3>
-        <p class="mt-2 text-body-sm leading-relaxed text-slate-500">{{ item.body }}</p>
+        <h3 class="mt-7 text-lg font-bold tracking-tight">{{ item.title }}</h3>
+        <p class="mt-2 text-body-sm leading-relaxed" :class="item.accent.includes('text-white') ? 'text-slate-200' : 'text-slate-500'">{{ item.body }}</p>
       </div>
     </div>
   </section>

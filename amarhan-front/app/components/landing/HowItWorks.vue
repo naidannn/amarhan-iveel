@@ -31,13 +31,14 @@ const steps = [
 </script>
 
 <template>
-  <section id="how-it-works" class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+  <section id="how-it-works" class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-16">
     <div class="mx-auto max-w-xl text-center">
-      <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Хэрхэн ажилладаг вэ</h2>
-      <p class="mt-4 text-body-lg text-slate-500">Дөрвөн энгийн алхам — эхнээс төгсгөл хүртэл.</p>
+      <p class="text-body-sm font-semibold text-primary-600">Алхамууд</p>
+      <h2 class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Ачаа хэрхэн ирдэг вэ</h2>
+      <p class="mt-4 text-body-lg text-slate-500">Захиалгаас хүлээн авах хүртэлх 4 алхам.</p>
     </div>
 
-    <div class="relative mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="relative mt-11 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
       <div
         class="pointer-events-none absolute top-6 left-0 right-0 hidden h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent lg:block"
       />

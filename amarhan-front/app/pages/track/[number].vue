@@ -22,6 +22,12 @@ const { data: result, error } = await useAsyncData(
 
 const query = ref(trackingNumber.value)
 
+/** Status history нь төлөв солигдох бүрд дарааллаар нэмэгддэг. */
+const latestStatusAt = computed(() => {
+  const history = result.value?.history ?? []
+  return history.at(-1)?.at ?? result.value?.registeredAt ?? null
+})
+
 function search() {
   const value = query.value.trim()
   if (!value || value === trackingNumber.value) return
@@ -37,6 +43,17 @@ function formatDate(value: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function formatDateYmd(value: string | null) {
+  if (!value) return '—'
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ulaanbaatar',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
 }
 
 useHead({ title: `${trackingNumber.value} — Ачаа хайх` })
@@ -95,7 +112,11 @@ useHead({ title: `${trackingNumber.value} — Ачаа хайх` })
           </span>
         </div>
 
-        <dl class="mt-4 grid gap-3 border-t border-surface-border pt-4 sm:grid-cols-2">
+        <dl class="mt-4 grid gap-3 border-t border-surface-border pt-4 sm:grid-cols-3">
+          <div>
+            <dt class="text-body-sm text-content-secondary">Сүүлийн төлөвийн огноо</dt>
+            <dd class="text-body tabular text-content">{{ formatDateYmd(latestStatusAt) }}</dd>
+          </div>
           <div>
             <dt class="text-body-sm text-content-secondary">Бүртгэгдсэн</dt>
             <dd class="text-body text-content">{{ formatDate(result.registeredAt) }}</dd>

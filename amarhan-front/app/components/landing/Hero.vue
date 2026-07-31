@@ -25,11 +25,11 @@ defineProps<{ notice?: string | null }>()
         </div>
 
         <h1 class="text-balance text-4xl font-bold leading-[1.08] tracking-tight text-slate-900 sm:text-5xl lg:text-[56px]">
-          Ачааныхаа төлвийг
+          Хятадаас Монгол руу
           <span
             class="bg-gradient-to-r from-primary-600 via-primary-500 to-indigo-500 bg-clip-text text-transparent"
           >
-            дугаараар нь шалгаарай
+            ачаагаа итгэлтэй илгээгээрэй
           </span>
         </h1>
 

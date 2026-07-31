@@ -58,7 +58,7 @@ function switchMode(next: 'tracking' | 'phone') {
   >
     <div class="px-1 pb-3 pt-1">
       <p class="text-lg font-bold tracking-tight text-slate-900">Ачаагаа хайх</p>
-      <p class="mt-0.5 text-body-sm text-slate-500">Cargo number эсвэл phone number оруулна уу</p>
+      <p class="mt-0.5 text-body-sm text-slate-500">Ачааны дугаар эсвэл утасны дугаар оруулна уу</p>
     </div>
     <!-- Горим сонгох таб -->
     <div class="flex gap-1 rounded-2xl bg-slate-100 p-1">

@@ -16,6 +16,7 @@ const settingRouter = require('./setting.route');
 const customerWebRouter = require('./customer-web.route');
 const publicRouter = require('./public.route');
 const dashboardRouter = require('./dashboard.route');
+const reportRouter = require('./report.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -38,6 +39,9 @@ router.use('/v1/packages', packageRouter);
 
 // Хяналтын самбар — нэг хүсэлтээр KPI, төлөв, график, өнөөдрийн хүргэлт.
 router.use('/v1/dashboard', dashboardRouter);
+
+// Тайлан — кэштэй aggregate endpoint. Менежерийн салбарын хамрах хүрээг service шийднэ.
+router.use('/v1/reports', reportRouter);
 
 // Phase 3 — төлбөрийн модуль (§1.8, §2). Нэхэмжлэх нь `/payments/invoices`-д
 // байрлана: тэр нь бие даасан объект БИШ, төлбөр авах урсгалын хэсэг (§2.3).

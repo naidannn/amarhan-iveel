@@ -314,6 +314,8 @@ packageSchema.index({ paymentStatus: 1, status: 1 });
 // Dashboard-ын 30 хоногийн «Монголд ирсэн ачаа» график — ирсэн огноогоор range scan.
 packageSchema.index({ branchId: 1, arrivedAt: -1 });
 packageSchema.index({ arrivedAt: -1 });
+// Төлбөрийн насжилт: салбарын төлөөгүй/хэсэгчлэн төлсөн ачааг ирсэн огноогоор ангилна.
+packageSchema.index({ branchId: 1, paymentStatus: 1, arrivedAt: -1 });
 
 /**
  * Байршлын ачааллыг эргэн тооцоолох cron-д (docs/data-model.md §7) хэрэгтэй:

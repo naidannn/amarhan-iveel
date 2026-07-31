@@ -156,6 +156,9 @@ paymentSchema.index({ invoiceId: 1 });
 paymentSchema.index({ branchId: 1, createdAt: -1 });
 // Dashboard-ын completed төлбөрийн 30 хоногийн орлогын график.
 paymentSchema.index({ branchId: 1, status: 1, createdAt: -1 });
+// Тайлангийн хүчингүй/буцаалтын KPI нь зөвхөн тухайн огнооны range scan хийнэ.
+paymentSchema.index({ branchId: 1, status: 1, voidedAt: -1 });
+paymentSchema.index({ status: 1, voidedAt: -1 });
 
 /**
  * ИДЕМПОТЕНТ ВЕБХҮҮК (архитектур §4.4). QPay нэг төлбөрийн мэдэгдлийг хэд ч

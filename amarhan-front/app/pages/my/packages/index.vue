@@ -54,7 +54,7 @@ watch([page, status], load)
 
 onMounted(load)
 
-useHead({ title: 'Миний ачаа — Ивээл Карго' })
+useHead({ title: 'Миний ачаа — Ивээлт Карго' })
 </script>
 
 <template>

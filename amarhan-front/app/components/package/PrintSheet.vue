@@ -103,7 +103,7 @@ function print() {
           >
             <div class="min-w-0 flex-1">
               <p class="text-body-sm font-semibold uppercase tracking-wide text-content-secondary">
-                Ивээл Карго
+                Ивээлт Карго
               </p>
               <p class="tabular mt-1 text-h3 font-bold leading-tight text-black">
                 {{ pkg.locationCode || '—' }}
@@ -128,7 +128,7 @@ function print() {
             class="print-item flex flex-col items-center border-b border-surface-border py-8 last:border-0"
           >
             <p class="text-body font-semibold uppercase tracking-widest text-content-secondary">
-              Ивээл Карго — Агуулах
+              Ивээлт Карго — Агуулах
             </p>
             <p class="tabular my-3 text-[56px] font-bold leading-none tracking-tight text-black">
               {{ code }}
@@ -145,7 +145,7 @@ function print() {
         <template v-else>
           <div class="print-item">
             <header class="flex items-baseline justify-between border-b-2 border-black pb-2">
-              <p class="text-h4 font-bold text-black">Ивээл Карго</p>
+              <p class="text-h4 font-bold text-black">Ивээлт Карго</p>
               <p class="tabular text-body text-content-secondary">
                 {{ new Date().toLocaleDateString('mn-MN') }}
               </p>

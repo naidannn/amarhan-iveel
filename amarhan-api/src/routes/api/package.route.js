@@ -29,6 +29,10 @@ router.use(authorize(Constants.ROLE_GROUP.STAFF));
 // уншигдана.
 router.put('/bulk-status', validate(validation.changeStatusBulk), controller.changeStatusBulk);
 
+// Олноор бүртгэх — админ вэбийн олон мөрт форм (Excel/CSV биш). Мөр бүр
+// `create`-тэй ижил шалгагдана, тус бүрдээ бүртгэгдэнэ (§1.9-ийн хэв маяг).
+router.post('/bulk', validate(validation.createBulk), controller.createBulk);
+
 // §1.3 — ажилтан дугаараа бичихэд аль хэдийн бүртгэгдсэн ачааг шалгах
 router.get(
   '/tracking/:trackingNumber',

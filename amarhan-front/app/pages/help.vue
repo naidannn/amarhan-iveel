@@ -27,7 +27,7 @@ const contactRows = computed(() =>
 
 const open = ref<number | null>(null)
 
-useHead({ title: 'Тусламж — Ивээл Карго' })
+useHead({ title: 'Тусламж — Ивээлт Карго' })
 </script>
 
 <template>

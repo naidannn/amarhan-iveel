@@ -198,6 +198,12 @@ async function loadLocations() {
   try {
     const result = await locationApi.list()
     locationOptions.value = result.data.map(loc => ({ value: loc.code, label: locationLabel(loc) }))
+    // Ачаа бүртгэх үндсэн урсгалд байршлыг давхар сонгох шаардлагагүй:
+    // жагсаалт ирмэгц эхний идэвхтэй байршлыг анхдагчаар сонгоно. Хэрэглэгчийн
+    // өмнө сонгосон (эсвэл залгамжилсан) утгыг дахин ачаалахад дарж солихгүй.
+    if (!sticky.locationCode && locationOptions.value.length > 0) {
+      sticky.locationCode = locationOptions.value[0]!.value
+    }
   } catch (e: any) {
     toast.error('Байршлын жагсаалт ачаалагдсангүй', { description: e.message })
   }
@@ -418,6 +424,7 @@ onKeyStroke('Escape', () => {
   <div>
     <UiPageHeader title="Ачаа бүртгэх" subtitle="Enter дарж бүртгэнэ — хуудас дахин ачаалагдахгүй">
       <template #actions>
+        <UiBtn variant="secondary" to="/admin/packages/bulk">Олноор бүртгэх</UiBtn>
         <UiBtn variant="secondary" to="/admin/packages">Жагсаалт</UiBtn>
       </template>
     </UiPageHeader>

@@ -41,7 +41,7 @@ function formatDate(value: string | null) {
   })
 }
 
-useHead({ title: 'Хүргэлт — Ивээл Карго' })
+useHead({ title: 'Хүргэлт — Ивээлт Карго' })
 </script>
 
 <template>

@@ -44,7 +44,7 @@ async function submit() {
   }
 }
 
-useHead({ title: 'Бүртгүүлэх — Ивээл Карго' })
+useHead({ title: 'Бүртгүүлэх — Ивээлт Карго' })
 </script>
 
 <template>

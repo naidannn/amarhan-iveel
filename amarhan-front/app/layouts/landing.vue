@@ -218,7 +218,7 @@ const navLinks = [
         <div
           class="mt-6 flex flex-col gap-2 text-body-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p>© {{ new Date().getFullYear() }} Ивээл Карго. Бүх эрх хуулиар хамгаалагдсан.</p>
+          <p>© {{ new Date().getFullYear() }} Ивээлт Карго. Бүх эрх хуулиар хамгаалагдсан.</p>
         </div>
       </div>
     </footer>

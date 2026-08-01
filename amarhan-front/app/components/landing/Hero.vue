@@ -35,7 +35,7 @@ defineProps<{ notice?: string | null }>()
 
         <p class="mx-auto mt-6 max-w-lg text-body-lg leading-relaxed text-slate-500 lg:mx-0">
           Хятадаас Улаанбаатар руу ачаа тээвэрлэнэ. Ачаа Монголд ирж бүртгэгдмэгц
-          дугаар эсвэл утасны дугаараараа төлвийг нь шалгана.
+          ачааны дугаараараа төлвийг нь шалгана.
         </p>
 
         <div class="mx-auto mt-9 max-w-xl lg:mx-0">

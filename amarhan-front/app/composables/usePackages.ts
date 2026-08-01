@@ -179,6 +179,24 @@ export function usePackages() {
   const create = (payload: Record<string, any>) =>
     call<{ package: CargoPackage; warnings: string[] }>(() => $axios.post(`${API}/packages`, payload))
 
+  /**
+   * Олноор бүртгэх — админ вэбийн олон мөрт форм (Excel/CSV биш). Мөр бүр
+   * `create`-тэй ижил шалгагдана, тус бүрдээ бүртгэгдэнэ — 1 мөрийн алдаа
+   * бусдыг унагахгүй (§1.9-ийн хэв маяг, `changeStatusBulk`-тай адил).
+   */
+  const createBulk = (packages: Array<Record<string, any>>) =>
+    call<{
+      succeeded: CargoPackage[]
+      failed: Array<{
+        index: number
+        trackingNumber: string
+        message: string
+        code: string | null
+        details: Record<string, any> | null
+      }>
+      total: number
+    }>(() => $axios.post(`${API}/packages/bulk`, { packages }))
+
   const update = (id: string, payload: Record<string, any>) =>
     call<CargoPackage>(() => $axios.put(`${API}/packages/${id}`, payload))
 
@@ -271,6 +289,7 @@ export function usePackages() {
     detail,
     getByTracking,
     create,
+    createBulk,
     update,
     changeStatus,
     changeStatusBulk,

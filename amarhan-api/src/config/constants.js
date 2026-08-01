@@ -292,6 +292,10 @@ exports.SETTING_KEY = {
   CONTENT_CONTACT: 'content.contact',
   CONTENT_FAQ: 'content.faq',
   CONTENT_HOME_NOTICE: 'content.home_notice',
+
+  // Дотоод тохиргоо — зөвхөн ажилтанд (§9.1). `content.*`-аас ялгаатай: энэ
+  // `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ, `/v1/public/*`-аар нээлттэй уншигдахгүй.
+  PAYMENT_BANK_ACCOUNT: 'payment.bank_account',
 };
 
 /**
@@ -344,4 +348,15 @@ exports.SETTING_DEFAULTS = {
 
   // Нүүр хуудсанд харагдах зарлал. `null` = зарлал байхгүй.
   [exports.SETTING_KEY.CONTENT_HOME_NOTICE]: null,
+
+  /**
+   * Ажилтан төлбөр авахдаа (§1.8, "Данс" хэлбэр) харилцагчид өгөх дансны
+   * мэдээлэл. Зөвхөн ДОТООД харагдац — public БИШ (дээрх тайлбар).
+   */
+  [exports.SETTING_KEY.PAYMENT_BANK_ACCOUNT]: {
+    bankName: '',
+    accountNumber: '',
+    accountHolder: '',
+    note: '',
+  },
 };

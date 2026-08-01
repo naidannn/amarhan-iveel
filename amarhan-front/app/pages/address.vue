@@ -62,7 +62,7 @@ async function copyAll() {
   }
 }
 
-useHead({ title: 'Хүлээн авах хаяг — Ивээл Карго' })
+useHead({ title: 'Хүлээн авах хаяг — Ивээлт Карго' })
 </script>
 
 <template>

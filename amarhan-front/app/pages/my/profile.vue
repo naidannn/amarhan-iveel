@@ -89,7 +89,7 @@ async function savePassword() {
   }
 }
 
-useHead({ title: 'Профайл — Ивээл Карго' })
+useHead({ title: 'Профайл — Ивээлт Карго' })
 </script>
 
 <template>

@@ -43,7 +43,7 @@ function formatDate(value: string) {
   })
 }
 
-useHead({ title: 'Төлбөр — Ивээл Карго' })
+useHead({ title: 'Төлбөр — Ивээлт Карго' })
 </script>
 
 <template>

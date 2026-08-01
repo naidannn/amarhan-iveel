@@ -10,7 +10,7 @@ function search() {
   navigateTo(`/track/${encodeURIComponent(value)}`)
 }
 
-useHead({ title: 'Ачаа хайх — Ивээл Карго' })
+useHead({ title: 'Ачаа хайх — Ивээлт Карго' })
 </script>
 
 <template>

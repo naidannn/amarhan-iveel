@@ -57,7 +57,7 @@ const mapEmbedUrl = computed(() =>
         <div v-if="mapEmbedUrl" class="relative h-[260px] bg-slate-100 sm:h-[300px]">
           <iframe
             :src="mapEmbedUrl"
-            title="Ивээл Карго агуулахын байршил"
+            title="Ивээлт Карго агуулахын байршил"
             class="absolute inset-0 h-full w-full border-0"
             loading="lazy"
             referrerpolicy="no-referrer-when-downgrade"

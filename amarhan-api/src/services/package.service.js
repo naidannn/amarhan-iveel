@@ -324,6 +324,36 @@ class PackageService {
   }
 
   /**
+   * Олноор бүртгэх — админ вэбийн олон мөрт форм (§1.4-ийн хурдны зарчмыг
+   * олон ачаанд зэрэг өргөтгөсөн хувилбар). `changeStatusBulk`-тэй ИЖИЛ
+   * загвар: мөр бүрийг ТУСДАА `create()`-ээр (тусдаа транзакцаар) бүртгэнэ —
+   * 40 мөрийн 39 нь зөв, 1 нь давхардсан дугаартай байхад бүгдийг унагах нь
+   * ажилтныг гацуулна. Аль нь бүртгэгдсэн, аль нь алдаатайг мөр дугаараар
+   * буцаана — ажилтан зөвхөн алдаатай мөрөө засаад дахин илгээнэ.
+   */
+  async createBulk(items, actor, req) {
+    const succeeded = [];
+    const failed = [];
+
+    for (let index = 0; index < items.length; index += 1) {
+      try {
+        const result = await this.create(items[index], actor, req);
+        succeeded.push(result.package);
+      } catch (err) {
+        failed.push({
+          index,
+          trackingNumber: items[index].trackingNumber,
+          message: err.message,
+          code: err.code ?? null,
+          details: err.details ?? null,
+        });
+      }
+    }
+
+    return { succeeded, failed, total: items.length };
+  }
+
+  /**
    * §1.1, BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ЯГ ТЭР бичлэг дээрээ
    * жин/эзлэхүүн/үнэ/байршил нэмж "Бүртгэгдсэн" болгоно. ШИНЭ бичлэг
    * ҮҮСГЭХГҮЙ — ажилтан анх бүртгэсэн дугаар/утас хадгалагдана.

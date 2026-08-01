@@ -224,6 +224,7 @@ function typeName(pkg: CargoPackage) {
         <UiBtn variant="secondary" :icon="PackageCheck" @click="handoverOpen = true">
           Хүлээлгэн өгөх
         </UiBtn>
+        <UiBtn variant="secondary" to="/admin/packages/bulk">Олноор бүртгэх</UiBtn>
         <UiBtn :icon="Plus" to="/admin/packages/new">Ачаа бүртгэх</UiBtn>
       </template>
     </UiPageHeader>

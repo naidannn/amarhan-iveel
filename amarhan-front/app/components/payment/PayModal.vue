@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Wallet, Landmark, CreditCard, Smartphone } from 'lucide-vue-next'
+import { Wallet, Landmark, CreditCard, Smartphone, Copy, Check } from 'lucide-vue-next'
 import { usePayments, type PaymentMethodValue } from '~/composables/usePayments'
 import type { CargoPackage } from '~/composables/usePackages'
 
@@ -30,7 +30,52 @@ const emit = defineEmits<{
 }>()
 
 const api = usePayments()
+const settings = useSettings()
 const toast = useToast()
+
+/**
+ * "Данс" хэлбэр сонгоход харилцагчид өгөх дансны мэдээлэл. Зөвхөн энэ
+ * модал ажилтанд харагдана — public БИШ (`payment.bank_account`, ЗӨВХӨН
+ * дотоод, `general.vue`-с засварлагдана).
+ */
+const bankAccount = ref<{
+  bankName: string
+  accountNumber: string
+  accountHolder: string
+  note: string
+} | null>(null)
+const bankAccountLoaded = ref(false)
+const copied = ref(false)
+
+async function loadBankAccount() {
+  if (bankAccountLoaded.value) return
+  bankAccountLoaded.value = true
+  try {
+    const data = await settings.list()
+    bankAccount.value = data['payment.bank_account'] ?? null
+  } catch {
+    // Ачаалагдаагүй ч төлбөр бүртгэхэд саад болохгүй
+  }
+}
+
+const bankAccountText = computed(() => {
+  const b = bankAccount.value
+  if (!b) return ''
+  return [b.bankName, b.accountNumber, b.accountHolder].filter(Boolean).join('\n')
+})
+
+async function copyBankAccount() {
+  if (!bankAccountText.value) return
+  try {
+    await navigator.clipboard.writeText(bankAccountText.value)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch {
+    // Clipboard эрх өгөөгүй — ажилтан гараар сонгож хуулна
+  }
+}
 
 const METHODS: Array<{ value: PaymentMethodValue; label: string; icon: any }> = [
   { value: 'cash', label: 'Бэлэн', icon: Wallet },
@@ -73,6 +118,7 @@ watch(
     amount.value = totalBalance.value
     method.value = 'cash'
     note.value = ''
+    loadBankAccount()
   }
 )
 
@@ -138,6 +184,47 @@ async function submit() {
           </button>
         </div>
       </UiField>
+
+      <!-- "Данс" сонгоход харилцагчид өгөх дансны мэдээллийг ажилтан
+           энд шууд хуулж авна (`payment.bank_account`, зөвхөн дотоод) -->
+      <div
+        v-if="method === 'bank' && bankAccount && bankAccountText"
+        class="rounded-card border border-surface-border bg-surface-hover px-4 py-3.5"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-body-sm font-semibold text-content">Дансны мэдээлэл</p>
+          <button
+            type="button"
+            class="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-body-sm font-medium transition-colors"
+            :class="
+              copied
+                ? 'bg-primary-600 text-white'
+                : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+            "
+            @click="copyBankAccount"
+          >
+            <component :is="copied ? Check : Copy" :size="13" />
+            {{ copied ? 'Хуулагдлаа' : 'Хуулах' }}
+          </button>
+        </div>
+        <dl class="mt-2 space-y-1 text-body-sm">
+          <div v-if="bankAccount.bankName" class="flex justify-between gap-3">
+            <dt class="text-content-secondary">Банк</dt>
+            <dd class="font-medium text-content">{{ bankAccount.bankName }}</dd>
+          </div>
+          <div v-if="bankAccount.accountNumber" class="flex justify-between gap-3">
+            <dt class="text-content-secondary">Дансны дугаар</dt>
+            <dd class="tabular font-medium text-content">{{ bankAccount.accountNumber }}</dd>
+          </div>
+          <div v-if="bankAccount.accountHolder" class="flex justify-between gap-3">
+            <dt class="text-content-secondary">Эзэмшигч</dt>
+            <dd class="font-medium text-content">{{ bankAccount.accountHolder }}</dd>
+          </div>
+        </dl>
+        <p v-if="bankAccount.note" class="mt-2 text-body-sm text-content-secondary">
+          {{ bankAccount.note }}
+        </p>
+      </div>
 
       <UiField
         label="Дүн"

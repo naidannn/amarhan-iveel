@@ -61,7 +61,7 @@ function print() {
     <div class="print-area rounded-card border border-surface-border p-6 text-content">
       <header class="flex items-start justify-between gap-6 border-b border-surface-border pb-4">
         <div>
-          <p class="text-h3 font-bold">Ивээл Карго</p>
+          <p class="text-h3 font-bold">Ивээлт Карго</p>
           <p class="mt-0.5 text-body-sm text-content-secondary">
             Хятад (Эрээн) → Монгол карго тээвэр
           </p>

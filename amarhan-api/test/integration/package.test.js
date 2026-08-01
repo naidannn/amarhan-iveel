@@ -229,6 +229,80 @@ describe('Ачааны модуль (§1)', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('POST /bulk — олноор бүртгэх', () => {
+    function postBulk(actor, packages) {
+      return chai
+        .request(app)
+        .post(`${BASE}/bulk`)
+        .set('Authorization', `Bearer ${actor.token}`)
+        .send({ packages });
+    }
+
+    it('бүх мөр зөв бол бүгд бүртгэгдэнэ', async () => {
+      const res = await postBulk(staff, [body(), body(), body()]);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.succeeded).to.have.lengthOf(3);
+      expect(res.body.data.failed).to.have.lengthOf(0);
+      expect(res.body.data.total).to.equal(3);
+
+      const count = await Package.countDocuments({});
+      expect(count).to.equal(3);
+    });
+
+    it('давхардсан дугаартай мөрийг алгасаад бусдыг бүртгэнэ', async () => {
+      const dup = body();
+      await post(staff, dup).then(res => expect(res.status).to.equal(201));
+
+      const res = await postBulk(staff, [dup, body(), body()]);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.succeeded).to.have.lengthOf(2);
+      expect(res.body.data.failed).to.have.lengthOf(1);
+      expect(res.body.data.failed[0].index).to.equal(0);
+      expect(res.body.data.failed[0].code).to.equal(ERROR_CODE.DUPLICATE_TRACKING_NUMBER);
+      expect(res.body.data.failed[0].trackingNumber).to.equal(dup.trackingNumber);
+    });
+
+    it('мөр дотор давхардсан дугаартай бол хоёр дахийг нь алдаатай гэж үзнэ', async () => {
+      const sameNumber = body();
+      const res = await postBulk(staff, [
+        sameNumber,
+        { ...sameNumber, phone: '99998888' },
+      ]);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.succeeded).to.have.lengthOf(1);
+      expect(res.body.data.failed).to.have.lengthOf(1);
+      expect(res.body.data.failed[0].index).to.equal(1);
+    });
+
+    it('BR-45 — мөр бүрт "Эрээнд байгаа" төлөв өгч болно', async () => {
+      const res = await postBulk(staff, [
+        { trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`, phone: '99112233', status: PACKAGE_STATUS.IN_ERLIAN },
+      ]);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.succeeded[0].status).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+    });
+
+    it('хоосон массив хүлээж авахгүй', async () => {
+      const res = await postBulk(staff, []);
+      expect(res.status).to.equal(400);
+    });
+
+    it('100-аас олон мөр хүлээж авахгүй', async () => {
+      const res = await postBulk(staff, Array.from({ length: 101 }, () => body()));
+      expect(res.status).to.equal(400);
+    });
+
+    it('нэвтрээгүй хүн олноор бүртгэхгүй', async () => {
+      const res = await chai.request(app).post(`${BASE}/bulk`).send({ packages: [body()] });
+      expect(res.status).to.equal(401);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('BR-01a — Ажилтан үнийг ГААРАР заах (§1.2)', () => {
     /** Жингүй, зөвхөн үнийн дүнтэй хүсэлт */
     function manualBody(overrides = {}) {

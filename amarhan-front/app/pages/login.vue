@@ -37,7 +37,7 @@ onMounted(async () => {
   if (await customer.checkAuth()) await navigateTo(redirect.value)
 })
 
-useHead({ title: 'Нэвтрэх — Ивээл Карго' })
+useHead({ title: 'Нэвтрэх — Ивээлт Карго' })
 </script>
 
 <template>

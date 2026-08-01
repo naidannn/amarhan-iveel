@@ -50,7 +50,7 @@ const stats = computed(() => [
   },
 ])
 
-useHead({ title: 'Хяналтын самбар — Ивээл Карго' })
+useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
 </script>
 
 <template>

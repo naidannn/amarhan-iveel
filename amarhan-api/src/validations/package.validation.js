@@ -56,6 +56,92 @@ const reason = Joi.string().trim().min(3).max(500);
  */
 const assignableStatus = PACKAGE_STATUS_LIST.filter(s => s !== PACKAGE_STATUS.CANCELLED);
 
+/**
+ * Ганц ачаа бүртгэх схем — `create` ба олноор бүртгэх `createBulk`-ийн мөр
+ * тус бүрт ХОЁУЛАНД адил хэрэглэгдэнэ (доор тайлбарласан).
+ */
+const createPackageSchema = Joi.object({
+  /**
+   * BR-45 — "Эрээнд байгаа" (эрт бүртгэл) эсвэл "Бүртгэгдсэн" (одоогийн,
+   * Монголд ирсэн үеийн бүртгэл). Ажилтан бүртгэх мөчид ЭНЭ ХОЁРЫН аль
+   * нэгийг л сонгоно — бусад төлөв рүү шууд бүртгэх боломжгүй хэвээр.
+   */
+  status: Joi.string()
+    .valid(PACKAGE_STATUS.IN_ERLIAN, PACKAGE_STATUS.REGISTERED)
+    .default(PACKAGE_STATUS.REGISTERED),
+
+  trackingNumber: trackingNumber.required(),
+  phone: phone.required(),
+  // Харилцагч шинээр үүсэх бол нэрийг хамт бүртгэнэ (BR-29)
+  customerName: Joi.string().trim().max(100).optional(),
+
+  // Жин/эзлэхүүнээр үнэ бодоход ЗААВАЛ, гараар үнэ заасан үед шаардлагагүй
+  // (BR-01a). Нарийн шалгалтыг `resolvePricing()` хийнэ.
+  cargoTypeId: objectId.optional(),
+  quantity: Joi.number().integer().min(1).max(100000).default(1),
+
+  weightKg: weightKg.optional(),
+  volumeM3: volumeM3.optional(),
+  dimensions: dimensions.optional(),
+
+  // §1.1 — байршлын код ЗААВАЛ. ID эсвэл кодоор өгнө.
+  locationId: objectId.optional(),
+  locationCode: locationCode.optional(),
+
+  // Нэг салбарын горимд заавал биш (BR-22a)
+  branchId: objectId.optional(),
+
+  arrivedAt: Joi.date().max('now').optional(),
+  note: Joi.string().trim().max(1000).allow('', null).optional(),
+
+  /**
+   * Үнийн дүн. ХОЁР өөр утга агуулна — аль нь болохыг жин/эзлэхүүн
+   * оруулсан эсэх шийднэ (`resolvePricing()`):
+   *   жин/эзлэхүүнтэй → тарифын дүнг дарж бичих OVERRIDE (шалтгаан заавал)
+   *   жин/эзлэхүүнгүй → ГАРААР заасан үнэ (шалтгаан шаардахгүй, BR-01a)
+   *
+   * Тиймээс `.with('finalPrice', 'priceOverrideReason')` гэж Joi түвшинд
+   * хатуу хамааруулж БОЛОХГҮЙ — гараар заах замыг хааж орхино.
+   */
+  finalPrice: money.optional(),
+  priceOverrideReason: reason.optional(),
+
+  // BR-06 — Менежер/Админ давхардлыг зөвшөөрөх
+  allowDuplicate: Joi.boolean().default(false),
+  duplicateReason: reason.optional(),
+})
+  /**
+   * Үнийг тодорхойлох ядаж нэг зам байх ёстой (BR-01 эсвэл BR-01a).
+   *
+   * Байршлын `.or('locationId','locationCode')`-ыг ЗОРИУДААР хассан:
+   * Joi-ийн хоёр `.or()` нь ИЖИЛ `object.missing` кодтой тул нэг мессеж
+   * хоёуланг дарж, "жин оруулна уу" гэсэн алдаа байршил дутуу үед ч
+   * гардаг байсан. Байршлыг `resolveLocation()` тодорхой мессежээр шалгана.
+   *
+   * `in_erlian` үед энэ шаардлага огт ХАМААРАХГҮЙ (доорх `.when()`) — тэр
+   * үед ажилтан жин ч, үнэ ч мэдэхгүй, зөвхөн дугаар+утас л бичдэг (BR-45).
+   */
+  // `ancestor: 0` ЗААВАЛ: `.when()`-ийг схемийн ROOT дээр өөрөө дуудаж
+  // байгаа тул `status` sibling-ийг ӨӨРТӨӨ (нэг түвшин дээш БИШ) хайхыг
+  // тодорхой зааж өгөх ёстой — эс тэгвээс Joi "exceeds the schema root"
+  // алдаа шидэнэ (Joi 17: `.when()` анхдагчаар нэг түвшин дээш хайдаг).
+  .when(Joi.ref('status', { ancestor: 0 }), {
+    is: PACKAGE_STATUS.IN_ERLIAN,
+    then: Joi.object({
+      cargoTypeId: Joi.forbidden(),
+      weightKg: Joi.forbidden(),
+      volumeM3: Joi.forbidden(),
+      dimensions: Joi.forbidden(),
+      locationId: Joi.forbidden(),
+      locationCode: Joi.forbidden(),
+      finalPrice: Joi.forbidden(),
+      priceOverrideReason: Joi.forbidden(),
+    }),
+    otherwise: Joi.object().or('weightKg', 'volumeM3', 'dimensions', 'finalPrice').messages({
+      'object.missing': 'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулна уу',
+    }),
+  });
+
 module.exports = {
   list: {
     query: Joi.object({
@@ -122,87 +208,22 @@ module.exports = {
   },
 
   create: {
+    body: createPackageSchema,
+  },
+
+  /**
+   * Олноор бүртгэх — админ вэбийн олон мөрт форм (Excel/CSV импорт БИШ,
+   * `create`-тэй яг ижил бичлэг тус бүрийг илгээнэ). Мөр тус бүр `create`-ийн
+   * схемтэй яг ижил шалгагдана — зөвхөн массив болгож ороосон.
+   *
+   * Тоог 100-аар хязгаарласан шалтгаан: `changeStatusBulk`-ийн адил, нэг HTTP
+   * хүсэлт хэт урт ажиллахаас сэргийлнэ. Ачаа бүрийг ТУСДАА зарлана
+   * (`package.service.js#createBulk`) — 1 мөрийн алдаа бусдыг унагахгүй.
+   */
+  createBulk: {
     body: Joi.object({
-      /**
-       * BR-45 — "Эрээнд байгаа" (эрт бүртгэл) эсвэл "Бүртгэгдсэн" (одоогийн,
-       * Монголд ирсэн үеийн бүртгэл). Ажилтан бүртгэх мөчид ЭНЭ ХОЁРЫН аль
-       * нэгийг л сонгоно — бусад төлөв рүү шууд бүртгэх боломжгүй хэвээр.
-       */
-      status: Joi.string()
-        .valid(PACKAGE_STATUS.IN_ERLIAN, PACKAGE_STATUS.REGISTERED)
-        .default(PACKAGE_STATUS.REGISTERED),
-
-      trackingNumber: trackingNumber.required(),
-      phone: phone.required(),
-      // Харилцагч шинээр үүсэх бол нэрийг хамт бүртгэнэ (BR-29)
-      customerName: Joi.string().trim().max(100).optional(),
-
-      // Жин/эзлэхүүнээр үнэ бодоход ЗААВАЛ, гараар үнэ заасан үед шаардлагагүй
-      // (BR-01a). Нарийн шалгалтыг `resolvePricing()` хийнэ.
-      cargoTypeId: objectId.optional(),
-      quantity: Joi.number().integer().min(1).max(100000).default(1),
-
-      weightKg: weightKg.optional(),
-      volumeM3: volumeM3.optional(),
-      dimensions: dimensions.optional(),
-
-      // §1.1 — байршлын код ЗААВАЛ. ID эсвэл кодоор өгнө.
-      locationId: objectId.optional(),
-      locationCode: locationCode.optional(),
-
-      // Нэг салбарын горимд заавал биш (BR-22a)
-      branchId: objectId.optional(),
-
-      arrivedAt: Joi.date().max('now').optional(),
-      note: Joi.string().trim().max(1000).allow('', null).optional(),
-
-      /**
-       * Үнийн дүн. ХОЁР өөр утга агуулна — аль нь болохыг жин/эзлэхүүн
-       * оруулсан эсэх шийднэ (`resolvePricing()`):
-       *   жин/эзлэхүүнтэй → тарифын дүнг дарж бичих OVERRIDE (шалтгаан заавал)
-       *   жин/эзлэхүүнгүй → ГАРААР заасан үнэ (шалтгаан шаардахгүй, BR-01a)
-       *
-       * Тиймээс `.with('finalPrice', 'priceOverrideReason')` гэж Joi түвшинд
-       * хатуу хамааруулж БОЛОХГҮЙ — гараар заах замыг хааж орхино.
-       */
-      finalPrice: money.optional(),
-      priceOverrideReason: reason.optional(),
-
-      // BR-06 — Менежер/Админ давхардлыг зөвшөөрөх
-      allowDuplicate: Joi.boolean().default(false),
-      duplicateReason: reason.optional(),
-    })
-      /**
-       * Үнийг тодорхойлох ядаж нэг зам байх ёстой (BR-01 эсвэл BR-01a).
-       *
-       * Байршлын `.or('locationId','locationCode')`-ыг ЗОРИУДААР хассан:
-       * Joi-ийн хоёр `.or()` нь ИЖИЛ `object.missing` кодтой тул нэг мессеж
-       * хоёуланг дарж, "жин оруулна уу" гэсэн алдаа байршил дутуу үед ч
-       * гардаг байсан. Байршлыг `resolveLocation()` тодорхой мессежээр шалгана.
-       *
-       * `in_erlian` үед энэ шаардлага огт ХАМААРАХГҮЙ (доорх `.when()`) — тэр
-       * үед ажилтан жин ч, үнэ ч мэдэхгүй, зөвхөн дугаар+утас л бичдэг (BR-45).
-       */
-      // `ancestor: 0` ЗААВАЛ: `.when()`-ийг схемийн ROOT дээр өөрөө дуудаж
-      // байгаа тул `status` sibling-ийг ӨӨРТӨӨ (нэг түвшин дээш БИШ) хайхыг
-      // тодорхой зааж өгөх ёстой — эс тэгвээс Joi "exceeds the schema root"
-      // алдаа шидэнэ (Joi 17: `.when()` анхдагчаар нэг түвшин дээш хайдаг).
-      .when(Joi.ref('status', { ancestor: 0 }), {
-        is: PACKAGE_STATUS.IN_ERLIAN,
-        then: Joi.object({
-          cargoTypeId: Joi.forbidden(),
-          weightKg: Joi.forbidden(),
-          volumeM3: Joi.forbidden(),
-          dimensions: Joi.forbidden(),
-          locationId: Joi.forbidden(),
-          locationCode: Joi.forbidden(),
-          finalPrice: Joi.forbidden(),
-          priceOverrideReason: Joi.forbidden(),
-        }),
-        otherwise: Joi.object().or('weightKg', 'volumeM3', 'dimensions', 'finalPrice').messages({
-          'object.missing': 'Жин, эзлэхүүн эсвэл үнийн дүнгийн ядаж нэгийг оруулна уу',
-        }),
-      }),
+      packages: Joi.array().items(createPackageSchema).min(1).max(100).required(),
+    }),
   },
 
   /**

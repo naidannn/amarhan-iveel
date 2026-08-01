@@ -50,6 +50,15 @@ exports.create = async (req, res, next) => {
   }
 };
 
+exports.createBulk = async (req, res, next) => {
+  try {
+    const result = await packageService.createBulk(req.body.packages, req.user, req);
+    return created(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.update = async (req, res, next) => {
   try {
     const pkg = await packageService.update(req.params.packageId, req.body, req.user, req);

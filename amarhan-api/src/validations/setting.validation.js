@@ -45,6 +45,14 @@ const VALUE_SCHEMAS = {
     ),
 
   [SETTING_KEY.CONTENT_HOME_NOTICE]: Joi.string().trim().max(1000).allow('', null),
+
+  // Дотоод — ажилтан төлбөр авахдаа ("Данс" хэлбэр) харилцагчид өгөх дансны мэдээлэл.
+  [SETTING_KEY.PAYMENT_BANK_ACCOUNT]: Joi.object({
+    bankName: Joi.string().trim().max(200).allow('').default(''),
+    accountNumber: Joi.string().trim().max(100).allow('').default(''),
+    accountHolder: Joi.string().trim().max(200).allow('').default(''),
+    note: Joi.string().trim().max(500).allow('').default(''),
+  }),
 };
 
 module.exports = {

@@ -180,7 +180,7 @@ watch(
       <div
         class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-body-sm text-content-secondary sm:flex-row sm:items-center sm:justify-between sm:px-6"
       >
-        <p>© {{ new Date().getFullYear() }} Ивээл Карго</p>
+        <p>© {{ new Date().getFullYear() }} Ивээлт Карго</p>
         <nav class="flex gap-4">
           <NuxtLink to="/track" class="hover:text-content">Ачаа хайх</NuxtLink>
           <NuxtLink to="/address" class="hover:text-content">Хүлээн авах хаяг</NuxtLink>

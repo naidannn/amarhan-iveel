@@ -73,7 +73,7 @@ async function complete() {
   }
 }
 
-useHead({ title: 'Google-ээр нэвтрэх — Ивээл Карго' })
+useHead({ title: 'Google-ээр нэвтрэх — Ивээлт Карго' })
 </script>
 
 <template>

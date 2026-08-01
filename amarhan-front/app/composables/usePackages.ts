@@ -8,6 +8,7 @@
  */
 
 export type PackageStatusValue =
+  | 'expected'
   | 'in_erlian'
   | 'registered'
   | 'notified'
@@ -51,6 +52,10 @@ export interface CargoPackage {
   locationCode: string | null
   arrivedAt: string
   note: string | null
+  /** BR-46 — харилцагчийн өөрийн бичсэн тайлбар (`note` бол ажилтны дотоод) */
+  customerNote: string | null
+  /** BR-46 — бичлэгийг ажилтан эхлүүлсэн үү, харилцагч өөрөө үү */
+  registrationSource: 'staff' | 'customer'
   isDuplicateApproved: boolean
   cancelledAt: string | null
   cancelReason: string | null
@@ -176,8 +181,18 @@ export function usePackages() {
       $axios.get(`${API}/packages/tracking/${encodeURIComponent(trackingNumber)}`)
     )
 
+  /**
+   * BR-46 — дугаар нь урьдчилсан бүртгэлтэй (харилцагчийн мэдүүлсэн эсвэл
+   * Эрээнд тэмдэглэсэн) байвал backend ШИНЭ бичлэг үүсгэхгүй, тэр бичлэгийг
+   * гүйцээгээд `adopted: true` буцаана. UI үүнийг ажилтанд хэлэх ёстой.
+   */
   const create = (payload: Record<string, any>) =>
-    call<{ package: CargoPackage; warnings: string[] }>(() => $axios.post(`${API}/packages`, payload))
+    call<{
+      package: CargoPackage
+      warnings: string[]
+      adopted?: boolean
+      adoptedFrom?: PackageStatusValue
+    }>(() => $axios.post(`${API}/packages`, payload))
 
   /**
    * Олноор бүртгэх — админ вэбийн олон мөрт форм (Excel/CSV биш). Мөр бүр

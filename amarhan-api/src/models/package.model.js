@@ -7,6 +7,8 @@ const {
   PAYMENT_STATUS,
   PAYMENT_STATUS_LIST,
   PRICE_SOURCE,
+  REGISTRATION_SOURCE,
+  REGISTRATION_SOURCE_LIST,
 } = require('../config/constants');
 const { TRACKING_PATTERN, normalizeTrackingNumber } = require('../domain/tracking-number');
 const Schema = mongoose.Schema;
@@ -237,6 +239,34 @@ const packageSchema = new Schema(
     registeredBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+      default: null,
+    },
+    /**
+     * BR-46 — бичлэгийг ХЭН эхлүүлсэн. `registeredBy` нь ЭНЭ асуултад
+     * хариулж чадахгүй: харилцагчийн бүртгэсэн ачаанд ч, seed/системийн
+     * бичлэгт ч `null` байдаг тул хоёрыг ялгах боломжгүй.
+     *
+     * Ажилтан урьдчилсан бичлэгийг шингээхэд (adopt) энэ утга ӨӨРЧЛӨГДӨХГҮЙ —
+     * "ачаа хаанаас эхэлсэн" гэдэг түүхэн баримт, дараагийн үйлдлээр
+     * дарагдах ёсгүй. Ажилтан бүртгэсэн эсэхийг `registeredBy` заана.
+     */
+    registrationSource: {
+      type: String,
+      enum: REGISTRATION_SOURCE_LIST,
+      default: REGISTRATION_SOURCE.STAFF,
+    },
+    /**
+     * BR-46 — ХАРИЛЦАГЧИЙН бичсэн тайлбар ("улаан цүнх, Taobao").
+     *
+     * `note`-оос ЗААВАЛ тусдаа талбар: `note` бол ажилтны ДОТООД тэмдэглэл,
+     * харилцагчид харагдахгүй (`customer-portal.service.js`-ийн цагаан
+     * жагсаалт). Нэг талбарт нийлүүлбэл ажилтны дотоод тэмдэглэл харилцагчид
+     * задарна, эсвэл харилцагчийн бичсэн зүйл ажилтанд хүрэхгүй.
+     */
+    customerNote: {
+      type: String,
+      trim: true,
+      maxlength: 500,
       default: null,
     },
     /**

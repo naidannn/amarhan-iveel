@@ -270,6 +270,12 @@ PUT    /api/v1/customer/me/addresses
 GET    /api/v1/customer/summary                 # нүүр самбарын тоо + үлдэгдэл
 GET    /api/v1/customer/packages
 GET    /api/v1/customer/packages/:packageId
+POST   /api/v1/customer/packages                # BR-46 — өөрөө урьдчилан бүртгүүлэх
+                                                # (`selfRegisterLimiter`). ЗӨВХӨН
+                                                # trackingNumber/quantity/note
+POST   /api/v1/customer/packages/:packageId/cancel  # BR-46 — өөрийн `expected`
+                                                # мэдүүлгээ буцаах. `DELETE` БИШ:
+                                                # ачаа устдаггүй (§5 дүрэм 4)
 GET    /api/v1/customer/payments
 GET    /api/v1/customer/invoices
 GET    /api/v1/customer/deliveries
@@ -282,6 +288,13 @@ GET    /api/v1/customer/deliveries
 2. Эрхгүй бичлэгт **`404`**, `403` биш — `403` нь тухайн ID оршин байгааг батална.
 3. Хариу нь **цагаан жагсаалттай**. `note`, `locationCode`, `registeredBy`,
    `pricingSnapshot` зэрэг дотоод талбар гарахгүй.
+
+> **BR-46 — бичих endpoint-д нэмэлт дүрэм.** Харилцагчаас ирэх схемд
+> `weightKg`, `finalPrice`, `locationCode`, `status`, `phone`, `customerId`
+> зэрэг талбар БАЙХ ЁСГҮЙ: жин/үнэ/байршлыг зөвхөн компани тодорхойлно (§1.1),
+> хамрах хүрээ токеноос гарна. Бичих логик нь `package.service.js`-д
+> (`selfRegister`/`selfCancel`) — `customer-portal.service.js` зөвхөн хамрах
+> хүрээ ба цагаан жагсаалт хариуцна.
 
 Нээлттэй (танилтгүй, `publicLimiter`-т захирагдана):
 

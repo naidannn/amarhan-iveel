@@ -248,6 +248,57 @@ describe('Ачааны төлөвийн машин (§1.5, BR-07…BR-09, BR-19)
     });
   });
 
+  describe('BR-46 — "Хүлээгдэж буй" (харилцагч өөрөө бүртгүүлсэн)', () => {
+    it('expected → in_erlian, registered, cancelled гурав л зөвшөөрөгдөнө', () => {
+      expect(state.canTransition(S.EXPECTED, S.IN_ERLIAN)).to.be.true;
+      expect(state.canTransition(S.EXPECTED, S.REGISTERED)).to.be.true;
+      expect(state.canTransition(S.EXPECTED, S.CANCELLED)).to.be.true;
+
+      const others = PACKAGE_STATUS_LIST.filter(
+        s => ![S.IN_ERLIAN, S.REGISTERED, S.CANCELLED].includes(s)
+      );
+      others.forEach(to => expect(state.canTransition(S.EXPECTED, to), to).to.be.false);
+    });
+
+    it('ямар ч төлөвөөс expected рүү ШИЛЖИХ ЗАМ БАЙХГҮЙ — зөвхөн харилцагч үүсгэнэ', () => {
+      for (const from of PACKAGE_STATUS_LIST) {
+        expect(state.canTransition(from, S.EXPECTED), from).to.be.false;
+      }
+    });
+
+    it('expected → registered-ыг viaArrival ФЛАГГҮЙГЭЭР хийж болохгүй (жин/үнэ/байршил заавал)', () => {
+      expect(() => state.assertTransition(S.EXPECTED, S.REGISTERED)).to.throw(/Ирц бүртгэх/);
+    });
+
+    it('expected → registered viaArrival: true үед зөвшөөрөгдөнө', () => {
+      expect(() =>
+        state.assertTransition(S.EXPECTED, S.REGISTERED, { viaArrival: true })
+      ).to.not.throw();
+    });
+
+    it('expected → in_erlian нь нэмэлт мэдээлэл шаардахгүй тул ЭНГИЙН товчоор хийгдэнэ', () => {
+      expect(() => state.assertTransition(S.EXPECTED, S.IN_ERLIAN)).to.not.throw();
+      expect(state.manualTransitions(S.EXPECTED)).to.deep.equal([S.IN_ERLIAN]);
+    });
+
+    it('expected ачаа физикээр агуулахад байхгүй тул нүд эзэлдэггүй', () => {
+      expect(state.occupiesLocation(S.EXPECTED)).to.be.false;
+    });
+
+    it('урьдчилсан төлөв нь ЯГ expected ба in_erlian хоёр', () => {
+      expect(state.isPreArrival(S.EXPECTED)).to.be.true;
+      expect(state.isPreArrival(S.IN_ERLIAN)).to.be.true;
+
+      PACKAGE_STATUS_LIST.filter(s => ![S.EXPECTED, S.IN_ERLIAN].includes(s)).forEach(
+        s => expect(state.isPreArrival(s), s).to.be.false
+      );
+    });
+
+    it('урьдчилсан төлөв бүр нүд эзэлдэггүй (тавиурын тоо гажихгүй)', () => {
+      state.PRE_ARRIVAL.forEach(s => expect(state.occupiesLocation(s), s).to.be.false);
+    });
+  });
+
   describe('BR-14/BR-15 — төлбөрийн төлөв дүнгээс', () => {
     it('төлбөр байхгүй → unpaid', () => {
       expect(state.resolvePaymentStatus(2000, 0)).to.equal(PAYMENT_STATUS.UNPAID);

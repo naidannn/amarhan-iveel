@@ -8,7 +8,7 @@ const authorizeCustomer = require('../../middlewares/authorize-customer');
 const validate = require('../../middlewares/validate');
 const authValidation = require('../../validations/customer-auth.validation');
 const portalValidation = require('../../validations/customer-portal.validation');
-const { authLimiter } = require('../../middlewares/rate-limit');
+const { authLimiter, selfRegisterLimiter } = require('../../middlewares/rate-limit');
 
 /**
  * Харилцагчийн вэб — introduction.md §3 (Phase 5)
@@ -69,6 +69,25 @@ router.get(
   '/packages/:packageId',
   validate(portalValidation.getPackage),
   portalController.getPackage
+);
+
+/**
+ * BR-46 — өөрөө ачаагаа урьдчилан бүртгүүлэх, буруу бичсэнээ цуцлах.
+ *
+ * Цуцлалт нь `DELETE` БИШ: ачаа устдаггүй, "Хүчингүй" төлөвт шилждэг
+ * (CLAUDE.md §5 дүрэм 4). `DELETE` үйлдэл нэрлэвэл хожим бодитоор устгах
+ * хэрэгжүүлэлт чимээгүй орох эрсдэлтэй.
+ */
+router.post(
+  '/packages',
+  selfRegisterLimiter,
+  validate(portalValidation.registerPackage),
+  portalController.registerPackage
+);
+router.post(
+  '/packages/:packageId/cancel',
+  validate(portalValidation.cancelPackage),
+  portalController.cancelPackage
 );
 router.get('/payments', validate(portalValidation.listPayments), portalController.listPayments);
 router.get('/invoices', validate(portalValidation.listInvoices), portalController.listInvoices);

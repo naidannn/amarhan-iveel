@@ -17,6 +17,7 @@ const {
   isWithinOverrideLimit,
 } = require('../domain/pricing');
 const { assertTrackingNumber } = require('../domain/tracking-number');
+const { maskPhone } = require('../domain/phone');
 const packageState = require('../domain/package-state');
 const {
   AUDIT_ACTION,
@@ -25,6 +26,7 @@ const {
   PACKAGE_STATUS,
   PAYMENT_STATUS,
   PRICE_SOURCE,
+  REGISTRATION_SOURCE,
   ROLES,
   SETTING_KEY,
 } = require('../config/constants');
@@ -145,11 +147,41 @@ class PackageService {
    */
   async create(data, actor, req) {
     const trackingNumber = this.assertTracking(data.trackingNumber);
+    const existing = await packageRepository.findActiveByTrackingNumber(trackingNumber);
+    const targetStatus =
+      data.status === PACKAGE_STATUS.IN_ERLIAN
+        ? PACKAGE_STATUS.IN_ERLIAN
+        : PACKAGE_STATUS.REGISTERED;
+
+    /**
+     * BR-46 — ШИНГЭЭХ. Дугаар нь УРЬДЧИЛСАН бичлэгтэй (харилцагч өөрөө
+     * мэдүүлсэн `expected`, эсвэл ажилтны `in_erlian`) бөгөөд одоо бүртгэж
+     * буй төлөв рүү шилжих зөвшөөрөгдсөн зам байвал ШИНЭ бичлэг үүсгэхгүй —
+     * яг тэр бичлэгийг гүйцээнэ.
+     *
+     * ЯАГААД ЭНЭ НЬ `resolveDuplicate`-ААС ӨМНӨ: урьдчилсан бичлэг нь бодит
+     * ачааны ХУУЛБАР биш, ЯГ ТЭР ачаа. Түүнийг "давхардал" гэж хоригловол
+     * ажилтан бүртгэл хийж чадахгүй болно; "давхардлыг зөвшөөрөх"-өөр
+     * тойровол нэг ачаа хоёр бичлэгтэй болж, харилцагч аль нь өөрийнх нь
+     * ачаа болохыг ойлгохоо болино.
+     *
+     * `allowDuplicate` заасан үед ЗОРИУДААР шингээхгүй: Менежер тодорхой
+     * шалтгаанаар ТУСДАА бичлэг үүсгэхийг хүсэж байна гэсэн үг (BR-06).
+     */
+    if (
+      existing &&
+      !data.allowDuplicate &&
+      packageState.isPreArrival(existing.status) &&
+      packageState.canTransition(existing.status, targetStatus)
+    ) {
+      return this.adoptExisting(existing, targetStatus, data, actor, req);
+    }
+
     const branch = await branchResolver.resolveBranch(data.branchId);
 
     // §1.3 — давхардлыг ЭРТ шалгаж, ажилтанд ойлгомжтой мессеж буцаана.
     // Атомик хамгаалалт нь DB индекс (доорх `handleWriteError`).
-    const duplicateApproval = await this.resolveDuplicate(trackingNumber, data, actor);
+    const duplicateApproval = await this.resolveDuplicate(trackingNumber, data, actor, existing);
 
     /**
      * BR-45 — "Эрээнд байгаа": ажилтан зөвхөн ачааны дугаар + утсаар мэднэ,
@@ -354,28 +386,60 @@ class PackageService {
   }
 
   /**
-   * §1.1, BR-45 — "Эрээнд байгаа" ачаа Монголд ирэхэд ЯГ ТЭР бичлэг дээрээ
-   * жин/эзлэхүүн/үнэ/байршил нэмж "Бүртгэгдсэн" болгоно. ШИНЭ бичлэг
-   * ҮҮСГЭХГҮЙ — ажилтан анх бүртгэсэн дугаар/утас хадгалагдана.
-   *
-   * `create()`-тэй ижил дараалал (тариф/байршил шийдвэрлэлт), `changeStatus()`-
-   * той ижил статус шилжилт+audit хэв маяг — гэхдээ БҮГД НЭГ транзакцад.
+   * §1.1, BR-45/BR-46 — УРЬДЧИЛСАН бичлэг (харилцагчийн мэдүүлсэн "Хүлээгдэж
+   * буй" эсвэл ажилтны "Эрээнд байгаа") ачаа Монголд ирэхэд ЯГ ТЭР бичлэг
+   * дээрээ жин/эзлэхүүн/үнэ/байршил нэмж "Улаанбаатарт ирсэн" болгоно. ШИНЭ
+   * бичлэг ҮҮСГЭХГҮЙ — анх бүртгэсэн дугаар/утас, харилцагчийн хянаж байсан
+   * бичлэг хадгалагдана.
    */
   async completeArrival(id, data, actor, req) {
     const pkg = await this.getById(id);
 
-    if (pkg.status !== PACKAGE_STATUS.IN_ERLIAN) {
+    if (!packageState.isPreArrival(pkg.status)) {
       throw new APIError(
         `"${packageState.label(pkg.status)}" төлөвтэй ачаанд ирц бүртгэх боломжгүй`,
         httpStatus.UNPROCESSABLE_ENTITY
       );
     }
 
-    const branch = await branchResolver.resolveBranch(pkg.branchId);
+    const { package: updated } = await this.applyArrival(pkg, data, actor, req);
+    return updated;
+  }
+
+  /**
+   * BR-46 — УРЬДЧИЛСАН БИЧЛЭГ ДЭЭР БҮРТГЭХ ("шингээх").
+   *
+   * Ажилтан ачааны дугаарыг бүртгэх маягтад бичихэд систем түүнийг аль хэдийн
+   * мэдэж байвал (харилцагч мэдүүлсэн, эсвэл Эрээнд тэмдэглэсэн) шинэ бичлэг
+   * үүсгэхийн оронд ЯГ ТЭР бичлэгийг гүйцээнэ — ажилтны хувьд урсгал ижил
+   * хэвээр (§1.4), харилцагчийн хувьд өөрийн бүртгэсэн ачаа "хоёрдож"
+   * алга болохгүй.
+   */
+  async adoptExisting(existing, targetStatus, data, actor, req) {
+    const result =
+      targetStatus === PACKAGE_STATUS.IN_ERLIAN
+        ? await this.markInErlian(existing, data, actor, req)
+        : await this.applyArrival(existing, data, actor, req);
+
+    return { ...result, adopted: true, adoptedFrom: existing.status };
+  }
+
+  /**
+   * "Ирц гүйцээх" цөм — `completeArrival()` (тусдаа маягт) ба `create()`-ийн
+   * шингээх зам ХОЁУЛАА энд ирнэ.
+   *
+   * `create()`-тэй ижил дараалал (тариф/байршил шийдвэрлэлт), `changeStatus()`-
+   * той ижил статус шилжилт+audit хэв маяг — гэхдээ БҮГД НЭГ транзакцад.
+   */
+  async applyArrival(pkg, data, actor, req) {
+    // Шингээх үед ажилтан салбараа заасан байж болно; заагаагүй бол
+    // урьдчилсан бичлэгийн салбар хэвээр (харилцагчийн бүртгэлд анхдагч
+    // салбар оноогдсон байдаг).
+    const branch = await branchResolver.resolveBranch(data.branchId ?? pkg.branchId);
 
     const volumeM3 = this.resolveVolume(data);
     const pricing = await this.resolvePricing({ ...data, volumeM3 }, actor);
-    // Ирц гүйцээхэд байршил ЗААВАЛ — "Эрээнд байгаа" үед байхгүй байсан
+    // Ирц гүйцээхэд байршил ЗААВАЛ — урьдчилсан бичлэгт байхгүй байсан
     // мэдээлэл энд заавал бөглөгдөнө (BR-45).
     const location = await this.resolveLocation(data, branch, { required: true });
 
@@ -388,14 +452,20 @@ class PackageService {
       });
     }
 
-    // Бодит Монголд ирсэн огноо — "Эрээнд байгаа" үеийн `arrivedAt`
+    // Бодит Монголд ирсэн огноо — урьдчилсан үеийн `arrivedAt`
     // (бүртгэсэн огноо) энэ мөчид ДАРЖ бичигдэнэ.
     const arrivedAt = data.arrivedAt ?? new Date();
 
-    return withTransaction(async session => {
-      const updated = await packageRepository.updateByIdWithSession(
-        id,
+    const updated = await withTransaction(async session => {
+      const link = await this.resolveCustomerLink(pkg, data, { actor, session, req });
+
+      const doc = await packageRepository.updateByIdWithSession(
+        pkg._id,
         {
+          ...link.patch,
+          branchId: branch._id,
+          branchCode: branch.code,
+
           cargoTypeId: pricing.cargoTypeId,
           quantity: data.quantity ?? pkg.quantity,
           weightKg: data.weightKg ?? null,
@@ -417,6 +487,9 @@ class PackageService {
 
           arrivedAt,
           note: data.note !== undefined ? data.note : pkg.note,
+          // Бодит бүртгэлийг хийсэн ажилтан. `registrationSource` нь ХЭВЭЭР
+          // үлдэнэ — ачаа хаанаас эхэлсэн нь түүхэн баримт (BR-46).
+          registeredBy: actor?._id ?? pkg.registeredBy ?? null,
 
           status: PACKAGE_STATUS.REGISTERED,
           $push: {
@@ -433,19 +506,21 @@ class PackageService {
         { session }
       );
 
-      // Шинээр байршил эзэлж байна — `in_erlian` нүд эзэлдэггүй байсан тул
-      // `syncLocationLoad()` энд ашиглахгүй (тэр зөвхөн `pkg.locationId` аль
-      // хэдийн байгаа үед ажилладаг no-op).
-      await this.adjustLocationLoad(location._id, updated, +1, { session });
+      // Шинээр байршил эзэлж байна — урьдчилсан төлөв нүд эзэлдэггүй байсан
+      // тул `syncLocationLoad()` энд ашиглахгүй (тэр зөвхөн `pkg.locationId`
+      // аль хэдийн байгаа үед ажилладаг no-op).
+      await this.adjustLocationLoad(location._id, doc, +1, { session });
+
+      await this.recordAdoption(pkg, doc, { actor, req, link }, { session });
 
       await auditService.record(
         {
           actor,
           action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE,
           entity: AUDIT_ENTITY.PACKAGE,
-          entityId: updated._id,
-          entityLabel: updated.trackingNumber,
-          branchId: updated.branchId,
+          entityId: doc._id,
+          entityLabel: doc.trackingNumber,
+          branchId: doc.branchId,
           field: 'status',
           before: pkg.status,
           after: PACKAGE_STATUS.REGISTERED,
@@ -460,16 +535,272 @@ class PackageService {
           actor,
           action: AUDIT_ACTION.PACKAGE_UPDATE,
           entity: AUDIT_ENTITY.PACKAGE,
-          entityId: updated._id,
-          entityLabel: updated.trackingNumber,
-          branchId: updated.branchId,
+          entityId: doc._id,
+          entityLabel: doc.trackingNumber,
+          branchId: doc.branchId,
           req,
         },
         {
-          weightKg: { before: null, after: updated.weightKg },
-          volumeM3: { before: null, after: updated.volumeM3 },
-          finalPrice: { before: 0, after: updated.finalPrice },
-          locationCode: { before: null, after: updated.locationCode },
+          weightKg: { before: null, after: doc.weightKg },
+          volumeM3: { before: null, after: doc.volumeM3 },
+          finalPrice: { before: 0, after: doc.finalPrice },
+          locationCode: { before: null, after: doc.locationCode },
+        },
+        { session }
+      );
+
+      return doc;
+    });
+
+    return {
+      package: updated,
+      warnings: [...this.buildWarnings(location), ...this.buildRelinkWarnings(pkg, updated)],
+    };
+  }
+
+  /**
+   * BR-46 — харилцагчийн мэдүүлсэн ачаа Эрээнд ирснийг ажилтан тэмдэглэнэ
+   * (`expected → in_erlian`). Жин/үнэ/байршил ЭНД Ч БАЙХГҮЙ — зөвхөн
+   * "ачаа Эрээний агуулахад хүрч ирлээ" гэсэн мэдээлэл нэмэгдэнэ.
+   */
+  async markInErlian(pkg, data, actor, req) {
+    try {
+      packageState.assertTransition(pkg.status, PACKAGE_STATUS.IN_ERLIAN, {});
+    } catch (err) {
+      throw new APIError(err.message, httpStatus.CONFLICT, {
+        code: ERROR_CODE.INVALID_STATUS_TRANSITION,
+        details: { from: pkg.status, to: PACKAGE_STATUS.IN_ERLIAN },
+      });
+    }
+
+    const updated = await withTransaction(async session => {
+      const link = await this.resolveCustomerLink(pkg, data, { actor, session, req });
+
+      const doc = await packageRepository.updateByIdWithSession(
+        pkg._id,
+        {
+          ...link.patch,
+          quantity: data.quantity ?? pkg.quantity,
+          note: data.note !== undefined ? data.note : pkg.note,
+          registeredBy: actor?._id ?? pkg.registeredBy ?? null,
+
+          status: PACKAGE_STATUS.IN_ERLIAN,
+          $push: {
+            statusHistory: {
+              from: pkg.status,
+              to: PACKAGE_STATUS.IN_ERLIAN,
+              at: new Date(),
+              by: actor?._id ?? null,
+              byName: auditService.describeActor(actor),
+              reason: null,
+            },
+          },
+        },
+        { session }
+      );
+
+      await this.recordAdoption(pkg, doc, { actor, req, link }, { session });
+
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: doc._id,
+          entityLabel: doc.trackingNumber,
+          branchId: doc.branchId,
+          field: 'status',
+          before: pkg.status,
+          after: PACKAGE_STATUS.IN_ERLIAN,
+          reason: null,
+          req,
+        },
+        { session }
+      );
+
+      return doc;
+    });
+
+    return { package: updated, warnings: this.buildRelinkWarnings(pkg, updated) };
+  }
+
+  // ── Харилцагчийн өөрийн бүртгэл (§3, BR-46) ─────────────────────────────
+
+  /**
+   * BR-46 — ХАРИЛЦАГЧ ӨӨРӨӨ вэбээс ачаагаа урьдчилан бүртгэнэ.
+   *
+   * Мэдэгдэж байгаа цорын ганц зүйл нь ачааны дугаар. Жин, эзлэхүүн, үнэ,
+   * байршил ОГТ БАЙХГҮЙ бөгөөд харилцагчаас асуух ч ёсгүй — тэдгээрийг зөвхөн
+   * компани хэмжиж тодорхойлно (§1.1). Тиймээс `create()`-ийн үнийн замыг огт
+   * дуудахгүй: `finalPrice: 0`, `priceSource: 'pending'`.
+   *
+   * ⚠ ХАМРАХ ХҮРЭЭ: харилцагчийг ЗӨВХӨН токеноос ирсэн баримтаар тодорхойлно
+   * (дүрэм 14) — `data`-д утас, `customerId` авахгүй.
+   */
+  async selfRegister(customer, data, req) {
+    const trackingNumber = this.assertTracking(data.trackingNumber);
+
+    const existing = await packageRepository.findActiveByTrackingNumber(trackingNumber);
+    if (existing) {
+      /**
+       * Өөрийнх нь бичлэг бол тодорхой хэлнэ. Бусдынх бол ЯЛГААГҮЙ ерөнхий
+       * мессеж: "энэ дугаар өөр хүнд бүртгэлтэй" гэж хэлэх нь дугаар дараалан
+       * туршиж бусдын ачаа байгаа эсэхийг зурах боломж өгнө (§3, дүрэм 15).
+       */
+      const mine = String(existing.customerId) === String(customer._id);
+      throw new APIError(
+        mine
+          ? 'Та энэ ачааг аль хэдийн бүртгүүлсэн байна'
+          : 'Энэ ачааны дугаар бүртгэлтэй байна. Дугаараа шалгана уу',
+        httpStatus.CONFLICT,
+        { code: ERROR_CODE.DUPLICATE_TRACKING_NUMBER, details: { trackingNumber } }
+      );
+    }
+
+    const branch = await branchResolver.resolveBranch();
+
+    const created = await withTransaction(async session => {
+      const [pkg] = await packageRepository.model.create(
+        [
+          {
+            trackingNumber,
+            activeTrackingNumber: trackingNumber,
+
+            customerId: customer._id,
+            customerPhone: customer.phone,
+            branchId: branch._id,
+            branchCode: branch.code,
+
+            cargoTypeId: null,
+            quantity: data.quantity ?? 1,
+            weightKg: null,
+            volumeM3: null,
+
+            pricingSnapshot: null,
+            computedPrice: 0,
+            priceSource: PRICE_SOURCE.PENDING,
+            finalPrice: 0,
+            priceOverridden: false,
+
+            paidAmount: 0,
+            balance: 0,
+            paymentStatus: PAYMENT_STATUS.UNPAID,
+
+            status: PACKAGE_STATUS.EXPECTED,
+            statusHistory: [
+              {
+                from: null,
+                to: PACKAGE_STATUS.EXPECTED,
+                at: new Date(),
+                by: null,
+                byName: this.describeCustomer(customer),
+                reason: null,
+              },
+            ],
+
+            locationId: null,
+            locationCode: null,
+
+            // Ачаа хараахан ирээгүй. Бодит ирсэн огноо `applyArrival()`-д
+            // ДАРЖ бичигдэнэ — энд зөвхөн бүртгэсэн мөч.
+            arrivedAt: new Date(),
+            note: null,
+            customerNote: data.note ?? null,
+            registeredBy: null,
+            registrationSource: REGISTRATION_SOURCE.CUSTOMER,
+          },
+        ],
+        { session }
+      );
+
+      await auditService.record(
+        {
+          action: AUDIT_ACTION.PACKAGE_SELF_REGISTER,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: pkg._id,
+          entityLabel: pkg.trackingNumber,
+          branchId: branch._id,
+          actorName: this.describeCustomer(customer),
+          after: { trackingNumber: pkg.trackingNumber, quantity: pkg.quantity },
+          req,
+        },
+        { session }
+      );
+
+      return pkg;
+    }).catch(err => this.handleWriteError(err, trackingNumber));
+
+    return created;
+  }
+
+  /**
+   * BR-46 — харилцагч ӨӨРИЙН мэдүүлгээ буцаана (буруу дугаар бичсэн).
+   *
+   * BR-11-ийн "хүчингүй болгох нь Менежер/Админы эрх" дүрэмтэй зөрчилдөхгүй:
+   * энд хүчингүй болж буй зүйл нь компанийн бүртгэсэн АЧАА биш, харилцагчийн
+   * өөрийнх нь МЭДҮҮЛЭГ — жин ч, үнэ ч, төлбөр ч, агуулахын нүд ч хамаарахгүй.
+   * Ажилтан бичлэгт хүрмэгц (`expected`-ээс гармагц) энэ зам хаагдана.
+   *
+   * Зам байхгүй бол буруу бичсэн дугаар нь тухайн ачааны жинхэнэ бичлэгийг
+   * үүрд хааж, ажилтан бүртгэл хийж чадахгүй болно (unique index).
+   */
+  async selfCancel(customer, packageId, req) {
+    const pkg = await packageRepository.findById(packageId);
+
+    // Эзэмшилгүй бичлэгт `403` БИШ `404` (дүрэм 14)
+    if (!pkg || String(pkg.customerId) !== String(customer._id)) {
+      throw new APIError('Ачаа олдсонгүй', httpStatus.NOT_FOUND);
+    }
+    if (
+      pkg.status !== PACKAGE_STATUS.EXPECTED ||
+      pkg.registrationSource !== REGISTRATION_SOURCE.CUSTOMER
+    ) {
+      throw new APIError(
+        'Энэ ачаа бүртгэлд орсон тул цуцлах боломжгүй. Ажилтантай холбогдоно уу',
+        httpStatus.UNPROCESSABLE_ENTITY,
+        { code: ERROR_CODE.INVALID_STATUS_TRANSITION }
+      );
+    }
+
+    const reason = 'Харилцагч өөрөө цуцалсан';
+
+    return withTransaction(async session => {
+      const updated = await packageRepository.updateByIdWithSession(
+        packageId,
+        {
+          status: PACKAGE_STATUS.CANCELLED,
+          cancelledAt: new Date(),
+          cancelReason: reason,
+          // BR-05 — дугаарыг чөлөөлнө: харилцагч алдаагаа засаад дахин
+          // бүртгэнэ, ажилтны бүртгэл ч хаагдахгүй
+          activeTrackingNumber: null,
+          $push: {
+            statusHistory: {
+              from: pkg.status,
+              to: PACKAGE_STATUS.CANCELLED,
+              at: new Date(),
+              by: null,
+              byName: this.describeCustomer(customer),
+              reason,
+            },
+          },
+        },
+        { session }
+      );
+
+      await auditService.record(
+        {
+          action: AUDIT_ACTION.PACKAGE_CANCEL,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: updated._id,
+          entityLabel: updated.trackingNumber,
+          branchId: updated.branchId,
+          actorName: this.describeCustomer(customer),
+          field: 'status',
+          before: pkg.status,
+          after: PACKAGE_STATUS.CANCELLED,
+          reason,
+          req,
         },
         { session }
       );
@@ -970,8 +1301,13 @@ class PackageService {
    *
    * @returns {null|{existing: object, reason: string}} null = давхардал байхгүй
    */
-  async resolveDuplicate(trackingNumber, data, actor) {
-    const existing = await packageRepository.findActiveByTrackingNumber(trackingNumber);
+  async resolveDuplicate(trackingNumber, data, actor, prefetched = undefined) {
+    // `create()` давхардлыг шингээхийн тулд аль хэдийн уншсан — дахин уншвал
+    // хоёр уншилтын хооронд төлөв өөрчлөгдөж, шийдвэр зөрөх боломж үүснэ.
+    const existing =
+      prefetched !== undefined
+        ? prefetched
+        : await packageRepository.findActiveByTrackingNumber(trackingNumber);
     if (!existing) return null;
 
     // BR-05 — ажилтанд ХАТУУ хориглоно. Зөвхөн сануулга байвал ажилтан
@@ -1009,6 +1345,112 @@ class PackageService {
       existing,
       reason: this.requireReason(data.duplicateReason, 'Давхар бүртгэх шалтгаан'),
     };
+  }
+
+  /**
+   * BR-46 — урьдчилсан бичлэгийг шингээхэд харилцагчийг ДАХИН тодорхойлно.
+   *
+   * ЯАГААД АЖИЛТНЫ ОРУУЛСАН УТАС ДАВАМГАЙЛАХ ЁСТОЙ: харилцагч ямар ч
+   * дугаарыг өөрийн нэр дээр урьдчилан "мэдүүлж" чадна (баталгаажуулалт
+   * байхгүй, OTP хараахан алга — roadmap 5.2). Мэдүүлгийг үнэн гэж авбал
+   * хэн ч бусдын ачааны дугаарыг эзэмшиж, ирэхэд нь өөрийн бүртгэлд
+   * харагдуулах боломжтой болно. Ажилтны бичсэн утас нь Хятадаас ирсэн
+   * жагсаалтаас гардаг тул ЭНЭ Л эх сурвалж эрхийг шийднэ.
+   *
+   * `data.phone` байхгүй үед (тусдаа "Ирц бүртгэх" маягт) холбоос
+   * ХЭВЭЭР үлдэнэ — тэр маягт утас асуудаггүй.
+   *
+   * @returns {{ patch: object, changed: boolean, before?: string, after?: string }}
+   */
+  async resolveCustomerLink(pkg, data, { actor, session, req } = {}) {
+    if (!data.phone) return { patch: {}, changed: false };
+
+    const { customer } = await customerService.findOrCreateByPhone(
+      data.phone,
+      { name: data.customerName },
+      { actor, session, req }
+    );
+
+    if (String(customer._id) === String(pkg.customerId)) return { patch: {}, changed: false };
+
+    return {
+      patch: { customerId: customer._id, customerPhone: customer.phone },
+      changed: true,
+      before: pkg.customerPhone,
+      after: customer.phone,
+    };
+  }
+
+  /**
+   * BR-46 — шингээлтийн ул мөр.
+   *
+   * Төлөвийн өөрчлөлтөөс ТУСДАА бичлэг үүсгэж байгаа шалтгаан: "энэ ачаа
+   * харилцагчийн мэдүүлгээс эхэлсэн, ажилтан түүн дээр бүртгэсэн" гэдэг нь
+   * маргаан гарахад (ачаа хэнийх вэ) хариулах ёстой асуулт. Төлөвийн
+   * `expected → registered` бичлэг үүнийг илэрхийлэхгүй — тэр зөвхөн ачаа
+   * ирснийг хэлнэ.
+   */
+  async recordAdoption(before, after, { actor, req, link }, { session } = {}) {
+    if (before.status === PACKAGE_STATUS.EXPECTED) {
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.PACKAGE_ADOPTED,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: after._id,
+          entityLabel: after.trackingNumber,
+          branchId: after.branchId,
+          before: {
+            status: before.status,
+            registrationSource: before.registrationSource,
+            customerPhone: before.customerPhone,
+          },
+          after: { status: after.status, customerPhone: after.customerPhone },
+          req,
+        },
+        { session }
+      );
+    }
+
+    if (link?.changed) {
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.PACKAGE_UPDATE,
+          entity: AUDIT_ENTITY.PACKAGE,
+          entityId: after._id,
+          entityLabel: after.trackingNumber,
+          branchId: after.branchId,
+          field: 'customerPhone',
+          before: link.before,
+          after: link.after,
+          reason: 'Урьдчилсан бүртгэлийн утас ажилтны бүртгэлээр солигдов (BR-46)',
+          req,
+        },
+        { session }
+      );
+    }
+  }
+
+  /**
+   * Урьдчилсан бүртгэлийн эзэн солигдсоныг ажилтанд ХАРУУЛНА — чимээгүй
+   * өөрчлөгдвөл "хэн нэгний бүртгэсэн ачаа алга болов" гэсэн гомдол
+   * тайлагдахгүй болно. Хориглохгүй, зөвхөн мэдэгдэнэ (BR-24-тэй ижил зарчим).
+   */
+  buildRelinkWarnings(before, after) {
+    if (String(before.customerPhone) === String(after.customerPhone)) return [];
+    return [
+      `Урьдчилан бүртгэсэн харилцагчийн утас ${before.customerPhone} байсныг ` +
+        `${after.customerPhone} болгов`,
+    ];
+  }
+
+  /**
+   * Audit-д харилцагчийг тэмдэглэх нэр — `customer-auth.service.js`-тэй ижил
+   * хэлбэр (§8: бүтэн утас бичихгүй, маскална).
+   */
+  describeCustomer(customer) {
+    return `Харилцагч ${maskPhone(customer.phone)}`;
   }
 
   /**

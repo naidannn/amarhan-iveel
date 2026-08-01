@@ -70,6 +70,9 @@ const ACTION_LABELS: Record<string, string> = {
   'package.cancel': 'Хүчингүй болгов',
   'package.delete': 'Бүрмөсөн устгав',
   'package.duplicate_approved': 'Давхар бүртгэхийг зөвшөөрөв',
+  // BR-46 — харилцагчийн өөрийн үйлдэл ба ажилтны шингээлт
+  'package.self_register': 'Харилцагч өөрөө бүртгүүлэв',
+  'package.adopted': 'Урьдчилсан бүртгэл дээр бүртгэв',
   'payment.create': 'Төлбөр бүртгэв',
   'payment.void': 'Төлбөр хүчингүй болгов',
   'customer.create': 'Харилцагч үүсгэв',

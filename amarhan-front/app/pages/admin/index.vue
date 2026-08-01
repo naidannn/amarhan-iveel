@@ -25,6 +25,8 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 /** Системийн бодит state machine-д харгалзах dashboard-ийн дараалал. */
 const statusRows = [
+  // BR-46 — харилцагч өөрөө мэдүүлсэн, компани хараахан хараагүй
+  { key: 'expected', label: 'Харилцагч урьдчилан мэдүүлсэн', color: '#7C3AED' },
   { key: 'in_erlian', label: 'Эрээнд урьдчилан бүртгэгдсэн', color: '#4338CA' },
   { key: 'registered', label: 'Монголд ирж бүртгэгдсэн', color: '#6B7280' },
   { key: 'notified', label: 'Мэдэгдсэн', color: '#0891B2' },

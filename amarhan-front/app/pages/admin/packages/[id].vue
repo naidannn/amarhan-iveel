@@ -100,6 +100,9 @@ const AUDIT_LABELS: Record<string, string> = {
   'package.cancel': 'Хүчингүй болгов',
   'package.delete': 'Бүрмөсөн устгав',
   'package.duplicate_approved': 'Давхар бүртгэхийг зөвшөөрөв',
+  // BR-46 — харилцагчийн өөрийн үйлдэл ба ажилтны шингээлт
+  'package.self_register': 'Харилцагч өөрөө бүртгүүлэв',
+  'package.adopted': 'Урьдчилсан бүртгэл дээр бүртгэв',
 }
 
 function auditLabel(action: string) {
@@ -438,8 +441,15 @@ const printOpen = ref(false)
         <template #actions>
           <UiBtn variant="ghost" :icon="ArrowLeft" to="/admin/packages">Жагсаалт</UiBtn>
           <UiBtn variant="secondary" :icon="Printer" @click="printOpen = true">Хэвлэх</UiBtn>
-          <!-- BR-45 — "Эрээнд байгаа" ачааны цорын ганц дараагийн алхам -->
-          <UiBtn v-if="pkg.status === 'in_erlian'" :icon="PackageCheck" @click="openArrive">
+          <!--
+            BR-45/BR-46 — урьдчилсан бүртгэлийн (Эрээнд байгаа, эсвэл
+            харилцагчийн мэдүүлсэн) цорын ганц дараагийн алхам
+          -->
+          <UiBtn
+            v-if="status.isPreArrival(pkg.status)"
+            :icon="PackageCheck"
+            @click="openArrive"
+          >
             Ирц бүртгэх
           </UiBtn>
           <UiBtn
@@ -478,6 +488,31 @@ const printOpen = ref(false)
           <p class="mt-0.5 text-content-secondary">
             Зөвхөн ачааны дугаар, харилцагчийн утас мэдэгдэж байна. Ачаа Монголд
             ирэхэд "Ирц бүртгэх" товчоор жин, үнэ, байршлыг нэмнэ.
+          </p>
+        </div>
+      </div>
+
+      <!--
+        BR-46 — харилцагч ӨӨРӨӨ мэдүүлсэн ачаа. Ажилтанд ХАРАГДАХ ЁСТОЙ:
+        дугаар, тоо ширхэг нь ХАРИЛЦАГЧИЙН бичсэнээр, компани хараахан
+        баталгаажуулаагүй. Ирц бүртгэхэд ажилтны оруулсан утас давамгайлна.
+      -->
+      <div
+        v-if="pkg.status === 'expected'"
+        class="mb-6 flex items-start gap-3 rounded-card bg-primary-50 p-4"
+      >
+        <Globe2 :size="20" class="mt-0.5 shrink-0 text-primary" />
+        <div class="min-w-0 text-body">
+          <p class="font-semibold text-content">
+            Харилцагч өөрөө бүртгүүлсэн — ачаа хараахан ирээгүй
+          </p>
+          <p class="mt-0.5 text-content-secondary">
+            Жин, үнэ, байршил хараахан байхгүй. Ачаа Эрээнд ирснийг "Төлөв
+            өөрчлөх"-өөр, Улаанбаатарт ирэхэд "Ирц бүртгэх"-ээр яг энэ бичлэг
+            дээр гүйцээнэ.
+          </p>
+          <p v-if="pkg.customerNote" class="mt-1 text-content">
+            Харилцагчийн тэмдэглэл: {{ pkg.customerNote }}
           </p>
         </div>
       </div>
@@ -733,7 +768,7 @@ const printOpen = ref(false)
             <!-- BR-45 — "Эрээнд байгаа" үед үнэ ХАРААХАН ТОДОРХОЙГҮЙ (pending) тул
                  гараар өөрчлөх боломжгүй — "Ирц бүртгэх"-ээр анх удаа тодорхойлно -->
             <UiBtn
-              v-if="pkg.status !== 'cancelled' && pkg.status !== 'in_erlian'"
+              v-if="pkg.status !== 'cancelled' && !status.isPreArrival(pkg.status)"
               class="mt-2"
               variant="secondary"
               :icon="Pencil"
@@ -843,15 +878,16 @@ const printOpen = ref(false)
               Байршил
             </h2>
 
-            <p v-if="pkg.status === 'in_erlian'" class="text-body text-content-secondary">
-              Эрээнд байгаа — байршил хараахан тодорхойгүй
+            <p v-if="status.isPreArrival(pkg.status)" class="text-body text-content-secondary">
+              {{ pkg.status === 'expected' ? 'Ачаа хараахан ирээгүй' : 'Эрээнд байгаа' }} —
+              байршил хараахан тодорхойгүй
             </p>
             <p v-else class="tabular text-h3 font-bold text-content">{{ pkg.locationCode || '—' }}</p>
 
             <!-- BR-45 — "Эрээнд байгаа" үед байршил "Ирц бүртгэх"-ээр анх удаа
                  тодорхойлогдоно, шилжүүлэх зүйл байхгүй -->
             <UiBtn
-              v-if="pkg.status !== 'cancelled' && pkg.status !== 'in_erlian'"
+              v-if="pkg.status !== 'cancelled' && !status.isPreArrival(pkg.status)"
               class="mt-4"
               variant="secondary"
               block
@@ -985,7 +1021,7 @@ const printOpen = ref(false)
         </template>
       </UiModal>
 
-      <!-- BR-45 — Ирц бүртгэх: "Эрээнд байгаа" → "Бүртгэгдсэн" -->
+      <!-- BR-45/BR-46 — Ирц бүртгэх: урьдчилсан бүртгэл → "Улаанбаатарт ирсэн" -->
       <UiModal v-model="arriveOpen" title="Ирц бүртгэх" size="lg">
         <div class="space-y-4">
           <p class="text-body text-content-secondary">

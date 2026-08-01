@@ -266,10 +266,7 @@ describe('Ачааны модуль (§1)', () => {
 
     it('мөр дотор давхардсан дугаартай бол хоёр дахийг нь алдаатай гэж үзнэ', async () => {
       const sameNumber = body();
-      const res = await postBulk(staff, [
-        sameNumber,
-        { ...sameNumber, phone: '99998888' },
-      ]);
+      const res = await postBulk(staff, [sameNumber, { ...sameNumber, phone: '99998888' }]);
 
       expect(res.status, JSON.stringify(res.body)).to.equal(201);
       expect(res.body.data.succeeded).to.have.lengthOf(1);
@@ -279,7 +276,11 @@ describe('Ачааны модуль (§1)', () => {
 
     it('BR-45 — мөр бүрт "Эрээнд байгаа" төлөв өгч болно', async () => {
       const res = await postBulk(staff, [
-        { trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`, phone: '99112233', status: PACKAGE_STATUS.IN_ERLIAN },
+        {
+          trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`,
+          phone: '99112233',
+          status: PACKAGE_STATUS.IN_ERLIAN,
+        },
       ]);
 
       expect(res.status, JSON.stringify(res.body)).to.equal(201);
@@ -292,12 +293,18 @@ describe('Ачааны модуль (§1)', () => {
     });
 
     it('100-аас олон мөр хүлээж авахгүй', async () => {
-      const res = await postBulk(staff, Array.from({ length: 101 }, () => body()));
+      const res = await postBulk(
+        staff,
+        Array.from({ length: 101 }, () => body())
+      );
       expect(res.status).to.equal(400);
     });
 
     it('нэвтрээгүй хүн олноор бүртгэхгүй', async () => {
-      const res = await chai.request(app).post(`${BASE}/bulk`).send({ packages: [body()] });
+      const res = await chai
+        .request(app)
+        .post(`${BASE}/bulk`)
+        .send({ packages: [body()] });
       expect(res.status).to.equal(401);
     });
   });
@@ -852,6 +859,235 @@ describe('Ачааны модуль (§1)', () => {
         entityId: pkg.id,
       });
       expect(updateLog).to.not.be.null;
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
+  describe('BR-46 — Урьдчилсан бүртгэл дээр бүртгэх (шингээх)', () => {
+    /**
+     * Харилцагчийн мэдүүлсэн "Хүлээгдэж буй" бичлэг. Ажилтны замаар үүсгэх
+     * боломжгүй (зориудаар) тул харилцагчийн API-аар үүсгэнэ.
+     */
+    async function selfRegister(trackingNumber, phone = '99112233') {
+      const signup = await chai
+        .request(app)
+        .post('/api/v1/customer/auth/register')
+        .send({ phone, password: 'customer-pass-1' });
+      expect(signup.status, JSON.stringify(signup.body)).to.equal(201);
+
+      const res = await chai
+        .request(app)
+        .post('/api/v1/customer/packages')
+        .set('Authorization', `Bearer ${signup.body.data.token}`)
+        .send({ trackingNumber });
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      return res.body.data;
+    }
+
+    it('ажилтан бүртгэхэд ШИНЭ бичлэг үүсэхгүй — тэр бичлэг registered болно', async () => {
+      const declared = await selfRegister('SF77001');
+
+      const res = await post(staff, body({ trackingNumber: 'SF77001' }));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.adopted, 'шингээсэн гэдгээ ажилтанд хэлнэ').to.be.true;
+      expect(res.body.data.adoptedFrom).to.equal(PACKAGE_STATUS.EXPECTED);
+      expect(String(res.body.data.package.id ?? res.body.data.package._id)).to.equal(
+        String(declared.id)
+      );
+
+      expect(await Package.countDocuments({ trackingNumber: 'SF77001' })).to.equal(1);
+
+      const stored = await Package.findById(declared.id);
+      expect(stored.status).to.equal(PACKAGE_STATUS.REGISTERED);
+      expect(stored.finalPrice).to.be.greaterThan(0);
+      expect(stored.locationCode).to.equal(location.code);
+      // Бичлэг хаанаас эхэлснийг ДАРЖ БИЧИХГҮЙ — түүхэн баримт
+      expect(stored.registrationSource).to.equal('customer');
+      expect(String(stored.registeredBy)).to.equal(String(staff.user._id));
+    });
+
+    it('шингээхэд байршлын нүд ЯГ НЭГ УДАА эзлэгдэнэ', async () => {
+      await selfRegister('SF77002');
+      await post(staff, body({ trackingNumber: 'SF77002' }));
+
+      expect((await WarehouseLocation.findById(location._id)).currentCount).to.equal(1);
+    });
+
+    it('"Эрээнд байгаа"-гаар бүртгэвэл in_erlian болно (жин/үнэ хэвээр хоосон)', async () => {
+      const declared = await selfRegister('SF77003');
+
+      const res = await post(staff, {
+        trackingNumber: 'SF77003',
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.adopted).to.be.true;
+
+      const stored = await Package.findById(declared.id);
+      expect(stored.status).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(stored.finalPrice).to.equal(0);
+      expect(stored.locationCode).to.equal(null);
+    });
+
+    it('дугаар нормчлогдож таарна — "sf 77 004" ч ижил бичлэгийг олно (§1.3)', async () => {
+      const declared = await selfRegister('SF77004');
+
+      const res = await post(staff, body({ trackingNumber: ' sf 77 004 ' }));
+
+      expect(res.status).to.equal(201);
+      expect(String(res.body.data.package.id)).to.equal(String(declared.id));
+    });
+
+    it('ажилтны оруулсан утас ДАВАМГАЙЛНА — мэдүүлгээр ачаа эзэмших боломжгүй', async () => {
+      const declared = await selfRegister('SF77005', '88001122');
+
+      const res = await post(staff, body({ trackingNumber: 'SF77005', phone: '99112233' }));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      const stored = await Package.findById(declared.id);
+      expect(stored.customerPhone, 'Хятадаас ирсэн жагсаалтын утас хүчинтэй').to.equal('99112233');
+
+      const owner = await Customer.findOne({ phone: '99112233' });
+      expect(String(stored.customerId)).to.equal(String(owner._id));
+
+      // Ажилтанд ЧИМЭЭГҮЙ болохгүй — сануулга гарна
+      expect(res.body.data.warnings.join(' ')).to.include('88001122');
+    });
+
+    it('§9.2 — шингээлт audit-д ТУСДАА бичлэгээр үлдэнэ', async () => {
+      const declared = await selfRegister('SF77006');
+      await post(staff, body({ trackingNumber: 'SF77006' }));
+
+      const log = await AuditLog.findOne({
+        action: AUDIT_ACTION.PACKAGE_ADOPTED,
+        entityId: declared.id,
+      });
+      expect(log, 'ачаа хэнийх вэ гэдэг маргаанд хариулах бичлэг').to.exist;
+      expect(log.before.status).to.equal(PACKAGE_STATUS.EXPECTED);
+      expect(log.after.status).to.equal(PACKAGE_STATUS.REGISTERED);
+    });
+
+    it('in_erlian бичлэг дээр бүртгэхэд ч шингээнэ (давхардал үүсгэхгүй)', async () => {
+      const erlian = await post(staff, {
+        trackingNumber: 'SF77007',
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+
+      const res = await post(staff, body({ trackingNumber: 'SF77007' }));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.adoptedFrom).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(String(res.body.data.package.id)).to.equal(String(erlian.body.data.package.id));
+      expect(await Package.countDocuments({ trackingNumber: 'SF77007' })).to.equal(1);
+    });
+
+    it('in_erlian дээр ДАХИН in_erlian бүртгэхийг давхардал гэж хориглоно (шилжих зам байхгүй)', async () => {
+      await post(staff, {
+        trackingNumber: 'SF77008',
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+
+      const res = await post(staff, {
+        trackingNumber: 'SF77008',
+        phone: '99112233',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+
+      expect(res.status).to.equal(409);
+      expect(res.body.code).to.equal(ERROR_CODE.DUPLICATE_TRACKING_NUMBER);
+    });
+
+    it('бодитоор бүртгэгдсэн (registered) ачааг ШИНГЭЭХГҮЙ — давхардлын дүрэм хэвээр (BR-05)', async () => {
+      const pkg = await register(staff, { trackingNumber: 'SF77009' });
+
+      const res = await post(staff, body({ trackingNumber: 'SF77009' }));
+
+      expect(res.status).to.equal(409);
+      expect(res.body.code).to.equal(ERROR_CODE.DUPLICATE_TRACKING_NUMBER);
+      expect(res.body.details.packageId).to.equal(String(pkg.id));
+    });
+
+    it('Менежер зориудаар давхардуулбал ТУСДАА бичлэг үүснэ (BR-06 хэвээр)', async () => {
+      await selfRegister('SF77010');
+
+      const res = await post(
+        manager,
+        body({
+          trackingNumber: 'SF77010',
+          allowDuplicate: true,
+          duplicateReason: 'Хоёр өөр ачаа ижил дугаартай ирсэн',
+        })
+      );
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.adopted).to.be.undefined;
+      expect(await Package.countDocuments({ trackingNumber: 'SF77010' })).to.equal(2);
+    });
+
+    it('цуцлагдсан урьдчилсан бүртгэлийг шингээхгүй — шинэ бичлэг үүснэ (BR-05)', async () => {
+      const declared = await selfRegister('SF77011');
+      await Package.findByIdAndUpdate(declared.id, {
+        status: PACKAGE_STATUS.CANCELLED,
+        activeTrackingNumber: null,
+      });
+
+      const res = await post(staff, body({ trackingNumber: 'SF77011' }));
+
+      expect(res.status).to.equal(201);
+      expect(res.body.data.adopted).to.be.undefined;
+      expect(await Package.countDocuments({ trackingNumber: 'SF77011' })).to.equal(2);
+    });
+
+    it('PUT /:id/arrive — "Хүлээгдэж буй" бичлэг дээр ч ажиллана', async () => {
+      const declared = await selfRegister('SF77012');
+
+      const res = await chai
+        .request(app)
+        .put(`${BASE}/${declared.id}/arrive`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({
+          weightKg: 0.4,
+          cargoTypeId: String(cargoType._id),
+          locationCode: location.code,
+        });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal(PACKAGE_STATUS.REGISTERED);
+      expect(res.body.data.customerPhone, 'утас асуудаггүй маягт — холбоос хэвээр').to.equal(
+        '99112233'
+      );
+    });
+
+    it('"Төлөв өөрчлөх"-өөр expected → in_erlian болно (нэмэлт мэдээлэл шаардахгүй)', async () => {
+      const declared = await selfRegister('SF77013');
+
+      const res = await chai
+        .request(app)
+        .put(`${BASE}/${declared.id}/status`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ status: PACKAGE_STATUS.IN_ERLIAN });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+    });
+
+    it('expected ачаа payableByPhone-д ХАРАГДАХГҮЙ (үнэ хараахан тодорхойгүй)', async () => {
+      const declared = await selfRegister('SF77014');
+
+      const res = await chai
+        .request(app)
+        .get('/api/v1/payments/invoices/payable/99112233')
+        .set('Authorization', `Bearer ${staff.token}`);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.packages.map(p => p.trackingNumber)).to.not.include(
+        declared.trackingNumber
+      );
     });
   });
 

@@ -1,7 +1,7 @@
 'use strict';
 
 const customerPortalService = require('../services/customer-portal.service');
-const { success } = require('../utils/response');
+const { success, created } = require('../utils/response');
 
 /**
  * Бүх метод `req.customer._id`-г хамрах хүрээ болгон дамжуулна.
@@ -28,6 +28,29 @@ exports.listPackages = async (req, res, next) => {
 exports.getPackage = async (req, res, next) => {
   try {
     const pkg = await customerPortalService.getPackage(req.customer._id, req.params.packageId);
+    return success(res, pkg);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * BR-46 — өөрөө ачаа бүртгүүлэх. `req.customer` (токеноос гарсан баримт)
+ * бүтнээр дамжина: утас нь ачааг холбох түлхүүр (BR-26) тул body-гоос
+ * ХЭЗЭЭ Ч авахгүй (дүрэм 13, 14).
+ */
+exports.registerPackage = async (req, res, next) => {
+  try {
+    const pkg = await customerPortalService.registerPackage(req.customer, req.body, req);
+    return created(res, pkg);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.cancelPackage = async (req, res, next) => {
+  try {
+    const pkg = await customerPortalService.cancelPackage(req.customer, req.params.packageId, req);
     return success(res, pkg);
   } catch (error) {
     next(error);

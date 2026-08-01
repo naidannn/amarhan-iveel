@@ -9,6 +9,7 @@ import tokens from '~/assets/design-tokens'
  */
 
 export type PackageStatus =
+  | 'expected'
   | 'in_erlian'
   | 'registered'
   | 'notified'
@@ -49,9 +50,10 @@ export function usePackageStatus() {
   /**
    * Дэвшлийн мөрөнд ашиглах — төлөв урсгалын хэдэн дэх алхам вэ.
    *
-   * `in_erlian` ЗОРИУДААР ОРОХГҮЙ: прогресс зөвхөн Монголд ирсний дараах
-   * урсгалыг хардаг (BR-45) — "Эрээнд байгаа" үед `progress()` 0 буцаана,
-   * энэ зөв: бодит бүртгэлийн урсгал хараахан эхлээгүй гэсэн үг.
+   * `expected` ба `in_erlian` ЗОРИУДААР ОРОХГҮЙ: прогресс зөвхөн Монголд
+   * ирсний дараах урсгалыг хардаг (BR-45, BR-46) — урьдчилсан бүртгэл дээр
+   * `progress()` 0 буцаана, энэ зөв: бодит бүртгэлийн урсгал хараахан
+   * эхлээгүй гэсэн үг.
    */
   const FLOW: PackageStatus[] = [
     'registered',
@@ -68,7 +70,20 @@ export function usePackageStatus() {
     return Math.round(((index + 1) / FLOW.length) * 100)
   }
 
-  return { style, label, progress, FLOW, all: map }
+  /**
+   * УРЬДЧИЛСАН бүртгэл — ачаа хараахан агуулахад ирээгүй (BR-45, BR-46).
+   * Backend-ийн `package-state.js#isPreArrival`-тай ИЖИЛ жагсаалт.
+   *
+   * UI-д чухал: эдгээр бичлэгт жин, үнэ, байршил БАЙХГҮЙ тул `finalPrice: 0`
+   * гэдгийг «үнэгүй / төлөгдсөн» гэж харуулах ЁСГҮЙ.
+   */
+  const PRE_ARRIVAL: PackageStatus[] = ['expected', 'in_erlian']
+
+  function isPreArrival(status: string | null | undefined): boolean {
+    return PRE_ARRIVAL.includes(status as PackageStatus)
+  }
+
+  return { style, label, progress, isPreArrival, FLOW, PRE_ARRIVAL, all: map }
 }
 
 /**

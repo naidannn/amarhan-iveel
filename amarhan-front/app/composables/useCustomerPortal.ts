@@ -26,6 +26,9 @@ export interface CustomerPackage {
   paidAmount: number
   balance: number
   paymentStatus: 'unpaid' | 'partial' | 'paid'
+  /** BR-46 — харилцагчийн өөрийн бичсэн тайлбар (ажилтны дотоод `note` БИШ) */
+  customerNote: string | null
+  registrationSource: 'staff' | 'customer'
   arrivedAt: string | null
   createdAt: string
 }
@@ -79,6 +82,28 @@ export function useCustomerPortal() {
     return res.data.data
   }
 
+  /**
+   * BR-46 — ирэх ачаагаа урьдчилан бүртгүүлэх.
+   *
+   * Зөвхөн дугаар, тоо ширхэг, тайлбар илгээнэ: жин/үнэ/байршлыг компани
+   * тодорхойлдог (§1.1), утас нь токеноос гардаг (дүрэм 14) тул энд
+   * илгээх талбар БАЙХГҮЙ — backend илүү талбарыг 400-аар унагана.
+   */
+  async function registerPackage(payload: {
+    trackingNumber: string
+    quantity?: number
+    note?: string
+  }): Promise<CustomerPackage> {
+    const res = await $axios.post('/api/v1/customer/packages', clean(payload))
+    return res.data.data
+  }
+
+  /** Буруу бичсэн урьдчилсан бүртгэлээ буцаана (зөвхөн «Хүлээгдэж буй» үед) */
+  async function cancelPackage(id: string): Promise<CustomerPackage> {
+    const res = await $axios.post(`/api/v1/customer/packages/${id}/cancel`)
+    return res.data.data
+  }
+
   function payments(params: { page?: number; limit?: number } = {}) {
     return list<any>('payments', params)
   }
@@ -87,7 +112,15 @@ export function useCustomerPortal() {
     return list<any>('deliveries', params)
   }
 
-  return { summary, packages, packageDetail, payments, deliveries }
+  return {
+    summary,
+    packages,
+    packageDetail,
+    registerPackage,
+    cancelPackage,
+    payments,
+    deliveries,
+  }
 }
 
 /**

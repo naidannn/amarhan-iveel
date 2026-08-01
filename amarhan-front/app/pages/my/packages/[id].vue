@@ -13,13 +13,36 @@ definePageMeta({ middleware: 'customer' })
 
 const route = useRoute()
 const portal = useCustomerPortal()
-const { style, label } = usePackageStatus()
+const toast = useToast()
+const { style, label, isPreArrival } = usePackageStatus()
 const paymentStyles = usePaymentStyles()
 const deliveryStatus = useDeliveryStatus()
 
 const pkg = ref<any>(null)
 const loading = ref(true)
 const notFound = ref(false)
+const cancelling = ref(false)
+
+/**
+ * BR-46 — өөрийн мэдүүлгээ буцаах зам зөвхөн «Хүлээгдэж буй» үед нээлттэй.
+ * Ажилтан бичлэгт хүрмэгц (Эрээнд ирсэн, эсвэл бүртгэсэн) хаагдана —
+ * backend мөн ижил дүрмээр шалгана, энэ нь зөвхөн харагдац.
+ */
+const canCancel = computed(
+  () => pkg.value?.status === 'expected' && pkg.value?.registrationSource === 'customer'
+)
+
+async function cancel() {
+  cancelling.value = true
+  try {
+    pkg.value = { ...pkg.value, ...(await portal.cancelPackage(String(route.params.id))) }
+    toast.success('Бүртгэл цуцлагдлаа')
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? 'Цуцалж чадсангүй')
+  } finally {
+    cancelling.value = false
+  }
+}
 
 onMounted(async () => {
   try {
@@ -107,11 +130,35 @@ useHead({ title: 'Ачааны мэдээлэл — Ивээлт Карго' })
             <dt class="text-body-sm text-content-secondary">Бүртгэгдсэн</dt>
             <dd class="text-body text-content">{{ formatDate(pkg.createdAt) }}</dd>
           </div>
+          <div v-if="pkg.customerNote" class="sm:col-span-2">
+            <dt class="text-body-sm text-content-secondary">Таны тэмдэглэл</dt>
+            <dd class="text-body text-content">{{ pkg.customerNote }}</dd>
+          </div>
         </dl>
+
+        <!--
+          BR-46 — өөрөө бүртгүүлсэн, хараахан ирээгүй ачаа. Буруу дугаар
+          бичсэн бол ЭНД буцаана: эс тэгвээс тэр дугаар жинхэнэ ачааны
+          бүртгэлийг хаана.
+        -->
+        <div
+          v-if="canCancel"
+          class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-surface-border pt-4"
+        >
+          <p class="text-body-sm text-content-secondary">
+            Ачаа ирээгүй байна. Дугаараа буруу бичсэн бол бүртгэлээ цуцлаарай.
+          </p>
+          <UiBtn variant="secondary" size="sm" :loading="cancelling" @click="cancel">
+            Бүртгэл цуцлах
+          </UiBtn>
+        </div>
       </div>
 
       <!-- Төлбөр -->
-      <div class="rounded-card border border-surface-border bg-surface-card p-5">
+      <div
+        v-if="!isPreArrival(pkg.status)"
+        class="rounded-card border border-surface-border bg-surface-card p-5"
+      >
         <div class="flex items-center justify-between">
           <h2 class="font-semibold text-content">Төлбөр</h2>
           <span
@@ -170,6 +217,21 @@ useHead({ title: 'Ачааны мэдээлэл — Ивээлт Карго' })
           class="mt-4 rounded-btn bg-warning/10 px-3.5 py-2.5 text-body-sm text-content"
         >
           Үлдэгдэл төлөгдсөний дараа ачаагаа авах эсвэл хүргэлт захиалах боломжтой.
+        </p>
+      </div>
+
+      <!--
+        Урьдчилсан бүртгэлд төлбөрийн карт харуулахгүй (BR-46): үнэ хараахан
+        бодогдоогүй тул "0₮ · Төлөгдсөн" гэсэн худал зураг гарна.
+      -->
+      <div v-else class="rounded-card border border-surface-border bg-surface-card p-5">
+        <h2 class="font-semibold text-content">Төлбөр</h2>
+        <p class="mt-2 text-body text-content-secondary">
+          {{
+            pkg.status === 'expected'
+              ? 'Ачаа хараахан ирээгүй байна. Эрээнд ирэхэд төлөв өөрчлөгдөнө.'
+              : 'Ачаа Эрээнд байна. Улаанбаатарт ирж жин хэмжигдсэний дараа үнэ тодорхойлогдоно.'
+          }}
         </p>
       </div>
 

@@ -61,6 +61,13 @@ exports.AUDIT_ACTION = {
   PACKAGE_CANCEL: 'package.cancel',
   PACKAGE_DELETE: 'package.delete',
   PACKAGE_DUPLICATE_APPROVED: 'package.duplicate_approved',
+  // BR-46 (Phase 5) — харилцагч ӨӨРӨӨ вэбээс ачаагаа урьдчилан бүртгэсэн.
+  // `actorId: null`, `actorName` нь харилцагчийн нэр — ажилтан БИШ.
+  PACKAGE_SELF_REGISTER: 'package.self_register',
+  // Ажилтан урьдчилсан бичлэг дээр бүртгэсэн (шинэ бичлэг үүсээгүй). Төлөвийн
+  // өөрчлөлтөөс ТУСДАА бичигдэнэ: "энэ ачаа харилцагчийн мэдүүлгээс эхэлсэн"
+  // гэдэг нь шүүх боломжтой байх ёстой асуулт (§9.2).
+  PACKAGE_ADOPTED: 'package.adopted',
 
   // Төлбөр (Phase 3)
   PAYMENT_CREATE: 'payment.create',
@@ -120,6 +127,17 @@ exports.AUDIT_ACTION_LIST = Object.values(exports.AUDIT_ACTION);
  * `OCCUPIES_LOCATION`) — зөвхөн "ирэхийг хүлээж буй" гэдгийг илэрхийлнэ.
  */
 exports.PACKAGE_STATUS = {
+  /**
+   * BR-46 (2026-08-01) — ХАРИЛЦАГЧ ӨӨРӨӨ вэбээс бүртгэсэн, хараахан ирээгүй
+   * ачаа. `IN_ERLIAN`-аас ЯЛГААТАЙ: тэрийг АЖИЛТАН Хятадын мэдээллээр бичдэг
+   * бол энэ нь харилцагчийн МЭДҮҮЛЭГ — компани хараахан ачааг харж ч, хүлээж
+   * авч ч амжаагүй. Тиймээс жин, үнэ, байршил, төлбөр огт байхгүй, байршлын
+   * нүд эзэлдэггүй, төлбөр/хүргэлтийн урсгалд огт оролцдоггүй.
+   *
+   * Ачаа Эрээнд/Монголд ирэхэд ажилтан ЯГ ЭНЭ бичлэг дээр бүртгэнэ (шингээнэ)
+   * — шинэ бичлэг үүсэхгүй, харилцагчийн хянаж байсан дугаар тасрахгүй.
+   */
+  EXPECTED: 'expected',
   IN_ERLIAN: 'in_erlian',
   REGISTERED: 'registered',
   NOTIFIED: 'notified',
@@ -133,6 +151,21 @@ exports.PACKAGE_STATUS = {
 };
 
 exports.PACKAGE_STATUS_LIST = Object.values(exports.PACKAGE_STATUS);
+
+/**
+ * Ачааны бичлэгийг ХЭН эхлүүлснийг заана — BR-46.
+ *
+ * Тайланд ялгах шаардлагатай: `customer` бичлэгийн дугаар/тоо хэмжээг компани
+ * хараахан БАТАЛГААЖУУЛААГҮЙ (харилцагчийн бичсэнээр). `registeredBy` талбар
+ * үүнийг илэрхийлж ЧАДАХГҮЙ — тэр нь `null` байх нь "систем/seed" гэсэн утга ч
+ * агуулдаг тул хоёрыг ялгах боломжгүй болно.
+ */
+exports.REGISTRATION_SOURCE = {
+  STAFF: 'staff',
+  CUSTOMER: 'customer',
+};
+
+exports.REGISTRATION_SOURCE_LIST = Object.values(exports.REGISTRATION_SOURCE);
 
 /**
  * Ачааны төлбөрийн төлөв — §1.8, BR-14.
@@ -254,8 +287,9 @@ exports.ERROR_CODE = {
  * сайн ажиллаж байгааг зөвхөн ингэж хэмжинэ.
  *
  * `pending` — `manual`-аас ЯЛГААТАЙ: ажилтан үнийг зориудаар зааагүй, харин
- * ачаа `in_erlian` төлөвт байх үед үнэ ОГТ мэдэгдэхгүй (жин ч байхгүй, дүн ч
- * заагаагүй). Ирц гүйцээхэд (`completeArrival`) энэ утга `weight`/`volume`/
+ * ачаа `expected` / `in_erlian` төлөвт байх үед үнэ ОГТ мэдэгдэхгүй (жин ч
+ * байхгүй, дүн ч заагаагүй). Ирц гүйцээхэд (`completeArrival`) энэ утга
+ * `weight`/`volume`/
  * `minimum`/`manual`-ийн аль нэгээр ДАРЖ бичигдэнэ — `pending` хэзээ ч эцсийн
  * `finalPrice`-ийн эх сурвалж байхгүй.
  */

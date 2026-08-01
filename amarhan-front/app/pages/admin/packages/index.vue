@@ -143,10 +143,16 @@ const selectedRows = computed(() => rows.value.filter(r => selected.value.includ
 
 const bulkOptions = computed(() =>
   Object.entries(status.all)
-    // Хүчингүй болгох нь шалтгаан + эрх шаарддаг тусдаа урсгал (BR-11).
-    // `in_erlian` мөн хасав (BR-45) — ямар ч төлөвөөс энэ рүү шилжих зам
-    // байхгүй, зөвхөн бүртгэх мөчид эхэлдэг тул сонговол backend алдаа өгнө.
-    .filter(([value]) => value !== 'cancelled' && value !== 'in_erlian')
+    /**
+     * Хүчингүй болгох нь шалтгаан + эрх шаарддаг тусдаа урсгал (BR-11).
+     *
+     * `expected` мөн хасав (BR-46) — энэ рүү шилжих зам ОГТ байхгүй, зөвхөн
+     * харилцагч өөрөө вэбээс үүсгэнэ. `in_erlian` рүү шилжих ганц зам нь
+     * `expected`-ээс (BR-46) бөгөөд тэр нь нэг бүрчлэн, ачааны дэлгэрэнгүй
+     * дээр хийгддэг үйлдэл — олноор шилжүүлбэл бусад төлөвийн ачаа дээр
+     * backend алдаа өгч, ажилтан яагаад болохгүйг ойлгохгүй.
+     */
+    .filter(([value]) => !['cancelled', 'expected', 'in_erlian'].includes(value))
     .map(([value, style]) => ({ value, label: style.label }))
 )
 

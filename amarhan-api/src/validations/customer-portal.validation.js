@@ -7,8 +7,31 @@ const {
   INVOICE_STATUS_LIST,
   DELIVERY_STATUS_LIST,
 } = require('../config/constants');
+const { TRACKING_PATTERN, normalizeTrackingNumber } = require('../domain/tracking-number');
 
 const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
+
+/**
+ * Ачааны дугаар — `package.validation.js`-тэй ЯГ ижил домэйн функцээр
+ * нормчилно (§1.3). Дүрмийг хуулбарлаагүй, зөвхөн ижил функцийг дуудсан тул
+ * харилцагчийн бичсэн "sf 1234 abc" ба ажилтны бичсэн нь ИЖИЛ утга болно —
+ * эс тэгвээс шингээлт (BR-46) хоёр өөр дугаар гэж үзэж ажиллахгүй.
+ */
+const trackingNumber = Joi.string()
+  .trim()
+  .custom((value, helpers) => {
+    try {
+      return normalizeTrackingNumber(value);
+    } catch {
+      return helpers.error('any.invalid');
+    }
+  })
+  .pattern(TRACKING_PATTERN)
+  .messages({
+    'string.pattern.base':
+      'Ачааны дугаар 3–64 тэмдэгт байх ба зөвхөн латин үсэг, тоо, зураас агуулна',
+    'any.invalid': 'Ачааны дугаараа оруулна уу',
+  });
 
 /**
  * Хуудаслалт — §9.3. `limit` дээд тал нь 100.
@@ -41,6 +64,34 @@ module.exports = {
   },
 
   getPackage: {
+    params: Joi.object({
+      packageId: objectId.required(),
+    }),
+  },
+
+  /**
+   * BR-46 — өөрөө ачаа бүртгүүлэх.
+   *
+   * ⚠ ЭНД ЗӨВХӨН ХАРИЛЦАГЧИЙН МЭДЭХ ЗҮЙЛ БАЙНА. `weightKg`, `finalPrice`,
+   * `locationCode`, `phone`, `customerId`, `status` зэрэг талбар байх ЁСГҮЙ:
+   *   • жин/үнэ/байршлыг зөвхөн компани хэмжиж тодорхойлно (§1.1) — харилцагч
+   *     бичвэл тэр дүн бүртгэлд орох эрсдэлтэй;
+   *   • утас/`customerId` нь хамрах хүрээ тодорхойлдог тул ҮРГЭЛЖ токеноос
+   *     гарна (дүрэм 14);
+   *   • `status`-ыг заавал систем `expected` болгоно (BR-08).
+   * Joi анхдагчаар `.unknown(false)` тул илүү талбар ирвэл 400 болж унана.
+   */
+  registerPackage: {
+    body: Joi.object({
+      trackingNumber: trackingNumber.required(),
+      quantity: Joi.number().integer().min(1).max(1000).default(1),
+      // Харилцагчийн өөрийн тэмдэглэл ("улаан цүнх, Taobao") — ачааг таних,
+      // ажилтантай ярихад л хэрэглэгдэнэ, үнэд нөлөөлөхгүй.
+      note: Joi.string().trim().max(500).allow('', null).optional(),
+    }),
+  },
+
+  cancelPackage: {
     params: Joi.object({
       packageId: objectId.required(),
     }),

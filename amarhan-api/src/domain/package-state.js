@@ -21,14 +21,19 @@ const S = PACKAGE_STATUS;
  *
  * Хоосон массив = ТӨГСГӨЛИЙН төлөв, хаашаа ч шилжихгүй.
  *
- *   in_erlian → registered → notified → awaiting_payment → paid
- *                                                            ↓
+ *   expected → in_erlian → registered → notified → awaiting_payment → paid
+ *         └──────────────────↗                                          ↓
  *                                out_for_delivery / picked_up
  *                                                            ↓
  *                                                       delivered
  *
  *   out_for_delivery → returned → (out_for_delivery | picked_up)
- *   in_erlian…awaiting_payment → cancelled
+ *   expected…awaiting_payment → cancelled
+ *
+ * ЯАГААД `expected` ХОЁР ЗАМТАЙ: ачаа Эрээнд ирснийг мэдэгдвэл `in_erlian`
+ * (дугаар+утас), харин Эрээнд бүртгэлгүй өнгөрч шууд Монголд ирвэл
+ * `registered` (жин/үнэ/байршилтай). Хоёулаа ЯГ ТЭР бичлэг дээр хийгдэнэ —
+ * харилцагчийн хянаж байсан бичлэг тасрах ёсгүй (BR-46).
  *
  * ЯАГААД `registered`-ЭЭС (БУС `in_erlian`-аас) бодит бүртгэл ЭХЭЛДЭГ: ачааг
  * Монголд ирсний ДАРАА бүртгэдэг тул `registered` өөрөө "ирсэн" гэдгийг
@@ -53,6 +58,7 @@ const S = PACKAGE_STATUS;
  * хоригтой) — улмаас `picked_up` руу шилжиж чадахгүй, ачаа гацна.
  */
 const TRANSITIONS = Object.freeze({
+  [S.EXPECTED]: [S.IN_ERLIAN, S.REGISTERED, S.CANCELLED],
   [S.IN_ERLIAN]: [S.REGISTERED, S.CANCELLED],
   [S.REGISTERED]: [S.NOTIFIED, S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
   [S.NOTIFIED]: [S.AWAITING_PAYMENT, S.PAID, S.CANCELLED],
@@ -75,6 +81,7 @@ const TRANSITIONS = Object.freeze({
  * Frontend өөрийн хуулбартай — design token дотор (`packageStatus`).
  */
 const STATUS_LABEL = Object.freeze({
+  [S.EXPECTED]: 'Хүлээгдэж буй',
   [S.IN_ERLIAN]: 'Эрээнд байгаа',
   [S.REGISTERED]: 'Улаанбаатарт ирсэн',
   [S.NOTIFIED]: 'Хэрэглэгчид мэдэгдсэн',
@@ -111,16 +118,37 @@ const SYSTEM_ONLY_EDGES = Object.freeze([`${S.PAID}→${S.AWAITING_PAYMENT}`]);
 
 /**
  * ЗӨВХӨН нэмэлт мэдээлэлтэй (жин/үнэ/байршил) "ирц гүйцээх" замаар хийгдэх
- * шилжилтүүд — BR-45. `SYSTEM_ONLY_EDGES`-ээс ялгаатай: энэ бол СИСТЕМ БИШ,
- * ажилтан өөрөө гараар хийдэг шилжилт, гэхдээ энгийн `changeStatus`
+ * шилжилтүүд — BR-45, BR-46. `SYSTEM_ONLY_EDGES`-ээс ялгаатай: энэ бол СИСТЕМ
+ * БИШ, ажилтан өөрөө гараар хийдэг шилжилт, гэхдээ энгийн `changeStatus`
  * (зөвхөн `status` талбар өөрчилдөг) дамжуулж болохгүй — учир нь
- * `in_erlian` ачаанд жин/үнэ/байршил байхгүй, тэдгээрийг зэрэг өгөхгүйгээр
- * `registered` болговол §1.1-ийн цөм баталгааг зөрчинө (байршилгүй, үнэгүй
- * "бүртгэгдсэн" ачаа үүснэ). Иймд `assertTransition`-д `viaArrival: true`
- * контекст ЗААВАЛ дамжуулах ёстой — үүнийг зөвхөн `completeArrival()`
- * (package.service.js) хийнэ.
+ * `expected` / `in_erlian` ачаанд жин/үнэ/байршил байхгүй, тэдгээрийг зэрэг
+ * өгөхгүйгээр `registered` болговол §1.1-ийн цөм баталгааг зөрчинө
+ * (байршилгүй, үнэгүй "бүртгэгдсэн" ачаа үүснэ). Иймд `assertTransition`-д
+ * `viaArrival: true` контекст ЗААВАЛ дамжуулах ёстой — үүнийг зөвхөн
+ * `completeArrival()` (package.service.js) хийнэ.
  */
-const MANUAL_EDGES_REQUIRING_DATA = Object.freeze([`${S.IN_ERLIAN}→${S.REGISTERED}`]);
+const MANUAL_EDGES_REQUIRING_DATA = Object.freeze([
+  `${S.IN_ERLIAN}→${S.REGISTERED}`,
+  `${S.EXPECTED}→${S.REGISTERED}`,
+]);
+
+/**
+ * УРЬДЧИЛСАН (ачаа хараахан агуулахад ирээгүй) төлөвүүд — BR-45, BR-46.
+ *
+ * Нийтлэг шинж: жин, эзлэхүүн, үнэ, байршил, төлбөр ОГТ БАЙХГҮЙ. Тиймээс
+ * эдгээр бичлэг дээр ажилтан "дахин бүртгэх" нь давхардал БИШ, харин ЯГ ТЭР
+ * бичлэгийг гүйцээх (шингээх) үйлдэл болно (`packageService.adoptExisting`).
+ *
+ * Ганц жагсаалт байгаа шалтгаан: "энэ ачаа бодитоор бүртгэгдсэн үү" гэсэн
+ * асуултыг давхардлын шалгалт, ирц бүртгэх маягт, тайлан гурав тус тусдаа
+ * жагсаалтаар хариулбал хожим нэг нь мартагдаж, урьдчилсан бичлэг дээр
+ * давхар ачаа үүснэ.
+ */
+const PRE_ARRIVAL = Object.freeze([S.EXPECTED, S.IN_ERLIAN]);
+
+function isPreArrival(status) {
+  return PRE_ARRIVAL.includes(status);
+}
 
 /**
  * Төлбөр бүрэн төлөгдсөн байхыг шаардах төлөвүүд — BR-19, §5.2.
@@ -189,9 +217,11 @@ function canTransition(from, to) {
  * `cancelled` мөн ОРОХГҮЙ — хүчингүй болгох нь эрх ба шалтгаан шаарддаг
  * тусдаа урсгал (BR-11), тусдаа товчоор гарна.
  *
- * `in_erlian → registered` мөн ОРОХГҮЙ (BR-45) — энэ шилжилт жин/үнэ/байршил
- * зэрэг нэмэлт мэдээлэл шаарддаг тул энгийн "Төлөв өөрчлөх" товчоор биш,
- * тусдаа "Ирц бүртгэх" маягтаар (`completeArrival`) хийгдэнэ.
+ * `in_erlian → registered` ба `expected → registered` мөн ОРОХГҮЙ (BR-45,
+ * BR-46) — эдгээр шилжилт жин/үнэ/байршил зэрэг нэмэлт мэдээлэл шаарддаг тул
+ * энгийн "Төлөв өөрчлөх" товчоор биш, тусдаа "Ирц бүртгэх" маягтаар
+ * (`completeArrival`) хийгдэнэ. Харин `expected → in_erlian` нь нэмэлт
+ * мэдээлэл шаардахгүй (дугаар+утас аль хэдийн бий) тул ЭНГИЙН товчоор хийгдэнэ.
  */
 function manualTransitions(from) {
   return allowedTransitions(from).filter(
@@ -302,6 +332,8 @@ module.exports = {
   SYSTEM_ONLY,
   SYSTEM_ONLY_EDGES,
   MANUAL_EDGES_REQUIRING_DATA,
+  PRE_ARRIVAL,
+  isPreArrival,
   REQUIRES_FULL_PAYMENT,
   OCCUPIES_LOCATION,
   occupiesLocation,

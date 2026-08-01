@@ -69,4 +69,26 @@ const publicLimiter = rateLimit({
   skip: () => config.env === 'test',
 });
 
-module.exports = { globalLimiter, authLimiter, publicLimiter };
+/**
+ * Харилцагч ӨӨРӨӨ ачаа бүртгүүлэх (BR-46) — Phase 5.
+ *
+ * ЗААВАЛ хязгаартай байх шалтгаан: урьдчилсан бүртгэл нь ачааны дугаарыг
+ * ЭЗЭМШИНЭ (unique index). Хязгааргүй бол хортой хэрэглэгч дугаарын орон
+ * зайг дараалан бүртгэж (`SF0001`, `SF0002`, …) бусдын бодит ачаа ирэхэд
+ * өөрийн бүртгэлд холбогдох, эсвэл ажилтны бүртгэлийг тасалдуулах боломжтой.
+ *
+ * Бодит хэрэглэгч 15 минутанд 30 ачаа мэдүүлэхгүй — 30 нь өгөөмөр хязгаар.
+ */
+const selfRegisterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: 'Бүртгэл хэт олон. Хэсэг хугацааны дараа дахин оролдоно уу',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => config.env === 'test',
+});
+
+module.exports = { globalLimiter, authLimiter, publicLimiter, selfRegisterLimiter };

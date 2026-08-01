@@ -351,11 +351,25 @@ async function submit(extra: Record<string, any> = {}) {
     recent.value.unshift(result.package)
     if (recent.value.length > 12) recent.value.pop()
 
-    toast.success(`${result.package.trackingNumber} бүртгэгдлээ`, {
-      description: isErlian.value
-        ? 'Эрээнд байгаа — ирэхэд "Ирц бүртгэх"-ээр гүйцээнэ'
-        : `${formatCurrency(result.package.finalPrice)} · ${result.package.locationCode}`,
-    })
+    const detail = isErlian.value
+      ? 'Эрээнд байгаа — ирэхэд "Ирц бүртгэх"-ээр гүйцээнэ'
+      : `${formatCurrency(result.package.finalPrice)} · ${result.package.locationCode}`
+
+    /**
+     * BR-46 — дугаар нь урьдчилсан бүртгэлтэй байсан бол шинэ бичлэг үүсээгүй,
+     * тэр бичлэг дээр бүртгэгдсэн. Ажилтанд ЗААВАЛ хэлнэ: эс тэгвээс "яагаад
+     * жагсаалтад нэг л мөр нэмэгдэв" гэсэн эргэлзээ үүснэ.
+     */
+    toast.success(
+      result.adopted
+        ? `${result.package.trackingNumber} — урьдчилсан бүртгэл дээр нэгтгэгдлээ`
+        : `${result.package.trackingNumber} бүртгэгдлээ`,
+      {
+        description: result.adopted
+          ? `${result.adoptedFrom === 'expected' ? 'Харилцагч өөрөө мэдүүлсэн' : 'Эрээнд бүртгэсэн'} ачаа · ${detail}`
+          : detail,
+      }
+    )
 
     // BR-24 — багтаамжийн сануулга. Хориглохгүй, зөвхөн мэдэгдэнэ.
     for (const warning of result.warnings ?? []) {

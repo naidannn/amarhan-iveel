@@ -11,7 +11,11 @@ const Customer = require('../../src/models/customer.model');
 const AuditLog = require('../../src/models/audit-log.model');
 const customerAuthService = require('../../src/services/customer-auth.service');
 const { createUserWithToken } = require('../factories/user.factory');
-const { createBranch, createCargoTypeWithTariff, createLocation } = require('../factories/domain.factory');
+const {
+  createBranch,
+  createCargoTypeWithTariff,
+  createLocation,
+} = require('../factories/domain.factory');
 const { ROLES, AUDIT_ACTION, SETTING_KEY } = require('../../src/config/constants');
 
 chai.use(chaiHttp);
@@ -345,6 +349,172 @@ describe('Харилцагчийн вэб (§3)', () => {
       expect(res.status).to.equal(200);
       expect(res.body.data.packages.total).to.equal(2);
       expect(res.body.data.balance, 'өөр хүний 90,000₮ орохгүй').to.equal(50000);
+    });
+  });
+
+  // ── Өөрөө ачаа бүртгүүлэх (BR-46) ───────────────────────────────────────
+
+  describe('BR-46 — харилцагч өөрөө ачаа бүртгүүлэх', () => {
+    /** Харилцагчаар урьдчилан бүртгүүлнэ */
+    async function selfRegister(token, body) {
+      return chai.request(app).post(`${CUSTOMER}/packages`).set(asCustomer(token)).send(body);
+    }
+
+    it('дугаараа бүртгүүлээд "Хүлээгдэж буй" төлөвтэй ачаа үүснэ', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await selfRegister(token, {
+        trackingNumber: 'SF9911001',
+        quantity: 2,
+        note: 'улаан цүнх',
+      });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.status).to.equal('expected');
+      expect(res.body.data.trackingNumber).to.equal('SF9911001');
+      expect(res.body.data.quantity).to.equal(2);
+      expect(res.body.data.customerNote).to.equal('улаан цүнх');
+      expect(res.body.data.registrationSource).to.equal('customer');
+      // Үнэ ХАРААХАН БАЙХГҮЙ — ирэхэд бодогдоно
+      expect(res.body.data.finalPrice).to.equal(0);
+      expect(res.body.data.balance).to.equal(0);
+      // Ачаа ирээгүй тул "ирсэн огноо" харуулахгүй
+      expect(res.body.data.arrivedAt).to.equal(null);
+    });
+
+    it('дугаар нь нормчлогдоно — ажилтны бүртгэлтэй ижил хэлбэрт орно (§1.3)', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await selfRegister(token, { trackingNumber: ' sf 9911 002 ' });
+
+      expect(res.status).to.equal(201);
+      expect(res.body.data.trackingNumber).to.equal('SF9911002');
+    });
+
+    it('өөрийн бүртгэлдээ шууд харагдана', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      await selfRegister(token, { trackingNumber: 'SF9911003' });
+
+      const res = await chai
+        .request(app)
+        .get(`${CUSTOMER}/packages`)
+        .query({ status: 'expected' })
+        .set(asCustomer(token));
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.lengthOf(1);
+      expect(res.body.data[0].trackingNumber).to.equal('SF9911003');
+    });
+
+    it('жин, үнэ, байршил илгээхийг ХОРИГЛОНО (§1.1 — компани тодорхойлно)', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+
+      for (const extra of [
+        { weightKg: 5 },
+        { finalPrice: 1 },
+        { locationCode: 'UB-01-A-01' },
+        { status: 'registered' },
+      ]) {
+        const res = await selfRegister(token, { trackingNumber: 'SF9911004', ...extra });
+        expect(res.status, JSON.stringify(extra)).to.equal(400);
+      }
+    });
+
+    it('утас/customerId дамжуулж өөр хүний нэр дээр бүртгэх боломжгүй (дүрэм 14)', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      const other = await Customer.findOne({ phone: '99112233' });
+
+      const res = await selfRegister(token, {
+        trackingNumber: 'SF9911005',
+        phone: '88001122',
+        customerId: other._id.toString(),
+      });
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('нэвтрэхгүйгээр бүртгүүлэхгүй', async () => {
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/packages`)
+        .send({ trackingNumber: 'SF9911006' });
+
+      expect(res.status).to.equal(401);
+    });
+
+    it('өөрийн бүртгэсэн дугаарыг давхардуулахгүй', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      await selfRegister(token, { trackingNumber: 'SF9911007' });
+
+      const res = await selfRegister(token, { trackingNumber: 'SF9911007' });
+
+      expect(res.status).to.equal(409);
+      expect(res.body.message).to.contain('аль хэдийн');
+    });
+
+    it('бусдын бүртгэсэн дугаарт ЯЛГААГҮЙ ерөнхий мессеж (дугаар зурахаас сэргийлнэ)', async () => {
+      const first = await signUp({ phone: '99112233' });
+      await selfRegister(first.token, { trackingNumber: 'SF9911008' });
+
+      const second = await signUp({ phone: '88001122' });
+      const res = await selfRegister(second.token, { trackingNumber: 'SF9911008' });
+
+      expect(res.status).to.equal(409);
+      expect(res.body.message, 'өөр хүнийх гэдгийг илчлэхгүй').to.not.contain('Та ');
+    });
+
+    it('audit-д харилцагчийн үйлдэл болж бичигдэнэ (actorId: null)', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      await selfRegister(token, { trackingNumber: 'SF9911009' });
+
+      const log = await AuditLog.findOne({ action: AUDIT_ACTION.PACKAGE_SELF_REGISTER });
+      expect(log, 'audit бичлэг үүсэх ёстой').to.exist;
+      expect(log.actorId, 'харилцагч бол ажилтан БИШ').to.equal(null);
+      expect(log.actorName).to.contain('Харилцагч');
+      // §8 — бүтэн утас audit-ийн нэрэнд гарахгүй
+      expect(log.actorName).to.not.contain('99112233');
+    });
+
+    it('буруу бичсэн бүртгэлээ цуцалж, дугаарыг чөлөөлнө', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      const created = await selfRegister(token, { trackingNumber: 'SF9911010' });
+
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/packages/${created.body.data.id}/cancel`)
+        .set(asCustomer(token));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal('cancelled');
+
+      // BR-05 — дугаар чөлөөлөгдсөн тул дахин бүртгэж болно
+      const again = await selfRegister(token, { trackingNumber: 'SF9911010' });
+      expect(again.status).to.equal(201);
+    });
+
+    it('өөр хүний бүртгэлийг цуцалж чадахгүй (404, 403 БИШ)', async () => {
+      const first = await signUp({ phone: '99112233' });
+      const created = await selfRegister(first.token, { trackingNumber: 'SF9911011' });
+
+      const second = await signUp({ phone: '88001122' });
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/packages/${created.body.data.id}/cancel`)
+        .set(asCustomer(second.token));
+
+      expect(res.status).to.equal(404);
+    });
+
+    it('ажилтны бүртгэсэн ачааг харилцагч цуцалж ЧАДАХГҮЙ', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/packages/${pkg.id ?? pkg._id}/cancel`)
+        .set(asCustomer(token));
+
+      expect(res.status).to.equal(422);
     });
   });
 

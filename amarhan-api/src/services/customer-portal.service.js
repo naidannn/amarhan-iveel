@@ -5,7 +5,9 @@ const packageRepository = require('../repositories/package.repository');
 const paymentRepository = require('../repositories/payment.repository');
 const deliveryRepository = require('../repositories/delivery.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
+const packageService = require('./package.service');
 const APIError = require('../utils/APIError');
+const packageState = require('../domain/package-state');
 const { PACKAGE_STATUS, PAYMENT_STATUS, PAYMENT_RECORD_STATUS } = require('../config/constants');
 
 /**
@@ -118,6 +120,25 @@ class CustomerPortalService {
     };
   }
 
+  // ── Өөрөө ачаа бүртгүүлэх (§3, BR-46) ─────────────────────────────────
+
+  /**
+   * BR-46 — харилцагч ирэх ачаагаа урьдчилан мэдүүлнэ.
+   *
+   * Бичих логик БҮХЭЛДЭЭ `package.service.js`-д байна (BR-08: ачааны төлөв,
+   * давхардал, audit-ийн дүрэм ганц газарт). Энэ давхарга нь ЗӨВХӨН хамрах
+   * хүрээ (токеноос ирсэн харилцагч) ба хариултын цагаан жагсаалтыг хариуцна.
+   */
+  async registerPackage(customer, data, req) {
+    const pkg = await packageService.selfRegister(customer, data, req);
+    return this.toPublicPackage(pkg);
+  }
+
+  async cancelPackage(customer, packageId, req) {
+    const pkg = await packageService.selfCancel(customer, packageId, req);
+    return this.toPublicPackage(pkg);
+  }
+
   async listPayments(customerId, { page, limit }) {
     const result = await paymentRepository.search(
       { customerId },
@@ -204,7 +225,18 @@ class CustomerPortalService {
       paidAmount: pkg.paidAmount,
       balance: pkg.balance,
       paymentStatus: pkg.paymentStatus,
-      arrivedAt: pkg.arrivedAt,
+      // BR-46 — харилцагч ӨӨРӨӨ бичсэн тайлбар. Ажилтны дотоод `note` энд
+      // ХЭЗЭЭ Ч орохгүй.
+      customerNote: pkg.customerNote ?? null,
+      // Ачаа өөрийнх нь мэдүүлгээс эхэлсэн эсэх — UI-д "Хүлээгдэж буй"
+      // бичлэгийг цуцлах товч харуулахад хэрэгтэй (BR-46).
+      registrationSource: pkg.registrationSource,
+      /**
+       * Урьдчилсан бичлэгийн `arrivedAt` нь БҮРТГЭСЭН мөч, ирсэн огноо БИШ
+       * (BR-45/BR-46 — бодит огноо ирц гүйцээхэд дарж бичигдэнэ). Түүнийг
+       * "ирсэн огноо" гэж харуулбал харилцагч ачаагаа ирсэн гэж ойлгоно.
+       */
+      arrivedAt: packageState.isPreArrival(pkg.status) ? null : pkg.arrivedAt,
       createdAt: pkg.createdAt,
     };
   }

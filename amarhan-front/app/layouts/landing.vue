@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Facebook, Mail, MapPin, Menu, MessageCircle, Send, X } from 'lucide-vue-next'
+import { Facebook, LayoutDashboard, Mail, MapPin, Menu, MessageCircle, Send, X } from 'lucide-vue-next'
 
 /**
  * Нүүр хуудасны premium landing layout — зөвхөн `pages/index.vue`-д ашиглагдана.
@@ -63,9 +63,10 @@ const navLinks = [
     </div>
 
     <header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl">
-      <div class="mx-auto flex h-[72px] max-w-7xl items-center gap-3 px-5 sm:px-8">
+      <div class="mx-auto flex h-[72px] max-w-7xl items-center gap-2 px-5 sm:gap-3 sm:px-8">
         <NuxtLink to="/" class="flex shrink-0 items-center">
-          <LandingBrandLogo aria-label="ИВЭЭЛТ КАРГО" />
+          <LandingBrandLogo compact class="sm:hidden" aria-label="ИВЭЭЛТ КАРГО" />
+          <LandingBrandLogo class="hidden sm:flex" aria-label="ИВЭЭЛТ КАРГО" />
         </NuxtLink>
 
         <nav class="ml-8 hidden items-center gap-1 lg:flex">
@@ -80,18 +81,32 @@ const navLinks = [
         </nav>
 
         <div class="ml-auto flex items-center gap-2">
-          <template v-if="customer.isAuthenticated">
-            <UiBtn size="sm" to="/my" class="hidden sm:inline-flex">Хяналтын самбар</UiBtn>
-          </template>
-          <template v-else>
-            <NuxtLink
-              to="/login"
-              class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:inline-flex"
-            >
-              Нэвтрэх
-            </NuxtLink>
-            <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
-          </template>
+          <ClientOnly>
+            <div v-if="customer.isAuthenticated" class="flex items-center gap-2">
+              <UiBtn size="sm" to="/my" class="sm:hidden">Хэрэглэгчийн вэб</UiBtn>
+              <UiBtn size="sm" to="/my" :icon="LayoutDashboard" class="hidden sm:inline-flex">Хэрэглэгчийн вэб</UiBtn>
+            </div>
+            <div v-else class="flex items-center gap-2">
+              <NuxtLink
+                to="/login"
+                class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:inline-flex"
+              >
+                Нэвтрэх
+              </NuxtLink>
+              <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
+            </div>
+            <template #fallback>
+              <div class="flex items-center gap-2">
+                <NuxtLink
+                  to="/login"
+                  class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:inline-flex"
+                >
+                  Нэвтрэх
+                </NuxtLink>
+                <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
+              </div>
+            </template>
+          </ClientOnly>
 
           <button
             class="rounded-full p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
@@ -127,7 +142,7 @@ const navLinks = [
             :to="customer.isAuthenticated ? '/my' : '/register'"
             class="block rounded-xl px-3 py-2.5 text-body font-semibold text-primary-600 hover:bg-slate-100"
           >
-            {{ customer.isAuthenticated ? 'Хяналтын самбар' : 'Бүртгүүлэх' }}
+            {{ customer.isAuthenticated ? 'Хэрэглэгчийн вэб' : 'Бүртгүүлэх' }}
           </NuxtLink>
         </nav>
       </div>

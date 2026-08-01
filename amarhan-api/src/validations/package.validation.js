@@ -71,7 +71,9 @@ const createPackageSchema = Joi.object({
     .default(PACKAGE_STATUS.REGISTERED),
 
   trackingNumber: trackingNumber.required(),
-  phone: phone.required(),
+  // Заавал биш — Эрээнд зөвхөн ачааны дугаараар мэдэгдэж болно, ачаа хэзээ ч
+  // харилцагчтай холбогдохгүй үлдэж ч болно (BR-45)
+  phone: phone.optional(),
   // Харилцагч шинээр үүсэх бол нэрийг хамт бүртгэнэ (BR-29)
   customerName: Joi.string().trim().max(100).optional(),
 
@@ -267,6 +269,8 @@ module.exports = {
       dimensions: dimensions.allow(null).optional(),
       arrivedAt: Joi.date().max('now').optional(),
       note: Joi.string().trim().max(1000).allow('', null).optional(),
+      // Утасгүй бүртгэсэн ачаанд дараа нь харилцагч холбох/солих зам
+      phone: phone.optional(),
     }).min(1),
   },
 

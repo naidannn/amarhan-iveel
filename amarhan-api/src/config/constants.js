@@ -72,6 +72,9 @@ exports.AUDIT_ACTION = {
   // Төлбөр (Phase 3)
   PAYMENT_CREATE: 'payment.create',
   PAYMENT_VOID: 'payment.void',
+  // Roadmap 5.8 — хүлээгдэж буй (pending) төлбөрийг ажилтан баталгаажуулсан
+  // (харилцагчийн банкны шилжүүлэг бодитоор ирснийг шалгасны дараа).
+  PAYMENT_CONFIRM: 'payment.confirm',
   INVOICE_CREATE: 'invoice.create',
   INVOICE_CANCEL: 'invoice.cancel',
 
@@ -80,6 +83,9 @@ exports.AUDIT_ACTION = {
   DELIVERY_UPDATE: 'delivery.update',
   DELIVERY_STATUS_CHANGE: 'delivery.status_change',
   DELIVERY_CANCEL: 'delivery.cancel',
+  // Roadmap 5.8 — харилцагч ӨӨРӨӨ вэбээс хүргэлт захиалсан. `PACKAGE_SELF_REGISTER`-ийн
+  // ижил хэв маяг: `actorId: null`, `actorName` нь харилцагчийн нэр.
+  DELIVERY_SELF_CREATE: 'delivery.self_create',
 
   // Харилцагч
   CUSTOMER_CREATE: 'customer.create',
@@ -251,6 +257,15 @@ exports.DELIVERY_STATUS = {
 exports.DELIVERY_STATUS_LIST = Object.values(exports.DELIVERY_STATUS);
 
 /**
+ * Roadmap 5.8 — харилцагч өөрөө захиалсан хүргэлтийн суурь хураамж (₮).
+ *
+ * Зөвхөн `createdBy: null` (харилцагч өөрөө вэбээс захиалсан) хүргэлтэд
+ * хэрэглэгдэнэ. Ажилтны гараар үүсгэсэн хүргэлтийн `fee` талбар үүнээс
+ * ХАМААРАЛГҮЙ, зөвхөн мэдээлэл хэвээр (BR-21b).
+ */
+exports.DELIVERY_FEE_AMOUNT = 7000;
+
+/**
  * Frontend-д програмчлан шалгах шаардлагатай алдааны кодууд.
  *
  * Мессежийн ТЕКСТЭД frontend хамаарах ёсгүй (текст өөрчлөгдөж болно) —
@@ -270,6 +285,10 @@ exports.ERROR_CODE = {
   UNPAID_PACKAGES: 'UNPAID_PACKAGES',
   PACKAGE_IN_ACTIVE_DELIVERY: 'PACKAGE_IN_ACTIVE_DELIVERY',
   INVALID_DELIVERY_TRANSITION: 'INVALID_DELIVERY_TRANSITION',
+  // Roadmap 5.8 — харилцагчийн хүргэлтийн хураамж төлөгдөөгүй (BR-20-ийн
+  // `UNPAID_PACKAGES`-ээс тусад нь ялгах шаардлагатай — өөр эх сурвалж)
+  UNPAID_DELIVERY_FEE: 'UNPAID_DELIVERY_FEE',
+  PAYMENT_NOT_PENDING: 'PAYMENT_NOT_PENDING',
   // Phase 5 — харилцагчийн вэб
   EMAIL_TAKEN: 'EMAIL_TAKEN',
   PHONE_TAKEN: 'PHONE_TAKEN',

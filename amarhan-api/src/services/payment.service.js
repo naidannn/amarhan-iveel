@@ -4,6 +4,7 @@ const httpStatus = require('http-status');
 const paymentRepository = require('../repositories/payment.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
 const packageRepository = require('../repositories/package.repository');
+const deliveryRepository = require('../repositories/delivery.repository');
 const branchResolver = require('./branch-resolver.service');
 const customerService = require('./customer.service');
 const invoiceService = require('./invoice.service');
@@ -216,7 +217,13 @@ class PaymentService {
 
       const touched = [];
       for (const allocation of payment.allocations) {
-        touched.push(await this.recalculatePackage(allocation.packageId, { actor, req, session }));
+        if (allocation.packageId) {
+          touched.push(
+            await this.recalculatePackage(allocation.packageId, { actor, req, session })
+          );
+        } else if (allocation.deliveryId) {
+          await this.recalculateDelivery(allocation.deliveryId, { session });
+        }
       }
 
       if (payment.invoiceId) {
@@ -241,6 +248,119 @@ class PaymentService {
       );
 
       return { payment: updated, packages: touched };
+    });
+  }
+
+  // ── Roadmap 5.8 — харилцагчийн хүргэлтийн захиалга ─────────────────────
+
+  /**
+   * Харилцагчийн банкны шилжүүлгээр "төлье" гэсэн МЭДЭГДЛИЙГ `pending`
+   * төлбөр болгож бүртгэнэ. Бодит мөнгө ирснийг систем автоматаар шалгаж
+   * чадахгүй (QPay интеграцгүй, roadmap 5.6/5.7 ⛔) тул `completed` БИШ —
+   * ажилтан `confirmPending()`-ээр баталгаажуулна.
+   *
+   * Session-г ГАДНААС авдаг цорын ганц метод: `delivery.service.js`-ийн
+   * `selfCreate()` хүргэлт үүсгэлттэй НЭГ транзакцад дуудна (мөнгө ЗӨВХӨН
+   * энд бичигдэнэ гэдэг дүрэм (CLAUDE.md §5 дүрэм 10) хэвээр — зөвхөн
+   * дуудагч транзакцаа удирдана).
+   */
+  async createPendingSettlement(
+    { allocations, amount, method, customerId, customerPhone, branchId, actorName },
+    { session }
+  ) {
+    const payment = await paymentRepository.createWithSession(
+      {
+        amount,
+        method,
+        invoiceId: null,
+        customerId,
+        customerPhone,
+        allocations,
+        status: PAYMENT_RECORD_STATUS.PENDING,
+        branchId,
+        // `null` = харилцагч өөрөө (онлайн/захиалгын урсгал) — одоо байгаа конвенц
+        receivedBy: null,
+        receivedByName: null,
+        note: null,
+      },
+      { session }
+    );
+
+    await auditService.record(
+      {
+        action: AUDIT_ACTION.PAYMENT_CREATE,
+        entity: AUDIT_ENTITY.PAYMENT,
+        entityId: payment._id,
+        entityLabel: customerPhone,
+        branchId,
+        actorName,
+        field: 'amount',
+        before: null,
+        after: amount,
+        reason: `${method} · хүлээгдэж буй (${AUDIT_ACTION.DELIVERY_SELF_CREATE})`,
+      },
+      { session }
+    );
+
+    return payment;
+  }
+
+  /**
+   * Ажилтан харилцагчийн банкны шилжүүлгийг бодитоор хүлээж авсны дараа
+   * `pending` төлбөрийг `completed` болгоно. Дараа нь холбогдох ачаа/хүргэлт
+   * БҮГД эх сурвалжаас дахин бодогдоно — `create()`-тэй ижил зарчим (BR-14).
+   *
+   * Татгалзах (буруу/хэзээ ч ирээгүй мэдэгдэл) нь ЭНД биш — одоо байгаа
+   * `void()` endpoint аль хэдийн ямар ч урьдын төлөвөөс ажилладаг тул дахин
+   * ашиглагдана.
+   */
+  async confirmPending(id, actor, req) {
+    const payment = await this.getById(id);
+
+    if (payment.status !== PAYMENT_RECORD_STATUS.PENDING) {
+      throw new APIError(
+        'Зөвхөн хүлээгдэж буй төлбөрийг баталгаажуулна',
+        httpStatus.UNPROCESSABLE_ENTITY,
+        { code: ERROR_CODE.PAYMENT_NOT_PENDING }
+      );
+    }
+
+    return withTransaction(async session => {
+      const updated = await paymentRepository.updateByIdWithSession(
+        id,
+        { status: PAYMENT_RECORD_STATUS.COMPLETED },
+        { session }
+      );
+
+      const touchedPackages = [];
+      let touchedDelivery = null;
+      for (const allocation of payment.allocations) {
+        if (allocation.packageId) {
+          touchedPackages.push(
+            await this.recalculatePackage(allocation.packageId, { actor, req, session })
+          );
+        } else if (allocation.deliveryId) {
+          touchedDelivery = await this.recalculateDelivery(allocation.deliveryId, { session });
+        }
+      }
+
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.PAYMENT_CONFIRM,
+          entity: AUDIT_ENTITY.PAYMENT,
+          entityId: updated._id,
+          entityLabel: payment.customerPhone,
+          branchId: payment.branchId,
+          field: 'status',
+          before: PAYMENT_RECORD_STATUS.PENDING,
+          after: PAYMENT_RECORD_STATUS.COMPLETED,
+          req,
+        },
+        { session }
+      );
+
+      return { payment: updated, packages: touchedPackages, delivery: touchedDelivery };
     });
   }
 
@@ -338,6 +458,17 @@ class PaymentService {
     return invoiceRepository.updateByIdWithSession(invoiceId, patch, { session });
   }
 
+  /**
+   * Roadmap 5.8 — `deliveries.feePaidAmount`-ыг ЭХ СУРВАЛЖААС дахин бодож
+   * бичнэ (`recalculatePackage`-ийн ижил зарчим, BR-14). Хураамжид ХОЛБООТОЙ
+   * ямар ч Delivery статус шилжилт ЭНД хийгдэхгүй — тэр `delivery-state.js`-ийн
+   * `unpaidFee` хаалтаар `dispatched`-д дуудагдах үед л шалгагдана.
+   */
+  async recalculateDelivery(deliveryId, { session }) {
+    const feePaidAmount = await paymentRepository.sumCompletedForDelivery(deliveryId, { session });
+    return deliveryRepository.updateByIdWithSession(deliveryId, { feePaidAmount }, { session });
+  }
+
   // ── Дотоод: оролт тайлах ────────────────────────────────────────────────
 
   /**
@@ -394,6 +525,16 @@ class PaymentService {
         'Нэг төлбөрт зөвхөн НЭГ харилцагчийн ачаа багтана',
         httpStatus.UNPROCESSABLE_ENTITY,
         { code: ERROR_CODE.MIXED_CUSTOMERS }
+      );
+    }
+
+    // Утас/харилцагч холбогдоогүй ачаанд төлбөр бүртгэх боломжгүй (BR-45) —
+    // эхлээд ачааны мэдээллийг засаж утас холбоно уу
+    if (!packages[0].customerId) {
+      throw new APIError(
+        'Энэ ачаанд харилцагчийн утас холбогдоогүй тул төлбөр бүртгэх боломжгүй. Эхлээд ачааны мэдээллийг засаж утас холбоно уу',
+        httpStatus.UNPROCESSABLE_ENTITY,
+        { code: ERROR_CODE.PHONE_REQUIRED }
       );
     }
 

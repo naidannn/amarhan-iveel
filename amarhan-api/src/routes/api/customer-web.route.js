@@ -97,4 +97,18 @@ router.get(
   portalController.listDeliveries
 );
 
+/**
+ * Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалах. Захиалга нь `pending`
+ * төлбөр (харилцагчийн "төлье" гэсэн мэдэгдэл, банкны шилжүүлэг) үүсгэдэг
+ * тул `selfRegisterLimiter`-ийн ижил хамгаалалт хэрэгтэй (§1.3 ачааны
+ * дугаарын хамгаалалттай адил зарчим — хэт олон захиалга үүсгэж болзошгүй).
+ */
+router.get('/deliveries/deliverable', portalController.deliverableForDelivery);
+router.post(
+  '/deliveries',
+  selfRegisterLimiter,
+  validate(portalValidation.createDelivery),
+  portalController.createDelivery
+);
+
 module.exports = router;

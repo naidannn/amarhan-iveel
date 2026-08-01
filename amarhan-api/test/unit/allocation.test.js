@@ -4,6 +4,7 @@ const { expect } = require('chai');
 const {
   allocateProportionally,
   validateManualAllocations,
+  buildFullSettlement,
   assertSumMatches,
   AllocationError,
 } = require('../../src/domain/allocation');
@@ -247,6 +248,76 @@ describe('BR-17 — Ажилтны ГАРААР заасан хуваарила�
     expect(() =>
       validateManualAllocations(1000, [{ packageId: 'a', amount: 1000.5 }], balances)
     ).to.throw(AllocationError, /бүхэл тоо/);
+  });
+});
+
+describe('Roadmap 5.8 — buildFullSettlement (харилцагчийн хүргэлт захиалга)', () => {
+  const pkg = (id, balance) => ({ packageId: id, balance });
+
+  it('сонгосон ачаа бүрийн үлдэгдлийг БҮТНЭЭР авч, хураамжийг тусад нь нэмнэ', () => {
+    const { allocations, amount } = buildFullSettlement(
+      [pkg('a', 5000), pkg('b', 3000)],
+      'dlv-1',
+      7000
+    );
+
+    expect(allocations).to.deep.equal([
+      { packageId: 'a', amount: 5000 },
+      { packageId: 'b', amount: 3000 },
+      { deliveryId: 'dlv-1', amount: 7000 },
+    ]);
+    expect(amount).to.equal(15000);
+  });
+
+  it('үлдэгдэл 0 ачааг алгасаж, зөвхөн хураамжийг үлдээнэ', () => {
+    const { allocations, amount } = buildFullSettlement(
+      [pkg('a', 0), pkg('b', 0)],
+      'dlv-1',
+      7000
+    );
+
+    expect(allocations).to.deep.equal([{ deliveryId: 'dlv-1', amount: 7000 }]);
+    expect(amount).to.equal(7000);
+  });
+
+  it('ачааны жагсаалт хоосон байсан ч хураамж дангаараа хүчинтэй', () => {
+    const { allocations, amount } = buildFullSettlement([], 'dlv-1', 7000);
+
+    expect(allocations).to.deep.equal([{ deliveryId: 'dlv-1', amount: 7000 }]);
+    expect(amount).to.equal(7000);
+  });
+
+  it('нийлбэр (Σ allocations === amount) ЯГ таарна', () => {
+    const { allocations, amount } = buildFullSettlement(
+      [pkg('a', 12345), pkg('b', 6789)],
+      'dlv-1',
+      7000
+    );
+
+    expect(allocations.reduce((s, a) => s + a.amount, 0)).to.equal(amount);
+  });
+
+  it('хураамж 0 буюу сөрөг бол алдаа', () => {
+    expect(() => buildFullSettlement([pkg('a', 1000)], 'dlv-1', 0)).to.throw(
+      AllocationError,
+      /0-ээс их/
+    );
+    expect(() => buildFullSettlement([pkg('a', 1000)], 'dlv-1', -7000)).to.throw(AllocationError);
+  });
+
+  it('бутархай хураамжийг хүлээж авахгүй', () => {
+    expect(() => buildFullSettlement([pkg('a', 1000)], 'dlv-1', 7000.5)).to.throw(
+      AllocationError,
+      /бүхэл тоо/
+    );
+  });
+
+  it('ачааны үлдэгдэл бутархай/сөрөг бол алдаа', () => {
+    expect(() => buildFullSettlement([pkg('a', 100.5)], 'dlv-1', 7000)).to.throw(
+      AllocationError,
+      /бүхэл тоо/
+    );
+    expect(() => buildFullSettlement([pkg('a', -100)], 'dlv-1', 7000)).to.throw(AllocationError);
   });
 });
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, X, RefreshCw, Ban, Plus } from 'lucide-vue-next'
+import { Search, X, RefreshCw, Ban, Plus, Check } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { usePayments, type Payment, type PaymentSummary } from '~/composables/usePayments'
 import type { Pagination } from '~/composables/usePackages'
@@ -114,7 +114,11 @@ function resetFilters() {
 
 // ── Харуулах туслахууд ───────────────────────────────────────────────────
 
-/** Төлбөр ямар ачаанд орсныг харуулна (§2.2 шаардлага) */
+/**
+ * Төлбөр ямар ачаанд орсныг харуулна (§2.2 шаардлага). Roadmap 5.8-ийн
+ * хүргэлтийн хураамжийн `deliveryId` элементийг ДУГААРААР ялгаж харуулна —
+ * эс тэгвээс "энэ хураамж аль хүргэлтэд холбогдох вэ" гэдэг алдагдана.
+ */
 function trackingNumbers(payment: Payment) {
   const numbers = payment.allocations
     .map(a =>
@@ -122,9 +126,18 @@ function trackingNumbers(payment: Payment) {
     )
     .filter((n): n is string => Boolean(n))
 
-  if (numbers.length === 0) return '—'
-  if (numbers.length <= 2) return numbers.join(', ')
-  return `${numbers.slice(0, 2).join(', ')} +${numbers.length - 2}`
+  const deliveries = payment.allocations
+    .map(a =>
+      typeof a.deliveryId === 'object' && a.deliveryId !== null
+        ? `Хүргэлт ${a.deliveryId.deliveryNumber}`
+        : null
+    )
+    .filter((n): n is string => Boolean(n))
+
+  const parts = [...numbers, ...deliveries]
+  if (parts.length === 0) return '—'
+  if (parts.length <= 2) return parts.join(', ')
+  return `${parts.slice(0, 2).join(', ')} +${parts.length - 2}`
 }
 
 function receivedByName(payment: Payment) {
@@ -173,6 +186,24 @@ async function applyVoid() {
     toast.error('Хүчингүй болсонгүй', { description: e.message, duration: 9000 })
   } finally {
     busy.value = false
+  }
+}
+
+// ── Roadmap 5.8 — харилцагчийн банкны шилжүүлгийг баталгаажуулах ─────────
+const confirmingId = ref<string | null>(null)
+
+async function confirmPayment(payment: Payment) {
+  confirmingId.value = payment.id
+  try {
+    await api.confirmPending(payment.id)
+    toast.success('Төлбөр баталгаажлаа', {
+      description: 'Ачааны үлдэгдэл/хүргэлтийн хураамж шинэчлэгдлээ',
+    })
+    await load()
+  } catch (e: any) {
+    toast.error('Баталгаажсангүй', { description: e.message, duration: 9000 })
+  } finally {
+    confirmingId.value = null
   }
 }
 </script>
@@ -277,8 +308,29 @@ async function applyVoid() {
       </template>
 
       <template #cell-actions="{ row }">
+        <!-- Roadmap 5.8 — харилцагчийн банкны шилжүүлгийг баталгаажуулах/татгалзах -->
+        <div v-if="row.status === 'pending'" class="flex items-center gap-1">
+          <UiBtn
+            size="sm"
+            variant="ghost"
+            :icon="Check"
+            :loading="confirmingId === row.id"
+            @click.stop="confirmPayment(row)"
+          >
+            Баталгаажуулах
+          </UiBtn>
+          <UiBtn
+            v-if="isManagement"
+            size="sm"
+            variant="ghost"
+            :icon="Ban"
+            @click.stop="openVoid(row)"
+          >
+            Татгалзах
+          </UiBtn>
+        </div>
         <UiBtn
-          v-if="isManagement && row.status === 'completed'"
+          v-else-if="isManagement && row.status === 'completed'"
           size="sm"
           variant="ghost"
           :icon="Ban"

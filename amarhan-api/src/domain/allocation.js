@@ -179,6 +179,48 @@ function assertSumMatches(allocations, amount) {
   }
 }
 
+/**
+ * Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалахад ачаануудынхаа ҮЛДЭГДЛИЙГ
+ * БҮРЭН барагдуулж, дээр нь хүргэлтийн хураамжийг нэмж ТӨЛӨХ бүтэц бодно.
+ *
+ * `allocateProportionally`-аас ЯЛГААТАЙ: энд ХЭСЭГЧИЛСЭН төлбөр биш —
+ * харилцагч сонгосон ачаа бүрийнхээ ҮЛДЭГДЛИЙГ БҮТНЭЭР төлнө (дугуйруулах
+ * үлдэгдэл гарах эрсдэлгүй, `balance`-аа шууд хуулна). Хураамж нь
+ * `deliveryId`-тай, ямар ч ачаанд ХАМААРАЛГҮЙ тусдаа зорилт (`payment.model.js`).
+ *
+ * @param {Array<{ packageId: any, balance: number }>} packages
+ * @param {any} deliveryId
+ * @param {number} feeAmount — ₮, эерэг бүхэл тоо
+ * @returns {{ allocations: Array<{packageId?: any, deliveryId?: any, amount: number}>, amount: number }}
+ * @throws {AllocationError}
+ */
+function buildFullSettlement(packages, deliveryId, feeAmount) {
+  if (!Array.isArray(packages)) {
+    throw new AllocationError('Ачааны жагсаалт заавал байх ёстой');
+  }
+  assertMoney(feeAmount, 'Хүргэлтийн хураамж');
+  if (feeAmount <= 0) {
+    throw new AllocationError('Хүргэлтийн хураамж 0-ээс их байх ёстой');
+  }
+
+  const allocations = [];
+  for (const pkg of packages) {
+    if (!Number.isInteger(pkg?.balance) || pkg.balance < 0) {
+      throw new AllocationError(`Ачааны үлдэгдэл бүхэл тоо (₮) байх ёстой: "${pkg?.balance}"`);
+    }
+    if (pkg.balance > 0) {
+      allocations.push({ packageId: pkg.packageId, amount: pkg.balance });
+    }
+  }
+
+  allocations.push({ deliveryId, amount: feeAmount });
+
+  const amount = allocations.reduce((sum, a) => sum + a.amount, 0);
+  assertSumMatches(allocations, amount);
+
+  return { allocations, amount };
+}
+
 function assertMoney(value, label) {
   if (!Number.isInteger(value)) {
     throw new AllocationError(`${label} бүхэл тоо (₮) байх ёстой: "${value}"`);
@@ -192,5 +234,6 @@ module.exports = {
   AllocationError,
   allocateProportionally,
   validateManualAllocations,
+  buildFullSettlement,
   assertSumMatches,
 };

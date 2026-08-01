@@ -13,7 +13,9 @@ export type PaymentRecordStatus = 'pending' | 'completed' | 'voided'
 export type InvoiceStatusValue = 'open' | 'paid' | 'cancelled'
 
 export interface Allocation {
-  packageId: string | { id: string; trackingNumber: string; finalPrice: number }
+  packageId?: string | { id: string; trackingNumber: string; finalPrice: number } | null
+  /** Roadmap 5.8 — харилцагчийн хүргэлтийн хураамжийн зорилт (packageId-ийн оронд) */
+  deliveryId?: string | { id: string; deliveryNumber: string } | null
   amount: number
 }
 
@@ -147,6 +149,16 @@ export function usePayments() {
       $axios.put(`${API}/${id}/void`, { reason })
     )
 
+  /**
+   * Roadmap 5.8 — харилцагчийн `pending` (банкны шилжүүлэг) төлбөрийг ажилтан
+   * гүйлгээ бодитоор ирснийг харсны дараа баталгаажуулна. Татгалзахад ЯГ ТЭР
+   * `voidPayment`-г дахин ашиглана — тусдаа "reject" endpoint байхгүй.
+   */
+  const confirmPending = (id: string) =>
+    call<{ payment: Payment; packages: CargoPackage[]; delivery: any }>(() =>
+      $axios.put(`${API}/${id}/confirm`)
+    )
+
   // ── Нэгтгэсэн нэхэмжлэх (§2.3) ─────────────────────────────────────────
 
   async function listInvoices(filters: Record<string, any> = {}) {
@@ -200,6 +212,7 @@ export function usePayments() {
     forPackage,
     create,
     voidPayment,
+    confirmPending,
     listInvoices,
     createInvoice,
     invoiceDetail,

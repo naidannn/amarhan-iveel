@@ -541,7 +541,7 @@ const printOpen = ref(false)
               <div>
                 <dt class="text-body-sm text-content-secondary">Харилцагч</dt>
                 <dd class="tabular mt-0.5 text-body font-medium text-content">
-                  {{ customer?.phone ?? pkg.customerPhone }}
+                  {{ customer?.phone ?? pkg.customerPhone ?? 'Холбоогүй' }}
                   <span v-if="customer?.name" class="font-normal text-content-secondary">
                     · {{ customer.name }}
                   </span>

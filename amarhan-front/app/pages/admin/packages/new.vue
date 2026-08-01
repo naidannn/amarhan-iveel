@@ -13,6 +13,7 @@ import {
   PenLine,
   PackageCheck,
   Globe2,
+  X,
 } from 'lucide-vue-next'
 import { useDebounceFn, onKeyStroke } from '@vueuse/core'
 import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
@@ -61,7 +62,6 @@ type PriceMode = 'measured' | 'manual'
 function blankForm() {
   return {
     trackingNumber: '',
-    phone: '',
     customerName: '',
     quantity: 1 as number | null,
     weightKg: null as number | null,
@@ -91,6 +91,11 @@ const sticky = reactive({
   // BR-45 — ажилтан ихэвчлэн нэг зэрэг олон ижил төрлийн ачаа бүртгэдэг тул
   // залгамжилна (жишээ: тэс дараалан "Эрээнд байгаа" олон дугаар оруулах үе)
   registrationStatus: 'registered' as RegistrationStatus,
+  // Нэг харилцагч (нэг утасны дугаар) ихэвчлэн дараалсан хэд хэдэн ачаа
+  // илгээдэг тул залгамжилна — ажилтан бүртгэл бүрд утсаа дахин бичихгүй.
+  // `customerName` ЗАЛГАМЖЛАХГҮЙ (blankForm-д үлдэнэ): нэг утсаар өрхийн
+  // өөр өөр хүний ачаа ирж болно (жишээ: гэрийнхний ерөнхий дугаар).
+  phone: '',
 })
 
 const cargoTypeOptions = ref<Array<{ value: string; label: string }>>([])
@@ -172,6 +177,43 @@ const overrideDelta = computed(() => {
   return { diff, percent: Math.round(percent * 10) / 10 }
 })
 
+/**
+ * BR-45/BR-46 — дугаар нь УРЬДЧИЛСАН бичлэгтэй (харилцагч өөрөө мэдүүлсэн
+ * `expected`, эсвэл ажилтны `in_erlian`) байвал утас/нэр аль хэдийн мэдэгдэж
+ * байгаа тул ажилтнаар ДАХИН бичүүлэхгүй — дугаар бичихэд автоматаар олж
+ * бөглөнө. Backend `create()`-д ЯГ ТЭР бичлэг дээр гүйцээгдэнэ (шингээнэ).
+ */
+const preArrivalMatch = ref<{ phone: string; customerName: string | null } | null>(null)
+
+const lookupPreArrival = useDebounceFn(async () => {
+  const tracking = form.trackingNumber.trim()
+  if (tracking.length < 4) return
+
+  try {
+    const pkg = await api.getByTracking(tracking)
+    if (pkg.status !== 'expected' && pkg.status !== 'in_erlian') return
+    // Хайлт эргэж ирэхэд ажилтан дугаараа аль хэдийн өөрчилсөн байж болно
+    if (form.trackingNumber.trim() !== tracking) return
+
+    const customer = typeof pkg.customerId === 'object' ? pkg.customerId : null
+    if (pkg.customerPhone) {
+      preArrivalMatch.value = { phone: pkg.customerPhone, customerName: customer?.name ?? null }
+      if (!sticky.phone.trim()) sticky.phone = pkg.customerPhone
+    }
+    if (!form.customerName.trim() && customer?.name) form.customerName = customer.name
+  } catch {
+    // 404 — шинэ дугаар, хэвийн явдал тул алдаа харуулахгүй
+  }
+}, 350)
+
+watch(
+  () => form.trackingNumber,
+  value => {
+    if (!value.trim()) preArrivalMatch.value = null
+    lookupPreArrival()
+  }
+)
+
 // ── Давхардлын урсгал (§1.3) ─────────────────────────────────────────────
 const duplicate = ref<{
   packageId: string
@@ -179,7 +221,7 @@ const duplicate = ref<{
   registeredAt: string
   registeredBy: string | null
   status: string
-  customerPhone: string
+  customerPhone: string | null
 } | null>(null)
 const duplicateReason = ref('')
 
@@ -270,7 +312,7 @@ function setMode(mode: PriceMode) {
 function buildPayload(extra: Record<string, any> = {}) {
   const base: Record<string, any> = {
     trackingNumber: form.trackingNumber.trim(),
-    phone: form.phone.trim(),
+    ...(sticky.phone.trim() ? { phone: sticky.phone.trim() } : {}),
     ...(form.customerName.trim() ? { customerName: form.customerName.trim() } : {}),
     quantity: form.quantity,
     ...(form.note.trim() ? { note: form.note.trim() } : {}),
@@ -319,10 +361,7 @@ async function submit(extra: Record<string, any> = {}) {
     trackingInput.value?.focus()
     return
   }
-  if (!form.phone.trim()) {
-    toast.error('Харилцагчийн утсыг оруулна уу')
-    return
-  }
+  // Утас заавал биш (BR-45) — Эрээнд зөвхөн ачааны дугаараар мэдэгдэж болно
   // BR-45 — "Эрээнд байгаа" үед жин/үнэ/байршил ХАРААХАН мэдэгдэхгүй тул
   // доорх шалгалтууд ХАМААРАХГҮЙ
   if (!isErlian.value) {
@@ -418,6 +457,7 @@ function resetForNext() {
   Object.assign(form, blankForm())
   quote.value = null
   quoteError.value = null
+  preArrivalMatch.value = null
 
   nextTick(() => {
     trackingInput.value?.focus()
@@ -427,6 +467,13 @@ function resetForNext() {
 function clearLocation() {
   sticky.locationCode = ''
   toast.info('Байршил цэвэрлэгдлээ')
+}
+
+function clearPhone() {
+  sticky.phone = ''
+  nextTick(() => {
+    trackingInput.value?.focus()
+  })
 }
 
 onKeyStroke('Escape', () => {
@@ -462,21 +509,41 @@ onKeyStroke('Escape', () => {
             />
           </UiField>
 
-          <UiField label="Харилцагчийн утас" required for="phone">
-            <UiTextInput
-              id="phone"
-              v-model="form.phone"
-              type="tel"
-              :icon="Phone"
-              placeholder="99112233"
-              tabular
-            />
+          <UiField
+            label="Харилцагчийн утас"
+            for="phone"
+            hint="Заавал биш — Эрээнд зөвхөн дугаараар мэдэгдэж болно. Оруулбал дараагийн бүртгэлд хадгалагдана"
+          >
+            <div class="flex gap-2">
+              <UiTextInput
+                id="phone"
+                v-model="sticky.phone"
+                type="tel"
+                :icon="Phone"
+                placeholder="99112233"
+                tabular
+                class="flex-1"
+              />
+              <UiBtn
+                v-if="sticky.phone"
+                variant="ghost"
+                :icon="X"
+                aria-label="Утас цэвэрлэх"
+                @click="clearPhone"
+              />
+            </div>
           </UiField>
         </div>
 
         <UiField label="Харилцагчийн нэр" for="customer-name" hint="Шинэ харилцагч бол — бүртгэлтэй бол автоматаар холбогдоно">
           <UiTextInput id="customer-name" v-model="form.customerName" placeholder="Сонголтоор" />
         </UiField>
+
+        <p v-if="preArrivalMatch" class="flex items-center gap-1.5 text-body-sm text-primary">
+          <Check :size="13" class="shrink-0" />
+          Урьдчилсан бүртгэлтэй харилцагч олдож, утас{{ preArrivalMatch.customerName ? '/нэр' : '' }}
+          автоматаар бөглөгдлөө
+        </p>
 
         <!-- ── АЧААНЫ ТӨЛӨВ (BR-45) ──────────────────────────────────────── -->
         <div>
@@ -779,7 +846,7 @@ onKeyStroke('Escape', () => {
                     {{ pkg.trackingNumber }}
                   </p>
                   <p class="tabular truncate text-body-sm text-content-secondary">
-                    {{ pkg.customerPhone }} ·
+                    {{ pkg.customerPhone || 'Холбоогүй' }} ·
                     {{ pkg.status === 'in_erlian' ? 'Эрээнд байгаа' : pkg.locationCode }}
                   </p>
                 </div>
@@ -814,7 +881,7 @@ onKeyStroke('Escape', () => {
               -аар бүртгэгдсэн
             </p>
             <p class="tabular mt-0.5 text-content-secondary">
-              Харилцагч: {{ duplicate.customerPhone }}
+              Харилцагч: {{ duplicate.customerPhone || 'Холбоогүй' }}
             </p>
           </div>
         </div>

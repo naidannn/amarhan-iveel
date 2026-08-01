@@ -56,6 +56,8 @@ interface BulkRow {
   weightKg: number | null
   price: number | null
   error: string | null
+  /** BR-45/BR-46 — дугаар урьдчилсан бичлэгтэй тул утас/нэр автоматаар олдсон */
+  prefilled: boolean
 }
 
 function blankRow(): BulkRow {
@@ -68,6 +70,7 @@ function blankRow(): BulkRow {
     weightKg: null,
     price: null,
     error: null,
+    prefilled: false,
   }
 }
 
@@ -183,6 +186,56 @@ function handleTrackingEnter(index: number) {
   trackingRefs.value[index + 1]?.focus()
 }
 
+/**
+ * BR-45/BR-46 — мөрийн дугаар УРЬДЧИЛСАН бичлэгтэй (`expected`/`in_erlian`)
+ * тохирвол утас/нэрийг ажилтнаар ДАХИН бичүүлэхгүй, автоматаар олж бөглөнө.
+ * Мөр тус бүрдээ тусдаа debounce хийхийн тулд `row.key`-ээр timer хадгална —
+ * нэг debounce функц бүх мөрөнд хуваалцвал зэрэг бичиж буй мөрүүдийн хайлт
+ * бие биенээ дарж алгасна.
+ */
+const lookupTimers = new Map<number, ReturnType<typeof setTimeout>>()
+const lookedUpTracking = new Map<number, string>()
+
+function scheduleLookup(row: BulkRow) {
+  const tracking = row.trackingNumber.trim()
+
+  const timer = lookupTimers.get(row.key)
+  if (timer) clearTimeout(timer)
+
+  if (tracking.length < 4 || tracking === lookedUpTracking.get(row.key)) return
+
+  lookupTimers.set(
+    row.key,
+    setTimeout(async () => {
+      lookedUpTracking.set(row.key, tracking)
+      try {
+        const pkg = await api.getByTracking(tracking)
+        if (pkg.status !== 'expected' && pkg.status !== 'in_erlian') return
+        // Хайлт эргэж ирэхэд ажилтан дугаараа аль хэдийн өөрчилсөн байж болно
+        if (row.trackingNumber.trim() !== tracking) return
+
+        const customer = typeof pkg.customerId === 'object' ? pkg.customerId : null
+        if (!row.phone.trim() && pkg.customerPhone) row.phone = pkg.customerPhone
+        if (!row.customerName.trim() && customer?.name) row.customerName = customer.name
+        row.prefilled = true
+      } catch {
+        // 404 — шинэ дугаар, хэвийн явдал тул алдаа харуулахгүй
+      }
+    }, 350)
+  )
+}
+
+watch(
+  rows,
+  newRows => {
+    for (const row of newRows) {
+      if (!row.trackingNumber.trim()) row.prefilled = false
+      scheduleLookup(row)
+    }
+  },
+  { deep: true }
+)
+
 function isRowBlank(row: BulkRow) {
   return !row.trackingNumber.trim() && !row.phone.trim()
 }
@@ -190,7 +243,7 @@ function isRowBlank(row: BulkRow) {
 function buildRowPayload(row: BulkRow): Record<string, any> {
   const base: Record<string, any> = {
     trackingNumber: row.trackingNumber.trim(),
-    phone: row.phone.trim(),
+    ...(row.phone.trim() ? { phone: row.phone.trim() } : {}),
     ...(row.customerName.trim() ? { customerName: row.customerName.trim() } : {}),
   }
 
@@ -237,7 +290,6 @@ function validateRows(): Array<{ row: BulkRow; body: Record<string, any> }> | nu
   for (const row of active) {
     row.error = null
     if (!row.trackingNumber.trim()) row.error = 'Дугаар оруулна уу'
-    else if (!row.phone.trim()) row.error = 'Утас оруулна уу'
     else if (!isErlian.value && isMeasured.value && row.weightKg == null) row.error = 'Жин оруулна уу'
     else if (!isErlian.value && !isMeasured.value && row.price == null) row.error = 'Үнэ оруулна уу'
 
@@ -496,6 +548,14 @@ async function submitAll() {
                       <p class="flex items-center gap-1.5 text-body-sm text-error">
                         <AlertTriangle :size="13" class="shrink-0" />
                         {{ row.error }}
+                      </p>
+                    </td>
+                  </tr>
+                  <tr v-else-if="row.prefilled" class="border-b border-surface-border/60">
+                    <td :colspan="columnCount" class="pb-1.5 pt-0.5">
+                      <p class="flex items-center gap-1.5 text-body-sm text-primary">
+                        <Check :size="13" class="shrink-0" />
+                        Урьдчилсан бүртгэлтэй харилцагч олдож автоматаар бөглөгдлөө
                       </p>
                     </td>
                   </tr>

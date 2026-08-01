@@ -59,10 +59,17 @@ const paymentSchema = new Schema(
      * Хуваарилалтыг `src/domain/allocation.js` бодож, тогтмолыг шалгана.
      * Доорх `pre('validate')` нь DB руу орох замд ДАХИН шалгана — service-ийн
      * шинэ зам нэмэгдэхэд тогтмолыг тойрч гарах боломжгүй байх ёстой.
+     *
+     * Элемент бүр ЯГ НЭГ зорилтод чиглэнэ: `packageId` (ачаа) ЭСВЭЛ
+     * `deliveryId` (roadmap 5.8 — харилцагчийн хүргэлтийн хураамж), хоёуланг
+     * зэрэг биш. `deliveryId`-той элементийг `payment.service.js`-ийн
+     * `recalculateDelivery` уншиж `deliveries.feePaidAmount`-д кэшлэнэ
+     * (BR-14-ийн ижил зарчим: энэ коллекц эх сурвалж, тэнд кэш).
      */
     allocations: [
       {
-        packageId: { type: Schema.Types.ObjectId, ref: 'Package', required: true },
+        packageId: { type: Schema.Types.ObjectId, ref: 'Package', default: null },
+        deliveryId: { type: Schema.Types.ObjectId, ref: 'Delivery', default: null },
         amount: {
           type: Number,
           required: true,
@@ -124,6 +131,14 @@ paymentSchema.pre('validate', function validateAllocations(next) {
     return next(new Error('Төлбөрт ядаж нэг ачааны хуваарилалт байх шаардлагатай'));
   }
 
+  for (const a of this.allocations) {
+    if (Boolean(a?.packageId) === Boolean(a?.deliveryId)) {
+      return next(
+        new Error('Хуваарилалтын элемент бүр ЯГ НЭГ ачаа ЭСВЭЛ хүргэлт заасан байх ёстой')
+      );
+    }
+  }
+
   const sum = this.allocations.reduce((acc, a) => acc + (a?.amount ?? 0), 0);
   if (sum !== this.amount) {
     return next(
@@ -133,9 +148,9 @@ paymentSchema.pre('validate', function validateAllocations(next) {
     );
   }
 
-  const ids = this.allocations.map(a => String(a.packageId));
+  const ids = this.allocations.map(a => (a.packageId ? `p:${a.packageId}` : `d:${a.deliveryId}`));
   if (new Set(ids).size !== ids.length) {
-    return next(new Error('Нэг ачаа хуваарилалтад хоёр удаа орсон байна'));
+    return next(new Error('Нэг ачаа/хүргэлт хуваарилалтад хоёр удаа орсон байна'));
   }
 
   return next();
@@ -148,6 +163,8 @@ paymentSchema.pre('validate', function validateAllocations(next) {
  * дэлгэрэнгүй хуудас, мөн `paidAmount`-ыг эргэн тооцоолох cron).
  */
 paymentSchema.index({ 'allocations.packageId': 1 });
+// Roadmap 5.8 — тухайн хүргэлтэд холбогдох (pending/completed) төлбөрийг олоход
+paymentSchema.index({ 'allocations.deliveryId': 1 });
 paymentSchema.index({ customerId: 1, createdAt: -1 });
 paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ method: 1, createdAt: -1 });

@@ -12,13 +12,17 @@ import {
   Pencil,
   MapPin,
   User,
+  Landmark,
+  Check,
 } from 'lucide-vue-next'
 import {
   useDeliveries,
   DELIVERY_ERROR_CODE,
   type Delivery,
   type UnpaidPackage,
+  type DeliveryFeePayment,
 } from '~/composables/useDeliveries'
+import { usePayments } from '~/composables/usePayments'
 import type { DeliveryStatus } from '~/composables/useStatus'
 
 /**
@@ -38,6 +42,7 @@ definePageMeta({ layout: 'admin', middleware: 'auth' })
 
 const route = useRoute()
 const api = useDeliveries()
+const payments = usePayments()
 const toast = useToast()
 const auth = useAuthStore()
 const deliveryStatus = useDeliveryStatus()
@@ -48,6 +53,10 @@ const delivery = ref<Delivery | null>(null)
 const auditLogs = ref<any[]>([])
 const unpaidPackages = ref<UnpaidPackage[]>([])
 const unpaidTotal = ref(0)
+// Roadmap 5.8 — харилцагчийн захиалсан хүргэлтийн хураамж
+const unpaidFee = ref(0)
+const feePayments = ref<DeliveryFeePayment[]>([])
+const confirmingPaymentId = ref<string | null>(null)
 const allowedTransitions = ref<DeliveryStatus[]>([])
 const loading = ref(true)
 const busy = ref(false)
@@ -66,6 +75,8 @@ async function load() {
     auditLogs.value = result.auditLogs ?? []
     unpaidPackages.value = result.unpaidPackages ?? []
     unpaidTotal.value = result.unpaidTotal ?? 0
+    unpaidFee.value = result.unpaidFee ?? 0
+    feePayments.value = result.feePayments ?? []
     allowedTransitions.value = result.allowedTransitions ?? []
   } catch (e: any) {
     toast.error('Хүргэлт ачаалагдсангүй', { description: e.message })
@@ -108,9 +119,13 @@ const ACTION_META: Record<
   returned: { label: 'Буцаагдсан', icon: Undo2, variant: 'secondary' },
 }
 
-/** §5.2 — гаргах товч ЗӨВХӨН төлбөр бүрэн үед идэвхтэй */
+/**
+ * §5.2 — гаргах товч ЗӨВХӨН төлбөр бүрэн үед идэвхтэй.
+ * Roadmap 5.8 — харилцагчийн захиалсан хүргэлтийн хураамж дутуу байсан ч мөн
+ * блоклоно (`unpaidFee`, зөвхөн тухайн төрлийн хүргэлтэд 0-ээс их).
+ */
 function isBlocked(status: DeliveryStatus) {
-  return status === 'dispatched' && unpaidTotal.value > 0
+  return status === 'dispatched' && (unpaidTotal.value > 0 || unpaidFee.value > 0)
 }
 
 const AUDIT_LABELS: Record<string, string> = {
@@ -162,7 +177,59 @@ async function changeStatus(next: DeliveryStatus) {
       await load()
       return
     }
+    // Roadmap 5.8 — хүргэлтийн хураамжийн хаалт
+    if (e.code === DELIVERY_ERROR_CODE.UNPAID_DELIVERY_FEE) {
+      toast.error(e.message, {
+        description: 'Харилцагчийн шилжүүлгийг доор баталгаажуулсны дараа хүргэлтэнд гарна.',
+        duration: 10000,
+      })
+      await load()
+      return
+    }
     toast.error('Төлөв өөрчлөгдсөнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
+// ── Roadmap 5.8 — хүргэлтийн хураамжийн pending төлбөр ──────────────────
+
+async function confirmFeePayment(payment: DeliveryFeePayment) {
+  confirmingPaymentId.value = payment.id
+  try {
+    await payments.confirmPending(payment.id)
+    toast.success('Гүйлгээ баталгаажлаа', { description: 'Хураамж, ачааны үлдэгдэл шинэчлэгдлээ' })
+    await load()
+  } catch (e: any) {
+    toast.error('Баталгаажсангүй', { description: e.message, duration: 9000 })
+  } finally {
+    confirmingPaymentId.value = null
+  }
+}
+
+const rejectOpen = ref(false)
+const rejectTarget = ref<DeliveryFeePayment | null>(null)
+const rejectReason = ref('')
+
+function openReject(payment: DeliveryFeePayment) {
+  rejectTarget.value = payment
+  rejectReason.value = ''
+  rejectOpen.value = true
+}
+
+async function applyReject() {
+  if (!rejectTarget.value || rejectReason.value.trim().length < 3) {
+    toast.error('Татгалзах шалтгааныг бичнэ үү')
+    return
+  }
+  busy.value = true
+  try {
+    await payments.voidPayment(rejectTarget.value.id, rejectReason.value.trim())
+    toast.success('Хүсэлт татгалзагдлаа')
+    rejectOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Татгалзсангүй', { description: e.message, duration: 9000 })
   } finally {
     busy.value = false
   }
@@ -309,6 +376,60 @@ const printOpen = ref(false)
           </div>
         </div>
 
+        <!--
+          Roadmap 5.8 — харилцагчийн ӨӨРИЙН захиалсан хүргэлтийн хураамж.
+          Ажилтны гар бичилтийн хуучин хүргэлтэд `feePayments` үргэлж хоосон.
+        -->
+        <div v-if="feePayments.length" class="card space-y-3">
+          <div class="flex items-center gap-2">
+            <Landmark :size="18" class="text-content-secondary" />
+            <p class="text-body font-semibold text-content">Хүргэлтийн хураамжийн төлбөр</p>
+          </div>
+
+          <p v-if="unpaidFee > 0" class="text-body-sm font-semibold text-error">
+            Хураамж төлөгдөөгүй: {{ formatCurrency(unpaidFee) }}
+          </p>
+
+          <ul class="space-y-2">
+            <li
+              v-for="p in feePayments"
+              :key="p.id"
+              class="flex flex-wrap items-center justify-between gap-2 rounded-card border border-surface-border px-3 py-2.5"
+            >
+              <div>
+                <p class="tabular text-body font-medium text-content">
+                  {{ formatCurrency(p.amount) }}
+                </p>
+                <p class="text-body-sm text-content-secondary">
+                  {{ formatDateTime(p.createdAt) }}
+                </p>
+              </div>
+
+              <UiStatusBadge v-if="p.status !== 'pending'" :status="p.status" kind="record" size="sm" />
+
+              <div v-else class="flex items-center gap-1.5">
+                <UiBtn
+                  size="sm"
+                  :icon="Check"
+                  :loading="confirmingPaymentId === p.id"
+                  @click="confirmFeePayment(p)"
+                >
+                  Баталгаажуулах
+                </UiBtn>
+                <UiBtn
+                  v-if="isManagement"
+                  size="sm"
+                  variant="ghost"
+                  :icon="Ban"
+                  @click="openReject(p)"
+                >
+                  Татгалзах
+                </UiBtn>
+              </div>
+            </li>
+          </ul>
+        </div>
+
         <!-- Багц доторх ачаа -->
         <div class="card">
           <p class="mb-3 text-body font-semibold text-content">Багц доторх ачаа</p>
@@ -426,8 +547,11 @@ const printOpen = ref(false)
               {{ ACTION_META[next]?.label ?? deliveryStatus.label(next) }}
             </UiBtn>
 
-            <p v-if="isBlocked('dispatched')" class="text-body-sm text-error">
+            <p v-if="unpaidTotal > 0 && isBlocked('dispatched')" class="text-body-sm text-error">
               Төлбөр дутуу байна: {{ formatCurrency(unpaidTotal) }}
+            </p>
+            <p v-if="unpaidFee > 0 && isBlocked('dispatched')" class="text-body-sm text-error">
+              Хүргэлтийн хураамж төлөгдөөгүй: {{ formatCurrency(unpaidFee) }}
             </p>
 
             <UiBtn
@@ -520,6 +644,26 @@ const printOpen = ref(false)
       <template #footer>
         <UiBtn variant="secondary" @click="cancelOpen = false">Болих</UiBtn>
         <UiBtn variant="danger" :loading="busy" @click="applyCancel">Цуцлах</UiBtn>
+      </template>
+    </UiModal>
+
+    <!-- Roadmap 5.8 — хураамжийн pending төлбөрөөс татгалзах -->
+    <UiModal v-model="rejectOpen" title="Гүйлгээнээс татгалзах" size="sm" persistent>
+      <div class="space-y-4">
+        <p class="text-body text-content-secondary">
+          <span class="tabular font-semibold text-content">
+            {{ rejectTarget ? formatCurrency(rejectTarget.amount) : '' }}
+          </span>
+          дүнтэй хүлээгдэж буй гүйлгээ хүчингүй болно. Ашиглана уу, жишээ нь мөнгө хэзээ ч ирээгүй
+          бол.
+        </p>
+        <UiField label="Шалтгаан" required hint="Audit Log-д бичигдэнэ">
+          <UiTextArea v-model="rejectReason" :rows="2" placeholder="Жишээ: гүйлгээ ирээгүй" />
+        </UiField>
+      </div>
+      <template #footer>
+        <UiBtn variant="secondary" @click="rejectOpen = false">Болих</UiBtn>
+        <UiBtn variant="danger" :loading="busy" @click="applyReject">Татгалзах</UiBtn>
       </template>
     </UiModal>
 

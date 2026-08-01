@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Package, Wallet, PackageCheck, Truck, ArrowRight } from 'lucide-vue-next'
+import { Package, Wallet, PackageCheck, Truck, ArrowRight, Plus } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /** Харилцагчийн хяналтын самбар — introduction.md §3 */
@@ -55,9 +55,15 @@ useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
 
 <template>
   <div class="space-y-6">
-    <div>
-      <h1 class="text-h1 font-bold text-content">Сайн байна уу, {{ customer.displayName }}</h1>
-      <p class="mt-1 text-body text-content-secondary">Ачаа, төлбөрийнхөө байдлыг эндээс харна</p>
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 class="text-h1 font-bold text-content">Сайн байна уу, {{ customer.displayName }}</h1>
+        <p class="mt-1 text-body text-content-secondary">Ачаа, төлбөрийнхөө байдлыг эндээс харна</p>
+      </div>
+      <div class="flex gap-2">
+        <UiBtn variant="secondary" :icon="Truck" to="/my/deliveries/new">Хүргэлт захиалах</UiBtn>
+        <UiBtn :icon="Plus" to="/my/packages?register=1">Ачаа бүртгүүлэх</UiBtn>
+      </div>
     </div>
 
     <!-- Төлөх үлдэгдэл -->

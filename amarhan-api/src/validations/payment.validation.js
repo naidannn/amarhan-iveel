@@ -112,6 +112,11 @@ module.exports = {
     body: Joi.object({ reason: reason.required() }),
   },
 
+  // Roadmap 5.8 — харилцагчийн банкны шилжүүлэг бодитоор ирснийг баталгаажуулна
+  confirm: {
+    params: Joi.object({ paymentId: objectId.required() }),
+  },
+
   // ── Нэхэмжлэх (§2.3) ──────────────────────────────────────────────────
   listInvoices: {
     query: Joi.object({

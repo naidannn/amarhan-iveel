@@ -518,6 +518,244 @@ describe('Харилцагчийн вэб (§3)', () => {
     });
   });
 
+  // ── Roadmap 5.8 — харилцагч хүргэлт захиалах ─────────────────────────────
+
+  describe('Roadmap 5.8 — харилцагч хүргэлт захиалах (BR-21c)', () => {
+    const DELIVERIES = '/api/v1/deliveries';
+    const PAYMENTS = '/api/v1/payments';
+
+    function bookDelivery(token, body) {
+      return chai.request(app).post(`${CUSTOMER}/deliveries`).set(asCustomer(token)).send(body);
+    }
+
+    it('захиалж болох ачаа, тооцоолсон хураамж, дансны мэдээллийг буцаана', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await chai
+        .request(app)
+        .get(`${CUSTOMER}/deliveries/deliverable`)
+        .set(asCustomer(token));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.packages).to.have.lengthOf(1);
+      expect(res.body.data.packages[0].id).to.equal(pkg.id);
+      expect(res.body.data.feeAmount).to.equal(7000);
+      expect(res.body.data.bankAccount).to.be.an('object');
+    });
+
+    it('төлбөртэй ч, төлбөргүй ч бэлэн ачааг сонгож захиалж болно', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await bookDelivery(token, {
+        packageIds: [pkg.id],
+        address: 'ХУД, 3-р хороо, 12-р байр',
+      });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.status).to.equal('created');
+      expect(res.body.data.fee).to.equal(7000);
+      // Нийт дүн = ачааны үлдэгдэл (20000, төлөгдөөгүй) + 7000 хураамж
+      expect(res.body.data.payment.amount).to.equal(27000);
+      expect(res.body.data.payment.method).to.equal('bank');
+      expect(res.body.data.payment.status).to.equal('pending');
+    });
+
+    it('аль хэдийн бүрэн төлөгдсөн ачаанд ЗӨВХӨН хураамж ногдоно', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      await chai
+        .request(app)
+        .post(PAYMENTS)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ amount: 20000, method: 'cash', packageIds: [pkg.id] });
+
+      const { token } = await signUp({ phone: '99112233' });
+      const res = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.payment.amount).to.equal(7000);
+    });
+
+    it('хаяг заагаагүй бол 400', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await bookDelivery(token, { packageIds: [pkg.id], address: '' });
+      expect(res.status).to.equal(400);
+    });
+
+    it('бусдын ачааг сонговол 404 (403 БИШ, дүрэм 14)', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '88001122' });
+
+      const res = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+      expect(res.status).to.equal(404);
+    });
+
+    it('нэвтрэхгүйгээр захиалахгүй', async () => {
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/deliveries`)
+        .send({ packageIds: ['000000000000000000000000'], address: 'ХУД' });
+      expect(res.status).to.equal(401);
+    });
+
+    it('customerId/fee/method зэрэг талбар дамжуулж болохгүй (дүрэм 14)', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await bookDelivery(token, {
+        packageIds: [pkg.id],
+        address: 'ХУД',
+        fee: 1,
+        method: 'qpay',
+      });
+      expect(res.status).to.equal(400);
+    });
+
+    it('аль хэдийн идэвхтэй хүргэлтэд орсон ачааг дахин захиалахгүй (BR-20a)', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+      await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+      const res = await bookDelivery(token, { packageIds: [pkg.id], address: 'БЗД' });
+      expect(res.status).to.equal(409);
+    });
+
+    it('audit-д харилцагчийн үйлдэл болж бичигдэнэ (actorId: null)', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+      await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+      const log = await AuditLog.findOne({ action: AUDIT_ACTION.DELIVERY_SELF_CREATE });
+      expect(log, 'audit бичлэг үүсэх ёстой').to.exist;
+      expect(log.actorId).to.equal(null);
+      expect(log.actorName).to.contain('Харилцагч');
+    });
+
+    describe('Ажилтан баталгаажуулах ба дараагийн урсгал', () => {
+      it('баталгаажуулахаас ӨМНӨ хүргэлт `dispatched` рүү гарахгүй (хураамж дутуу)', async () => {
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        await chai
+          .request(app)
+          .post(PAYMENTS)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ amount: 20000, method: 'cash', packageIds: [pkg.id] });
+
+        const { token } = await signUp({ phone: '99112233' });
+        const booked = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+        const res = await chai
+          .request(app)
+          .put(`${DELIVERIES}/${booked.body.data.id}/status`)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ status: 'dispatched' });
+
+        expect(res.status).to.equal(422);
+        expect(res.body.code).to.equal('UNPAID_DELIVERY_FEE');
+        expect(res.body.message).to.include('Хүргэлтийн хураамж төлөгдөөгүй: 7,000₮');
+      });
+
+      it('ажилтан баталгаажуулмагц ачааны үлдэгдэл БА хураамж хоёул барагдана, дараа нь гарна', async () => {
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+        const booked = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+        expect(booked.body.data.payment.amount).to.equal(27000);
+
+        const confirmed = await chai
+          .request(app)
+          .put(`${PAYMENTS}/${booked.body.data.payment.id}/confirm`)
+          .set('Authorization', `Bearer ${staff.token}`);
+
+        expect(confirmed.status, JSON.stringify(confirmed.body)).to.equal(200);
+        expect(confirmed.body.data.payment.status).to.equal('completed');
+
+        const Package = require('../../src/models/package.model');
+        const Delivery = require('../../src/models/delivery.model');
+        expect((await Package.findById(pkg.id)).balance).to.equal(0);
+        expect((await Delivery.findById(booked.body.data.id)).feePaidAmount).to.equal(7000);
+
+        const dispatched = await chai
+          .request(app)
+          .put(`${DELIVERIES}/${booked.body.data.id}/status`)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ status: 'dispatched' });
+
+        expect(dispatched.status, JSON.stringify(dispatched.body)).to.equal(200);
+      });
+
+      it('ажилтны ХУУЧИН (гар бичилтийн) хүргэлтэд хураамжийн хаалт нөлөөлөхгүй (BR-21b хэвээр)', async () => {
+        const pkg = await registerPackage({ phone: '99998877', price: 5000 });
+        await chai
+          .request(app)
+          .post(PAYMENTS)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ amount: 5000, method: 'cash', packageIds: [pkg.id] });
+
+        const created = await chai
+          .request(app)
+          .post(DELIVERIES)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ packageIds: [pkg.id], address: 'ХУД', fee: 9000 });
+        expect(created.status, JSON.stringify(created.body)).to.equal(201);
+
+        const res = await chai
+          .request(app)
+          .put(`${DELIVERIES}/${created.body.data.id}/status`)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ status: 'dispatched' });
+
+        expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      });
+
+      it('зөвхөн pending төлбөрийг баталгаажуулна — completed-ыг дахин баталгаажуулахгүй', async () => {
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+        const booked = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+        await chai
+          .request(app)
+          .put(`${PAYMENTS}/${booked.body.data.payment.id}/confirm`)
+          .set('Authorization', `Bearer ${staff.token}`);
+
+        const res = await chai
+          .request(app)
+          .put(`${PAYMENTS}/${booked.body.data.payment.id}/confirm`)
+          .set('Authorization', `Bearer ${staff.token}`);
+
+        expect(res.status).to.equal(422);
+        expect(res.body.code).to.equal('PAYMENT_NOT_PENDING');
+      });
+
+      it('татгалзвал (void) хураамж төлөгдөөгүй хэвээр үлдэж, дахин гаргахгүй', async () => {
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+        const booked = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+        const manager = await createUserWithToken({ role: ROLES.MANAGER, branchId: branch._id });
+        const voided = await chai
+          .request(app)
+          .put(`${PAYMENTS}/${booked.body.data.payment.id}/void`)
+          .set('Authorization', `Bearer ${manager.token}`)
+          .send({ reason: 'Гүйлгээ хэзээ ч ирээгүй' });
+
+        expect(voided.status, JSON.stringify(voided.body)).to.equal(200);
+
+        const Delivery = require('../../src/models/delivery.model');
+        expect((await Delivery.findById(booked.body.data.id)).feePaidAmount).to.equal(0);
+
+        const res = await chai
+          .request(app)
+          .put(`${DELIVERIES}/${booked.body.data.id}/status`)
+          .set('Authorization', `Bearer ${staff.token}`)
+          .send({ status: 'dispatched' });
+
+        expect(res.status).to.equal(422);
+      });
+    });
+  });
+
   // ── Профайл ─────────────────────────────────────────────────────────────
 
   describe('Профайл', () => {

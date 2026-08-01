@@ -72,4 +72,11 @@ router.put(
   controller.void
 );
 
+/**
+ * Roadmap 5.8 — харилцагчийн банкны шилжүүлэг (`pending`) бодитоор ирснийг
+ * баталгаажуулна. §9.1-д "Төлбөр бүртгэх" Ажилтанд байгаатай ижил эрхийн
+ * түвшин — Менежментийн тусгай эрх шаардахгүй (татгалзах/`void` л өндөр эрхтэй).
+ */
+router.put('/:paymentId/confirm', validate(validation.confirm), controller.confirm);
+
 module.exports = router;

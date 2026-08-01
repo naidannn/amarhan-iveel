@@ -88,13 +88,36 @@ const deliverySchema = new Schema(
     deliveredAt: { type: Date, default: null },
 
     /**
-     * Хүргэлтийн төлбөр — нээлттэй асуулт Q3 (docs/business-rules.md).
+     * Хүргэлтийн төлбөр — нээлттэй асуулт Q3 (docs/business-rules.md), roadmap
+     * 5.8-аар ХЭСЭГЧИЛЖ шийдэгдсэн.
      *
-     * ЗӨВХӨН МЭДЭЭЛЭЛ. Ачааны `balance`/`paidAmount`-д НӨЛӨӨЛӨХГҮЙ бөгөөд
-     * §5.2-ын хаалтад ОРОХГҮЙ — эс тэгвээс мөнгө хоёр газраас бичигдэж
-     * BR-14 зөрчигдөнө. Тарифжуулах шийдвэр гарвал Phase 8-д тооцоолол нэмнэ.
+     * АЖИЛТНЫ гараар үүсгэсэн хүргэлтэд (`createdBy` тодорхойлогдсон): ХУУЧИН
+     * зарчмаараа ЗӨВХӨН МЭДЭЭЛЭЛ. Ачааны `balance`/`paidAmount`-д НӨЛӨӨЛӨХГҮЙ,
+     * §5.2-ын хаалтад ОРОХГҮЙ (BR-21b).
+     *
+     * ХАРИЛЦАГЧ ӨӨРӨӨ захиалсан хүргэлтэд (`createdBy: null`): бодит зорилтот
+     * дүн (`DELIVERY_FEE_AMOUNT`) — `feePaidAmount`-тай хамт `dispatched`
+     * шилжилтийн хаалтад ордог (`delivery-state.js` `unpaidFee`,
+     * `delivery.service.js` `changeStatus`). Мөнгө ХЭЗЭЭ Ч энд шууд бичигдэхгүй,
+     * зөвхөн `payment.service.js`-ээс ирсэн кэш (доорх `feePaidAmount`-ийн
+     * ижил зарчим) — BR-14 хэвээр хүчинтэй, эх сурвалж ХОЁР БОЛООГҮЙ, зөвхөн
+     * "юуг тооцоолол хийхэд ашиглах вэ" гэдэг нь `createdBy`-аас хамаарна.
      */
     fee: {
+      type: Number,
+      default: 0,
+      min: 0,
+      validate: { validator: Number.isInteger, message: 'Дүн бүхэл тоо (₮) байх ёстой' },
+    },
+
+    /**
+     * `fee`-ийн эсрэг ЯГ хэдийг бодитоор төлсөн бэ — `payments.allocations`
+     * (`deliveryId`-тай элемент)-ээс `payment.service.js`-ийн
+     * `recalculateDelivery`-ээр ЗӨВХӨН кэшлэгдэнэ (`package.paidAmount`-ийн
+     * ижил зарчим, BR-14). Ажилтны хүргэлтэд хэзээ ч ашиглагдахгүй тул 0
+     * хэвээр үлдэнэ.
+     */
+    feePaidAmount: {
       type: Number,
       default: 0,
       min: 0,

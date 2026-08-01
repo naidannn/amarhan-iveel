@@ -81,6 +81,8 @@ class PaymentRepository extends BaseRepository {
         { path: 'receivedBy', select: 'firstname lastname' },
         { path: 'customerId', select: 'phone name' },
         { path: 'allocations.packageId', select: 'trackingNumber finalPrice' },
+        // Roadmap 5.8 — жагсаалтад "энэ pending төлбөр аль хүргэлтэд холбогдох вэ" харуулахад
+        { path: 'allocations.deliveryId', select: 'deliveryNumber' },
       ],
     });
   }
@@ -99,6 +101,18 @@ class PaymentRepository extends BaseRepository {
   async listForInvoice(invoiceId, { session } = {}) {
     const q = this.model.find({ invoiceId }).sort({ createdAt: 1 });
     return session ? q.session(session) : q;
+  }
+
+  /**
+   * Roadmap 5.8 — тухайн хүргэлтэд холбогдох БҮХ төлбөр (pending/voided ч
+   * оруулна) — хүргэлтийн дэлгэрэнгүй хуудсанд ажилтан баталгаажуулах/
+   * татгалзахад харна.
+   */
+  async listForDelivery(deliveryId) {
+    return this.model
+      .find({ 'allocations.deliveryId': deliveryId })
+      .sort({ createdAt: -1 })
+      .populate('receivedBy', 'firstname lastname');
   }
 
   /**
@@ -121,6 +135,33 @@ class PaymentRepository extends BaseRepository {
       },
       { $unwind: '$allocations' },
       { $match: { 'allocations.packageId': packageId } },
+      { $group: { _id: null, total: { $sum: '$allocations.amount' } } },
+    ];
+
+    const result = await this.model
+      .aggregate(pipeline)
+      .session(session ?? null)
+      .exec();
+
+    return result[0]?.total ?? 0;
+  }
+
+  /**
+   * Roadmap 5.8 — `deliveries.feePaidAmount`-ыг ЭХ СУРВАЛЖААС эргэн тооцоолох.
+   * `sumCompletedForPackage`-ийн ижил зарчим: тухайн `deliveryId`-той
+   * элементийн дүнг л нэмнэ (payment.amount БИШ — нэг payment дотор ачааны
+   * хуваарилалт хамт байж болно).
+   */
+  async sumCompletedForDelivery(deliveryId, { session } = {}) {
+    const pipeline = [
+      {
+        $match: {
+          'allocations.deliveryId': deliveryId,
+          status: PAYMENT_RECORD_STATUS.COMPLETED,
+        },
+      },
+      { $unwind: '$allocations' },
+      { $match: { 'allocations.deliveryId': deliveryId } },
       { $group: { _id: null, total: { $sum: '$allocations.amount' } } },
     ];
 

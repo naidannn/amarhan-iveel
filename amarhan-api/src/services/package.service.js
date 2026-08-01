@@ -111,11 +111,20 @@ class PackageService {
     };
   }
 
+  /**
+   * §1.3 — ажилтан дугаараа бичихэд шалгах. BR-46/BR-45-ийн улмаас дугаар нь
+   * УРЬДЧИЛСАН бичлэгтэй (`expected`/`in_erlian`) байж болох тул харилцагчийн
+   * утас/нэрийг эндээс шууд харуулж, ажилтныг дахин бичихээс чөлөөлнө
+   * (`customerId`-г ЭНД populate хийнэ — `findActiveByTrackingNumber` өөрөө
+   * `create()`-ийн давхардал шалгах логикт мөн ашиглагддаг тул тэнд
+   * populate хийвэл `String(pkg.customerId)` харьцуулалтууд эвдэрнэ).
+   */
   async getByTrackingNumber(trackingNumber) {
     const pkg = await packageRepository.findActiveByTrackingNumber(trackingNumber);
     if (!pkg) {
       throw new APIError(`"${trackingNumber}" дугаартай ачаа олдсонгүй`, httpStatus.NOT_FOUND);
     }
+    await pkg.populate('customerId', 'phone name');
     return pkg;
   }
 
@@ -208,11 +217,17 @@ class PackageService {
     const initialStatus = isErlian ? PACKAGE_STATUS.IN_ERLIAN : PACKAGE_STATUS.REGISTERED;
 
     const created = await withTransaction(async session => {
-      const { customer } = await customerService.findOrCreateByPhone(
-        data.phone,
-        { name: data.customerName },
-        { actor, session, req }
-      );
+      // Утас заавал биш (BR-45) — өгөгдөөгүй бол ачаа харилцагчгүйгээр
+      // бүртгэгдэнэ, дараа нь `update()`-ээр холбож болно.
+      const customer = data.phone
+        ? (
+            await customerService.findOrCreateByPhone(
+              data.phone,
+              { name: data.customerName },
+              { actor, session, req }
+            )
+          ).customer
+        : null;
 
       const { finalPrice } = pricing;
 
@@ -225,8 +240,8 @@ class PackageService {
             activeTrackingNumber: duplicateApproval ? null : trackingNumber,
             isDuplicateApproved: Boolean(duplicateApproval),
 
-            customerId: customer._id,
-            customerPhone: customer.phone,
+            customerId: customer?._id ?? null,
+            customerPhone: customer?.phone ?? null,
             branchId: branch._id,
             branchCode: branch.code,
             cargoTypeId: pricing.cargoTypeId,
@@ -888,11 +903,15 @@ class PackageService {
       }
     }
 
-    if (Object.keys(patch).length === 0) {
+    if (Object.keys(patch).length === 0 && data.phone === undefined) {
       throw new APIError('Өөрчлөх зүйл алга', httpStatus.BAD_REQUEST);
     }
 
     return withTransaction(async session => {
+      // Утасгүй бүртгэсэн ачаанд дараа нь харилцагч холбох/солих (BR-45)
+      const link = await this.resolveCustomerLink(pkg, data, { actor, session, req });
+      Object.assign(patch, link.patch);
+
       const updated = await packageRepository.updateByIdWithSession(id, patch, { session });
 
       await auditService.recordChanges(
@@ -908,6 +927,25 @@ class PackageService {
         changes,
         { session }
       );
+
+      if (link.changed) {
+        await auditService.record(
+          {
+            actor,
+            action: AUDIT_ACTION.PACKAGE_UPDATE,
+            entity: AUDIT_ENTITY.PACKAGE,
+            entityId: updated._id,
+            entityLabel: updated.trackingNumber,
+            branchId: updated.branchId,
+            field: 'customerPhone',
+            before: link.before,
+            after: link.after,
+            reason: 'Ажилтан ачаанд харилцагчийн утас холбов/сольсон',
+            req,
+          },
+          { session }
+        );
+      }
 
       return updated;
     });

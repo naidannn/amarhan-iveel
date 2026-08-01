@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, Truck } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /**
@@ -30,6 +30,29 @@ const cancelling = ref(false)
  */
 const canCancel = computed(
   () => pkg.value?.status === 'expected' && pkg.value?.registrationSource === 'customer'
+)
+
+/**
+ * Roadmap 5.8 — энэ ачаагаа хүргүүлэх боломжтой эсэх.
+ *
+ * Backend-ийн `packageState.OCCUPIES_LOCATION`-тай ижил жагсаалт (агуулахад
+ * бодитоор байгаа ачаа): `deliveryService.deliverableForCustomer` мөн ЯГ ЭНЭ
+ * шалгуураар шүүнэ. Client талын шалгалт ЗӨВХӨН товч харуулах эсэхийг
+ * шийднэ — бодит зөвшөөрлийг backend `POST /customer/deliveries` дахин
+ * шалгана (§9.3, дүрэм 6 — UI-д товч нуух нь хамгаалалт биш).
+ */
+const DELIVERABLE_STATUSES = ['registered', 'notified', 'awaiting_payment', 'paid', 'returned']
+
+/** BR-20a — ачаа нэгээс илүү идэвхтэй хүргэлтэд ороход зориулсан алдаанаас сэргийлнэ */
+const isInActiveDelivery = computed(() =>
+  (pkg.value?.deliveries ?? []).some((d: any) => ['created', 'dispatched'].includes(d.status))
+)
+
+const canRequestDelivery = computed(
+  () =>
+    !!pkg.value &&
+    DELIVERABLE_STATUSES.includes(pkg.value.status) &&
+    !isInActiveDelivery.value
 )
 
 async function cancel() {
@@ -150,6 +173,17 @@ useHead({ title: 'Ачааны мэдээлэл — Ивээлт Карго' })
           </p>
           <UiBtn variant="secondary" size="sm" :loading="cancelling" @click="cancel">
             Бүртгэл цуцлах
+          </UiBtn>
+        </div>
+
+        <!-- Roadmap 5.8 — энэ ачаагаа шууд сонгож хүргэлт захиалах -->
+        <div
+          v-if="canRequestDelivery"
+          class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-surface-border pt-4"
+        >
+          <p class="text-body-sm text-content-secondary">Энэ ачааг хүргүүлэх боломжтой.</p>
+          <UiBtn size="sm" :icon="Truck" :to="`/my/deliveries/new?packageId=${pkg.id}`">
+            Хүргэлт үүсгэх
           </UiBtn>
         </div>
       </div>

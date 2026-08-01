@@ -863,6 +863,86 @@ describe('Ачааны модуль (§1)', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────
+  describe('BR-45 — утас заавал биш (2026-08-01)', () => {
+    it('registered ачаа утасгүйгээр бүртгэгдэнэ, customerId/customerPhone null', async () => {
+      const pkg = await register(staff, { phone: undefined });
+
+      expect(pkg.customerId).to.be.null;
+      expect(pkg.customerPhone).to.be.null;
+    });
+
+    it('in_erlian ачаа утасгүйгээр бүртгэгдэнэ', async () => {
+      const res = await post(staff, {
+        trackingNumber: `TRK${Math.floor(Math.random() * 1e9)}`,
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.package.customerId).to.be.null;
+      expect(res.body.data.package.customerPhone).to.be.null;
+    });
+
+    it('PUT /:id-ээр дараа нь харилцагчийн утас холбож болно', async () => {
+      const pkg = await register(staff, { phone: undefined });
+
+      const res = await chai
+        .request(app)
+        .put(`${BASE}/${pkg.id}`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ phone: '99112233' });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.customerPhone).to.equal('99112233');
+
+      const log = await AuditLog.findOne({
+        action: AUDIT_ACTION.PACKAGE_UPDATE,
+        entityId: pkg.id,
+        field: 'customerPhone',
+      });
+      expect(log).to.not.be.null;
+      expect(log.after).to.equal('99112233');
+    });
+
+    it('холбогдоогүй ачаанд төлбөр бүртгэхийг хориглоно (PHONE_REQUIRED)', async () => {
+      const pkg = await register(staff, { phone: undefined, weightKg: 0.4 });
+
+      const res = await chai
+        .request(app)
+        .post('/api/v1/payments')
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ packageIds: [pkg.id], amount: pkg.finalPrice, method: 'cash' });
+
+      expect(res.status).to.equal(422);
+      expect(res.body.code).to.equal(ERROR_CODE.PHONE_REQUIRED);
+    });
+
+    it('холбогдоогүй ачаанд хүргэлт үүсгэхийг хориглоно (PHONE_REQUIRED)', async () => {
+      const pkg = await register(staff, { phone: undefined, weightKg: 0.4 });
+
+      const res = await chai
+        .request(app)
+        .post('/api/v1/deliveries')
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ packageIds: [pkg.id], address: 'УБ хот' });
+
+      expect(res.status).to.equal(422);
+      expect(res.body.code).to.equal(ERROR_CODE.PHONE_REQUIRED);
+    });
+
+    it('холбогдоогүй ачаанд нэхэмжлэх үүсгэхийг хориглоно (PHONE_REQUIRED)', async () => {
+      const pkg = await register(staff, { phone: undefined, weightKg: 0.4 });
+
+      const res = await chai
+        .request(app)
+        .post('/api/v1/payments/invoices')
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ packageIds: [pkg.id] });
+
+      expect(res.status).to.equal(422);
+      expect(res.body.code).to.equal(ERROR_CODE.PHONE_REQUIRED);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────
   describe('BR-46 — Урьдчилсан бүртгэл дээр бүртгэх (шингээх)', () => {
     /**
      * Харилцагчийн мэдүүлсэн "Хүлээгдэж буй" бичлэг. Ажилтны замаар үүсгэх
@@ -1387,6 +1467,26 @@ describe('Ачааны модуль (§1)', () => {
 
       expect(res.status).to.equal(200);
       expect(res.body.data.trackingNumber).to.equal('FIND001');
+    });
+
+    it('BR-45/BR-46 — урьдчилсан бичлэг олдвол харилцагчийн утас/нэрийг ажилтанд шууд харуулна', async () => {
+      const erlianRes = await post(staff, {
+        trackingNumber: 'FIND002',
+        phone: '99887766',
+        customerName: 'Бат',
+        status: PACKAGE_STATUS.IN_ERLIAN,
+      });
+      expect(erlianRes.status, JSON.stringify(erlianRes.body)).to.equal(201);
+
+      const res = await chai
+        .request(app)
+        .get(`${BASE}/tracking/FIND002`)
+        .set('Authorization', `Bearer ${staff.token}`);
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal(PACKAGE_STATUS.IN_ERLIAN);
+      expect(res.body.data.customerId.phone).to.equal('99887766');
+      expect(res.body.data.customerId.name).to.equal('Бат');
     });
   });
 

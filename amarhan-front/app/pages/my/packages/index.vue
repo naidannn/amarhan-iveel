@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Package, Plus } from 'lucide-vue-next'
+import { Package, Plus, Truck } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /**
@@ -54,6 +54,19 @@ watch(status, () => {
 watch([page, status], load)
 
 onMounted(load)
+
+/**
+ * Хяналтын самбараас `/my/packages?register=1` линкээр ирвэл бүртгэх
+ * маягтыг шууд нээнэ — хэрэглэгч дахин "Ачаа бүртгүүлэх" товч хайхгүй.
+ */
+const route = useRoute()
+const router = useRouter()
+onMounted(() => {
+  if (route.query.register === '1') {
+    openForm()
+    router.replace({ query: {} })
+  }
+})
 
 /**
  * BR-46 — өөрөө ачаа бүртгүүлэх.
@@ -123,8 +136,11 @@ useHead({ title: 'Миний ачаа — Ивээлт Карго' })
         </p>
       </div>
 
-      <div class="flex w-full items-center gap-2 sm:w-auto">
+      <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
         <UiSelectInput v-model="status" :options="statusOptions" class="flex-1 sm:w-52" />
+        <UiBtn variant="secondary" :icon="Truck" class="shrink-0" to="/my/deliveries/new">
+          Хүргэлт үүсгэх
+        </UiBtn>
         <UiBtn :icon="Plus" class="shrink-0" @click="openForm">Ачаа бүртгүүлэх</UiBtn>
       </div>
     </div>

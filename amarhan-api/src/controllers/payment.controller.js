@@ -65,6 +65,16 @@ exports.void = async (req, res, next) => {
   }
 };
 
+/** Roadmap 5.8 — харилцагчийн банкны шилжүүлэг ирснийг ажилтан баталгаажуулна */
+exports.confirm = async (req, res, next) => {
+  try {
+    const result = await paymentService.confirmPending(req.params.paymentId, req.user, req);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ── Нэгтгэсэн нэхэмжлэх (§2.3) ────────────────────────────────────────────
 
 exports.listInvoices = async (req, res, next) => {

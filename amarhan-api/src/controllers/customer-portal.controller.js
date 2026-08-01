@@ -83,3 +83,22 @@ exports.listDeliveries = async (req, res, next) => {
     next(error);
   }
 };
+
+/** Roadmap 5.8 — захиалж болох ачаа + дүн + дансны мэдээлэл */
+exports.deliverableForDelivery = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.deliverableForDelivery(req.customer);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createDelivery = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.createDelivery(req.customer, req.body, req);
+    return created(res, result);
+  } catch (error) {
+    next(error);
+  }
+};

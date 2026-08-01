@@ -118,4 +118,24 @@ module.exports = {
         .optional(),
     }),
   },
+
+  /**
+   * Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалах.
+   *
+   * ⚠ `customerId`, `fee`, `method`, `branchId`, `driverId` зэрэг талбар
+   * БАЙХГҮЙ (дүрэм 14): хамрах хүрээ токеноос гарна, хураамж
+   * `DELIVERY_FEE_AMOUNT`-аар тогтмол, төлбөрийн хэлбэр одоохондоо зөвхөн
+   * Данс (QPay ⛔ тул сонголт өгөхгүй, backend дангаараа шийднэ).
+   */
+  createDelivery: {
+    body: Joi.object({
+      packageIds: Joi.array().items(objectId).min(1).max(50).required(),
+      address: Joi.string().trim().min(3).max(500).required(),
+      phone: Joi.string()
+        .trim()
+        .pattern(/^\d{8}$/)
+        .optional(),
+      note: Joi.string().trim().max(500).allow('', null).optional(),
+    }),
+  },
 };

@@ -114,6 +114,16 @@ class InvoiceService {
         );
       }
 
+      // Утас/харилцагч холбогдоогүй ачаанд нэхэмжлэх үүсгэх боломжгүй (BR-45) —
+      // эхлээд ачааны мэдээллийг засаж утас холбоно уу
+      if (!packages[0].customerId) {
+        throw new APIError(
+          'Энэ ачаанд харилцагчийн утас холбогдоогүй тул нэхэмжлэх үүсгэх боломжгүй. Эхлээд ачааны мэдээллийг засаж утас холбоно уу',
+          httpStatus.UNPROCESSABLE_ENTITY,
+          { code: ERROR_CODE.PHONE_REQUIRED }
+        );
+      }
+
       // BR-16a — ачаа нэгээс илүү НЭЭЛТТЭЙ нэхэмжлэхэд орохыг хориглоно
       const openInvoices = await invoiceRepository.findOpenContainingPackages(
         packages.map(p => p._id),

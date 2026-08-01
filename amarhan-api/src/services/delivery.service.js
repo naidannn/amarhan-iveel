@@ -3,22 +3,27 @@
 const httpStatus = require('http-status');
 const deliveryRepository = require('../repositories/delivery.repository');
 const packageRepository = require('../repositories/package.repository');
+const paymentRepository = require('../repositories/payment.repository');
 const counterRepository = require('../repositories/counter.repository');
 const userRepository = require('../repositories/user.repository');
 const branchResolver = require('./branch-resolver.service');
 const customerService = require('./customer.service');
 const packageService = require('./package.service');
+const paymentService = require('./payment.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
 const { withTransaction } = require('../utils/transaction');
 const deliveryState = require('../domain/delivery-state');
 const packageState = require('../domain/package-state');
-const { normalizePhone } = require('../domain/phone');
+const { normalizePhone, maskPhone } = require('../domain/phone');
+const { buildFullSettlement } = require('../domain/allocation');
 const {
   AUDIT_ACTION,
   AUDIT_ENTITY,
   DELIVERY_STATUS,
+  DELIVERY_FEE_AMOUNT,
   ERROR_CODE,
+  PAYMENT_METHOD,
   ROLES,
 } = require('../config/constants');
 
@@ -96,11 +101,23 @@ class DeliveryService {
         balance: pkg.balance,
       }));
 
+    // Roadmap 5.8 — харилцагч өөрөө захиалсан хүргэлтийн хураамжийн
+    // pending/completed/voided төлбөрүүд. Ажилтны хуучин хүргэлтэд (fee зөвхөн
+    // мэдээлэл) энэ жагсаалт үргэлж хоосон — холбогдох төлбөр байхгүй тул.
+    const feePayments = await paymentRepository.listForDelivery(delivery._id);
+
     return {
       delivery,
       auditLogs,
       unpaidPackages: unpaid,
       unpaidTotal: unpaid.reduce((sum, p) => sum + p.balance, 0),
+      // Ажилтны гар бичилтийн `fee`-д ХЭЗЭЭ Ч гарахгүй (`changeStatus`-ийн ижил
+      // `createdBy == null` хамгаалалт) — эс тэгвээс UI бодит хаалттай ЗӨРНӨ.
+      unpaidFee:
+        delivery.createdBy == null
+          ? Math.max((delivery.fee ?? 0) - (delivery.feePaidAmount ?? 0), 0)
+          : 0,
+      feePayments,
       /**
        * UI-д ямар товч харуулахыг backend шийднэ — дүрэм ганц газарт байна.
        * `manualTransitions` (БИШ `allowedTransitions`): цуцлах нь эрх ба
@@ -145,6 +162,143 @@ class DeliveryService {
     };
   }
 
+  /**
+   * Roadmap 5.8 — харилцагчийн ӨӨРИЙН вэб дэлгэц: захиалж болох ачаа.
+   *
+   * `deliverableByPhone`-ийн ижил логик, ГЭХДЭЭ утсаар БИШ, `customer._id`-аар
+   * шууд ачаална — токеноос ирсэн эзэмшилд шууд хязгаарлагдана (CLAUDE.md §5
+   * дүрэм 14), утас/өөр харилцагчийн ID дамжуулах зам ОГТ байхгүй.
+   */
+  async deliverableForCustomer(customer) {
+    const packages = await packageRepository.listByCustomer(customer._id);
+
+    const eligible = packages.filter(p => this.isDeliverableStatus(p.status));
+
+    const active = await deliveryRepository.findActiveContainingPackages(eligible.map(p => p._id));
+    const taken = new Set(active.flatMap(d => d.packageIds.map(String)));
+
+    return eligible.filter(p => !taken.has(String(p._id)));
+  }
+
+  /**
+   * Roadmap 5.8 — харилцагч өөрөө хүргэлт захиална.
+   *
+   * `create()`-ээс ХОЁР чухал ялгаатай:
+   *   1. ЭЗЭМШЛИЙГ шалгана (`create()` нь ажилтны эрхэд итгэдэг) — бусдын
+   *      ачаа заавал `404` (дүрэм 14).
+   *   2. Сонгосон ачааны ҮЛДЭГДЭЛ + `DELIVERY_FEE_AMOUNT`-ыг НЭГ `pending`
+   *      төлбөр болгож ЯГ ТЭР транзакцад үүсгэнэ (`buildFullSettlement`) —
+   *      ажилтан баталгаажуулмагц (`payment.service.js` `confirmPending`)
+   *      ачааны үлдэгдэл БА хүргэлтийн хураамж хамт барагдана.
+   */
+  async selfCreate(customer, data, req) {
+    const { packageIds, address, phone, note } = data;
+
+    if (!Array.isArray(packageIds) || packageIds.length === 0) {
+      throw new APIError('Ачаа сонгоно уу', httpStatus.BAD_REQUEST);
+    }
+
+    const unique = [...new Set(packageIds.map(String))];
+    if (unique.length !== packageIds.length) {
+      throw new APIError('Нэг ачаа хоёр удаа сонгогдсон байна', httpStatus.BAD_REQUEST);
+    }
+
+    return withTransaction(async session => {
+      // Эзэмшлийг ЗААВАЛ `loadDeliverablePackages`-ээс ӨМНӨ шалгана: тэр нь
+      // "ямар төлөвт байна" гэдгийг мессежинд ил бичдэг тул бусдын ID-аар
+      // дуудвал ЭЗЭМШЛИЙН шалгалт хийгдэхээс өмнө оршин байдал, төлөв алдагдаж
+      // болзошгүй (дүрэм 14 — эрхгүй бичлэгт 403 БИШ ялгаагүй 404).
+      const owned = await this.reloadPackages(unique, { session });
+      for (const pkg of owned) {
+        if (String(pkg.customerId) !== String(customer._id)) {
+          throw new APIError('Ачаа олдсонгүй', httpStatus.NOT_FOUND);
+        }
+      }
+
+      const packages = await this.loadDeliverablePackages(unique, { session });
+
+      await this.assertNotInActiveDelivery(
+        packages.map(p => p._id),
+        { session }
+      );
+
+      const branch = await branchResolver.resolveBranch(packages[0].branchId);
+      const deliveryNumber = await this.nextDeliveryNumber({ session });
+      const actorName = this.describeCustomer(customer);
+
+      const delivery = await deliveryRepository.createWithSession(
+        {
+          deliveryNumber,
+          customerId: customer._id,
+          customerPhone: customer.phone,
+          packageIds: packages.map(p => p._id),
+          address: String(address).trim(),
+          phone: phone ? normalizePhone(phone) : customer.phone,
+          note: note ?? null,
+          status: DELIVERY_STATUS.CREATED,
+          driverId: null,
+          driverName: null,
+          driverPhone: null,
+          scheduledDate: null,
+          fee: DELIVERY_FEE_AMOUNT,
+          feePaidAmount: 0,
+          branchId: branch._id,
+          createdBy: null,
+          statusHistory: [
+            {
+              from: null,
+              to: DELIVERY_STATUS.CREATED,
+              at: new Date(),
+              by: null,
+              byName: actorName,
+              reason: null,
+            },
+          ],
+        },
+        { session }
+      );
+
+      const { allocations, amount } = buildFullSettlement(
+        packages.map(p => ({ packageId: p._id, balance: p.balance })),
+        delivery._id,
+        DELIVERY_FEE_AMOUNT
+      );
+
+      const payment = await paymentService.createPendingSettlement(
+        {
+          allocations,
+          amount,
+          // QPay merchant эрх сонгогдоогүй тул одоохондоо ЗӨВХӨН Данс (roadmap 5.6/5.7 ⛔)
+          method: PAYMENT_METHOD.BANK,
+          customerId: customer._id,
+          customerPhone: customer.phone,
+          branchId: branch._id,
+          actorName,
+        },
+        { session }
+      );
+
+      await auditService.record(
+        {
+          action: AUDIT_ACTION.DELIVERY_SELF_CREATE,
+          entity: AUDIT_ENTITY.DELIVERY,
+          entityId: delivery._id,
+          entityLabel: delivery.deliveryNumber,
+          branchId: branch._id,
+          actorName,
+          field: 'status',
+          before: null,
+          after: DELIVERY_STATUS.CREATED,
+          reason: `${packages.length} ачаа: ${packages.map(p => p.trackingNumber).join(', ')}`,
+          req,
+        },
+        { session }
+      );
+
+      return { delivery, payment };
+    });
+  }
+
   // ── Үүсгэх (§5.1) ───────────────────────────────────────────────────────
 
   /**
@@ -177,6 +331,16 @@ class DeliveryService {
           'Нэг хүргэлтэд зөвхөн НЭГ харилцагчийн ачаа багтана',
           httpStatus.UNPROCESSABLE_ENTITY,
           { code: ERROR_CODE.MIXED_CUSTOMERS }
+        );
+      }
+
+      // Утас/харилцагч холбогдоогүй ачаанд хүргэлт үүсгэх боломжгүй (BR-45) —
+      // эхлээд ачааны мэдээллийг засаж утас холбоно уу
+      if (!packages[0].customerId) {
+        throw new APIError(
+          'Энэ ачаанд харилцагчийн утас холбогдоогүй тул хүргэлт үүсгэх боломжгүй. Эхлээд ачааны мэдээллийг засаж утас холбоно уу',
+          httpStatus.UNPROCESSABLE_ENTITY,
+          { code: ERROR_CODE.PHONE_REQUIRED }
         );
       }
 
@@ -344,22 +508,35 @@ class DeliveryService {
       const packages = await this.reloadPackages(delivery.packageIds, { session });
       const unpaid = packages.filter(p => p.balance > 0);
       const unpaidTotal = unpaid.reduce((sum, p) => sum + p.balance, 0);
+      // Roadmap 5.8 — зөвхөн харилцагчийн ӨӨРИЙН захиалсан хүргэлтэд (`createdBy: null`)
+      // хамаарна. Ажилтны гар бичилтийн `fee` энд ХЭЗЭЭ Ч тооцогдохгүй (BR-21b).
+      const unpaidFee =
+        delivery.createdBy == null
+          ? Math.max((delivery.fee ?? 0) - (delivery.feePaidAmount ?? 0), 0)
+          : 0;
 
       try {
-        deliveryState.assertTransition(delivery.status, nextStatus, { unpaidTotal });
+        deliveryState.assertTransition(delivery.status, nextStatus, { unpaidTotal, unpaidFee });
       } catch (err) {
         // §5.2 — төлбөрийн хаалт нь 422 (бизнес дүрэм), шилжилтийн алдаа 409
-        const isPaymentBlock =
+        const isPackageBlock =
           unpaidTotal > 0 && deliveryState.canTransition(delivery.status, nextStatus);
+        const isFeeBlock =
+          !isPackageBlock &&
+          unpaidFee > 0 &&
+          deliveryState.canTransition(delivery.status, nextStatus);
+        const isPaymentBlock = isPackageBlock || isFeeBlock;
 
         throw new APIError(
           err.message,
           isPaymentBlock ? httpStatus.UNPROCESSABLE_ENTITY : httpStatus.CONFLICT,
           {
-            code: isPaymentBlock
-              ? ERROR_CODE.UNPAID_PACKAGES
-              : ERROR_CODE.INVALID_DELIVERY_TRANSITION,
-            details: isPaymentBlock
+            code: isFeeBlock
+              ? ERROR_CODE.UNPAID_DELIVERY_FEE
+              : isPackageBlock
+                ? ERROR_CODE.UNPAID_PACKAGES
+                : ERROR_CODE.INVALID_DELIVERY_TRANSITION,
+            details: isPackageBlock
               ? {
                   unpaidTotal,
                   packages: unpaid.map(p => ({
@@ -368,7 +545,9 @@ class DeliveryService {
                     balance: p.balance,
                   })),
                 }
-              : { from: delivery.status, to: nextStatus },
+              : isFeeBlock
+                ? { unpaidFee }
+                : { from: delivery.status, to: nextStatus },
           }
         );
       }
@@ -679,6 +858,11 @@ class DeliveryService {
 
   isManagement(actor) {
     return actor?.role === ROLES.ADMIN || actor?.role === ROLES.MANAGER;
+  }
+
+  /** `package.service.js`-ийн `describeCustomer`-ийн ижил зарчим (audit-д ажилтны нэрний оронд) */
+  describeCustomer(customer) {
+    return `Харилцагч ${maskPhone(customer.phone)}`;
   }
 }
 

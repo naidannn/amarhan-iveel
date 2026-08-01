@@ -23,8 +23,8 @@ export type PackageStatusValue =
 export interface CargoPackage {
   id: string
   trackingNumber: string
-  customerId: string | { id: string; phone: string; name: string | null }
-  customerPhone: string
+  customerId: string | { id: string; phone: string; name: string | null } | null
+  customerPhone: string | null
   branchCode: string
   cargoTypeId: string | { id: string; code: string; name: string } | null
   quantity: number

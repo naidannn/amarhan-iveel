@@ -57,6 +57,36 @@ export interface CustomerSummary {
   balance: number
 }
 
+/** Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалах */
+export interface DeliverableForDelivery {
+  packages: CustomerPackage[]
+  /** Хүргэлтийн тогтмол суурь хураамж (₮) — `DELIVERY_FEE_AMOUNT`, backend бодно */
+  feeAmount: number
+  /** "Данс" сонголтод харуулах дансны мэдээлэл (`payment.bank_account`) */
+  bankAccount: {
+    bankName: string
+    accountNumber: string
+    accountHolder: string
+    note: string
+  } | null
+}
+
+export interface CreatedDelivery {
+  id: string
+  deliveryNumber: string
+  status: string
+  address: string
+  phone: string
+  fee: number
+  createdAt: string
+  payment: {
+    id: string
+    amount: number
+    method: string
+    status: string
+  }
+}
+
 export function useCustomerPortal() {
   const { $axios } = useNuxtApp()
 
@@ -112,6 +142,26 @@ export function useCustomerPortal() {
     return list<any>('deliveries', params)
   }
 
+  /** Roadmap 5.8 — захиалж болох ачаа + тооцоолсон хураамж + дансны мэдээлэл */
+  async function deliverableForDelivery(): Promise<DeliverableForDelivery> {
+    const res = await $axios.get('/api/v1/customer/deliveries/deliverable')
+    return res.data.data
+  }
+
+  /**
+   * Хүргэлт захиална. `fee`/`method`/`customerId` илгээхгүй (дүрэм 14) —
+   * backend `DELIVERY_FEE_AMOUNT`, "Данс"-аар дангаараа шийднэ (QPay ⛔).
+   */
+  async function createDelivery(payload: {
+    packageIds: string[]
+    address: string
+    phone?: string
+    note?: string
+  }): Promise<CreatedDelivery> {
+    const res = await $axios.post('/api/v1/customer/deliveries', clean(payload))
+    return res.data.data
+  }
+
   return {
     summary,
     packages,
@@ -120,6 +170,8 @@ export function useCustomerPortal() {
     cancelPackage,
     payments,
     deliveries,
+    deliverableForDelivery,
+    createDelivery,
   }
 }
 

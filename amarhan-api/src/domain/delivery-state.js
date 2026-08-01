@@ -159,9 +159,16 @@ function packageEffect(status) {
  * @param {number} [ctx.unpaidTotal] — багц доторх ачаануудын НИЙТ үлдэгдэл (₮).
  *        `0`-ээс их бол §5.2-ын хаалт ажиллана. OVERRIDE БАЙХГҮЙ — Админ ч
  *        тойрч чадахгүй, тиймээс `system`/`force` гэсэн параметр ЗОРИУД алга.
+ * @param {number} [ctx.unpaidFee] — roadmap 5.8: харилцагч өөрөө захиалсан
+ *        хүргэлтийн ТӨЛӨГДӨӨГҮЙ хураамж (₮, `fee - feePaidAmount`). Дуудагч
+ *        (`delivery.service.js`) ЗӨВХӨН `createdBy: null` үед `0`-ээс их дамжуулна
+ *        — ажилтны гараар үүсгэсэн хүргэлтийн `fee` үргэлж мэдээлэл хэвээр
+ *        (BR-21b), энд ХЭЗЭЭ Ч гарахгүй. `unpaidTotal`-аас ТУСДАА шалгагдана:
+ *        хоёр өөр эх сурвалж (ачааны балансууд vs хүргэлтийн хураамж), нэг
+ *        мессежинд холихгүй — ажилтан аль нь дутуугаа тодорхой мэдэх ёстой.
  * @throws {DeliveryTransitionError}
  */
-function assertTransition(from, to, { unpaidTotal = 0 } = {}) {
+function assertTransition(from, to, { unpaidTotal = 0, unpaidFee = 0 } = {}) {
   if (!isKnownStatus(from)) {
     throw new DeliveryTransitionError(`Танигдахгүй одоогийн төлөв: "${from}"`);
   }
@@ -189,6 +196,13 @@ function assertTransition(from, to, { unpaidTotal = 0 } = {}) {
   // BR-20/§5.2 — багц доторх НЭГ Ч ачаа дутуу төлөгдсөн бол БҮХЭЛДЭЭ хоригдоно
   if (REQUIRES_FULL_PAYMENT.includes(to) && unpaidTotal > 0) {
     throw new DeliveryTransitionError(`Төлбөр дутуу байна: ${formatAmount(unpaidTotal)}₮`);
+  }
+
+  // Roadmap 5.8 — харилцагчийн хүргэлтийн хураамж төлөгдөөгүй бол мөн хоригдоно
+  if (REQUIRES_FULL_PAYMENT.includes(to) && unpaidFee > 0) {
+    throw new DeliveryTransitionError(
+      `Хүргэлтийн хураамж төлөгдөөгүй: ${formatAmount(unpaidFee)}₮`
+    );
   }
 }
 

@@ -189,6 +189,51 @@ describe('Хүргэлтийн төлөвийн машин (§5.1, BR-19…BR-21
     });
   });
 
+  describe('Roadmap 5.8 — харилцагчийн хүргэлтийн хураамжийн хаалт', () => {
+    it('хураамж бүрэн төлөгдсөн бол хаалтад нөлөөлөхгүй', () => {
+      expect(() =>
+        state.assertTransition(D.CREATED, D.DISPATCHED, { unpaidTotal: 0, unpaidFee: 0 })
+      ).to.not.throw();
+    });
+
+    it('хураамж дутуу бол тусдаа мессежээр хориглоно', () => {
+      expect(() =>
+        state.assertTransition(D.CREATED, D.DISPATCHED, { unpaidTotal: 0, unpaidFee: 7000 })
+      ).to.throw(state.DeliveryTransitionError, 'Хүргэлтийн хураамж төлөгдөөгүй: 7,000₮');
+    });
+
+    it('ачааны үлдэгдэл ба хураамжийн алдааг ХОЛИХГҮЙ — ачааны шалгалт эхэлж ажиллана', () => {
+      expect(() =>
+        state.assertTransition(D.CREATED, D.DISPATCHED, { unpaidTotal: 5000, unpaidFee: 7000 })
+      ).to.throw('Төлбөр дутуу байна: 5,000₮');
+    });
+
+    it('unpaidFee өгөөгүй бол 0 гэж үзнэ (ажилтны хуучин хүргэлтэд нөлөөгүй)', () => {
+      expect(() =>
+        state.assertTransition(D.CREATED, D.DISPATCHED, { unpaidTotal: 0 })
+      ).to.not.throw();
+    });
+
+    it('OVERRIDE БАЙХГҮЙ — хураамжийн хаалтад ч тойрох параметр байхгүй', () => {
+      expect(() =>
+        state.assertTransition(D.CREATED, D.DISPATCHED, {
+          unpaidFee: 7000,
+          system: true,
+          force: true,
+        })
+      ).to.throw('Хүргэлтийн хураамж төлөгдөөгүй');
+    });
+
+    it('хаалт ЗӨВХӨН `dispatched`-д — хүргэгдсэн/буцаагдсаныг зогсоохгүй', () => {
+      expect(() =>
+        state.assertTransition(D.DISPATCHED, D.DELIVERED, { unpaidFee: 7000 })
+      ).to.not.throw();
+      expect(() =>
+        state.assertTransition(D.DISPATCHED, D.RETURNED, { unpaidFee: 7000 })
+      ).to.not.throw();
+    });
+  });
+
   describe('assertTransition — суурь шалгалт', () => {
     it('танигдахгүй одоогийн төлөв', () => {
       expect(() => state.assertTransition('shipped', D.DISPATCHED)).to.throw(

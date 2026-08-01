@@ -48,12 +48,29 @@ export interface UnpaidPackage {
   balance: number
 }
 
+/** Roadmap 5.8 — харилцагчийн захиалсан хүргэлтэд холбогдох төлбөр */
+export interface DeliveryFeePayment {
+  id: string
+  amount: number
+  method: string
+  status: 'pending' | 'completed' | 'voided'
+  createdAt: string
+}
+
 export interface DeliveryDetail {
   delivery: Delivery
   auditLogs: any[]
   unpaidPackages: UnpaidPackage[]
   /** §5.2 — «Төлбөр дутуу байна: XXX₮». Backend бодно, client талд БИШ */
   unpaidTotal: number
+  /**
+   * Roadmap 5.8 — «Хүргэлтийн хураамж төлөгдөөгүй: XXX₮». ЗӨВХӨН харилцагчийн
+   * өөрийн захиалсан хүргэлтэд (`createdBy: null`) нөлөөтэй нэмэлт хаалт —
+   * ажилтны гар бичилтийн `fee`-д хэзээ ч 0-ээс их гарахгүй.
+   */
+  unpaidFee: number
+  /** Тухайн хүргэлттэй холбогдох бүх (pending/completed/voided) төлбөр */
+  feePayments: DeliveryFeePayment[]
   /** Ажилтан ГАРААР дарж болох төлөвүүд (цуцлах орохгүй) */
   allowedTransitions: DeliveryStatus[]
 }
@@ -79,6 +96,8 @@ export interface DeliveryPayload {
 /** Backend-ийн `ERROR_CODE`-той нийцнэ */
 export const DELIVERY_ERROR_CODE = {
   UNPAID_PACKAGES: 'UNPAID_PACKAGES',
+  // Roadmap 5.8 — харилцагчийн захиалсан хүргэлтийн хураамж төлөгдөөгүй
+  UNPAID_DELIVERY_FEE: 'UNPAID_DELIVERY_FEE',
   PACKAGE_IN_ACTIVE_DELIVERY: 'PACKAGE_IN_ACTIVE_DELIVERY',
   INVALID_DELIVERY_TRANSITION: 'INVALID_DELIVERY_TRANSITION',
   MIXED_CUSTOMERS: 'MIXED_CUSTOMERS',

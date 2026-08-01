@@ -6,9 +6,17 @@ const paymentRepository = require('../repositories/payment.repository');
 const deliveryRepository = require('../repositories/delivery.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
 const packageService = require('./package.service');
+const deliveryService = require('./delivery.service');
+const settingService = require('./setting.service');
 const APIError = require('../utils/APIError');
 const packageState = require('../domain/package-state');
-const { PACKAGE_STATUS, PAYMENT_STATUS, PAYMENT_RECORD_STATUS } = require('../config/constants');
+const {
+  PACKAGE_STATUS,
+  PAYMENT_STATUS,
+  PAYMENT_RECORD_STATUS,
+  DELIVERY_FEE_AMOUNT,
+  SETTING_KEY,
+} = require('../config/constants');
 
 /**
  * Харилцагчийн вэбийн өгөгдөл — introduction.md §3
@@ -186,8 +194,57 @@ class CustomerPortalService {
       dispatchedAt: d.dispatchedAt,
       deliveredAt: d.deliveredAt,
       fee: d.fee,
+      // Roadmap 5.8 — өөрийн захиалсан хүргэлтийн хураамж хэдийг барагдуулсныг
+      // UI-д "хүлээгдэж байна" гэж харуулахад хэрэгтэй
+      feePaidAmount: d.feePaidAmount,
       createdAt: d.createdAt,
     }));
+  }
+
+  // ── Хүргэлт захиалах (roadmap 5.8) ──────────────────────────────────────
+
+  /**
+   * Захиалж болох ачаа + тооцоолсон дүн + дансны мэдээлэл. Бичих логик
+   * БҮХЭЛДЭЭ `delivery.service.js`/`payment.service.js`-д (BR-08-ийн ижил
+   * зарчим) — энэ давхарга ЗӨВХӨН хамрах хүрээ ба цагаан жагсаалт хариуцна.
+   *
+   * `payment.bank_account` нь ЗӨВХӨН ажилтанд нээлттэй тохиргоо
+   * (`setting.route.js`, `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ) — гэхдээ нэвтэрсэн
+   * харилцагчид (энэ router `authorizeCustomer()`-ийн ард, `public.route.js`
+   * БИШ) харуулах нь дүрэм 15-ыг зөрчихгүй: анонимд БИШ, зөвхөн хүргэлт
+   * захиалах мөчид хэрэгтэй тул энд шууд уншина.
+   */
+  async deliverableForDelivery(customer) {
+    const [packages, bankAccount] = await Promise.all([
+      deliveryService.deliverableForCustomer(customer),
+      settingService.get(SETTING_KEY.PAYMENT_BANK_ACCOUNT),
+    ]);
+
+    return {
+      packages: packages.map(pkg => this.toPublicPackage(pkg)),
+      feeAmount: DELIVERY_FEE_AMOUNT,
+      bankAccount,
+    };
+  }
+
+  async createDelivery(customer, data, req) {
+    const { delivery, payment } = await deliveryService.selfCreate(customer, data, req);
+
+    return {
+      id: delivery._id,
+      deliveryNumber: delivery.deliveryNumber,
+      status: delivery.status,
+      address: delivery.address,
+      phone: delivery.phone,
+      fee: delivery.fee,
+      createdAt: delivery.createdAt,
+      payment: {
+        id: payment._id,
+        amount: payment.amount,
+        method: payment.method,
+        status: payment.status,
+      },
+    };
   }
 
   // ── Туслах ────────────────────────────────────────────────────────────

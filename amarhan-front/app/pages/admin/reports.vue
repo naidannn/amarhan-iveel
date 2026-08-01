@@ -174,7 +174,7 @@ onMounted(load)
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <UiStatCard label="Нийт ачаа" :value="(report?.cargo.total ?? 0).toLocaleString('mn-MN')" :hint="`${cargoGrowth >= 0 ? '+' : ''}${cargoGrowth}% өмнөх үеэс`" :icon="Package" accent="#355DFF" :loading="loading" />
         <UiStatCard label="Ирсэн ачаа" :value="(report?.cargo.arrivals ?? 0).toLocaleString('mn-MN')" :hint="`${periodOptions.find(option => option.value === period)?.label}т`" :icon="BarChart3" accent="#0891B2" :loading="loading" />
         <UiStatCard label="Олгосон ачаа" :value="(report?.cargo.issued ?? 0).toLocaleString('mn-MN')" hint="Одоогоор олгосон/хүргэгдсэн" :icon="Package" accent="#16A34A" :loading="loading" />
@@ -204,7 +204,7 @@ onMounted(load)
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         <UiStatCard label="Нийт орлого" :value="formatCurrency(report?.revenue.total ?? 0)" :hint="`${report?.revenue.count ?? 0} төлбөр`" :icon="CircleDollarSign" accent="#16A34A" :loading="loading" />
         <UiStatCard label="Өдрийн дундаж" :value="formatCurrency(Math.round((report?.revenue.total ?? 0) / (period === '7d' ? 7 : period === '30d' ? 30 : 365)))" :icon="CalendarDays" accent="#0891B2" :loading="loading" />
         <UiStatCard label="Ачааны дундаж" :value="formatCurrency(report?.revenue.averagePerPackage ?? 0)" hint="Төлөгдсөн ачаагаар" :icon="Package" accent="#355DFF" :loading="loading" />
@@ -248,7 +248,7 @@ onMounted(load)
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <UiStatCard label="Төлөгдсөн төлбөр" :value="formatCurrency(report?.revenue.total ?? 0)" :hint="`${report?.revenue.count ?? 0} баталгаажсан төлбөр`" :icon="Wallet" accent="#16A34A" :loading="loading" />
         <UiStatCard label="Хүлээгдэж буй" :value="formatCurrency(report?.payments.pending ?? 0)" :hint="`${report?.payments.pendingCount ?? 0} ачаа`" :icon="Clock3" accent="#B45309" :loading="loading" />
         <UiStatCard label="Хугацаа хэтэрсэн" :value="formatCurrency(report?.payments.overdue ?? 0)" :hint="`${report?.payments.overdueCount ?? 0} ачаа · 7+ өдөр`" :icon="Clock3" accent="#DC2626" :loading="loading" />

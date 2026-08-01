@@ -111,7 +111,7 @@ const actionOptions = computed(() => {
 
 const columns: Column<AuditLog>[] = [
   { key: 'createdAt', label: 'Хугацаа', tabular: true, width: '170px' },
-  { key: 'actorName', label: 'Ажилтан' },
+  { key: 'actorName', label: 'Ажилтан', mobileTitle: true },
   { key: 'action', label: 'Үйлдэл' },
   { key: 'entityLabel', label: 'Объект', tabular: true },
   { key: 'change', label: 'Өөрчлөлт' },
@@ -292,19 +292,21 @@ function exportCsv() {
       empty-text="Бүртгэл олдсонгүй"
     >
       <template #toolbar>
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <UiSelectInput v-model="filters.entity" :options="entityOptions" placeholder="Бүх төрөл" />
-          <UiSelectInput
-            v-model="filters.action"
-            :options="actionOptions"
-            placeholder="Бүх үйлдэл"
-          />
-          <UiTextInput v-model="filters.from" type="date" />
-          <UiTextInput v-model="filters.to" type="date" />
-          <UiBtn v-if="activeFilterCount" variant="ghost" :icon="X" @click="resetFilters">
-            Цэвэрлэх ({{ activeFilterCount }})
-          </UiBtn>
-        </div>
+        <UiFilterBar :active-count="activeFilterCount">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <UiSelectInput v-model="filters.entity" :options="entityOptions" placeholder="Бүх төрөл" />
+            <UiSelectInput
+              v-model="filters.action"
+              :options="actionOptions"
+              placeholder="Бүх үйлдэл"
+            />
+            <UiTextInput v-model="filters.from" type="date" />
+            <UiTextInput v-model="filters.to" type="date" />
+            <UiBtn v-if="activeFilterCount" variant="ghost" :icon="X" @click="resetFilters">
+              Цэвэрлэх ({{ activeFilterCount }})
+            </UiBtn>
+          </div>
+        </UiFilterBar>
       </template>
 
       <template #cell-createdAt="{ row }">

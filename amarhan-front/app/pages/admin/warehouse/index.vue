@@ -229,7 +229,7 @@ async function saveLocation() {
       </template>
     </UiPageHeader>
 
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       <UiStatCard label="Нийт байршил" :value="pagination.total" :icon="MapPin" :loading="loading" />
       <UiStatCard
         label="Эзэлсэн нүд"
@@ -265,19 +265,24 @@ async function saveLocation() {
       @row-click="openLocation"
     >
       <template #toolbar>
-        <div class="space-y-3">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <UiFilterBar :active-count="activeFilterCount">
+          <template #primary>
             <UiTextInput v-model="filters.code" :icon="Search" placeholder="Код: UB-02-B" tabular />
-            <UiTextInput v-model="filters.room" placeholder="Өрөө" tabular />
-            <UiTextInput v-model="filters.shelf" placeholder="Тавиур" tabular />
-            <UiSelectInput v-model="filters.availability" :options="availabilityOptions" />
-            <UiSelectInput v-model="filters.state" :options="stateOptions" />
-          </div>
+          </template>
 
-          <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
-            Шүүлт цэвэрлэх ({{ activeFilterCount }})
-          </UiBtn>
-        </div>
+          <div class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <UiTextInput v-model="filters.room" placeholder="Өрөө" tabular />
+              <UiTextInput v-model="filters.shelf" placeholder="Тавиур" tabular />
+              <UiSelectInput v-model="filters.availability" :options="availabilityOptions" />
+              <UiSelectInput v-model="filters.state" :options="stateOptions" />
+            </div>
+
+            <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
+              Шүүлт цэвэрлэх ({{ activeFilterCount }})
+            </UiBtn>
+          </div>
+        </UiFilterBar>
       </template>
 
       <template #cell-code="{ row }">

@@ -502,7 +502,7 @@ const printOpen = ref(false)
               <UiStatusBadge :status="pkg.status" />
             </div>
 
-            <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6">
               <div>
                 <dt class="text-body-sm text-content-secondary">Харилцагч</dt>
                 <dd class="tabular mt-0.5 text-body font-medium text-content">

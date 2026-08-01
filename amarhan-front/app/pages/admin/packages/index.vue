@@ -257,8 +257,8 @@ function typeName(pkg: CargoPackage) {
     >
       <!-- Хайлт ба шүүлт — хүснэгтийн ДЭЭР (Design System v1) -->
       <template #toolbar>
-        <div class="space-y-3">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <UiFilterBar :active-count="activeFilterCount">
+          <template #primary>
             <UiTextInput
               v-model="filters.trackingNumber"
               :icon="Search"
@@ -266,32 +266,37 @@ function typeName(pkg: CargoPackage) {
               tabular
             />
             <UiTextInput v-model="filters.phone" :icon="Search" placeholder="Утас" tabular />
-            <UiSelectInput
-              v-model="filters.status"
-              :options="statusOptions"
-              placeholder="Бүх төлөв"
-            />
-            <UiSelectInput
-              v-model="filters.paymentStatus"
-              :options="paymentOptions"
-              placeholder="Бүх төлбөр"
-            />
-          </div>
+          </template>
 
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <UiTextInput v-model="filters.locationCode" placeholder="Байршлын код" tabular />
-            <UiTextInput v-model="filters.from" type="date" />
-            <UiTextInput v-model="filters.to" type="date" />
-            <UiBtn
-              v-if="activeFilterCount"
-              variant="ghost"
-              :icon="X"
-              @click="resetFilters"
-            >
-              Шүүлт цэвэрлэх ({{ activeFilterCount }})
-            </UiBtn>
+          <div class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <UiSelectInput
+                v-model="filters.status"
+                :options="statusOptions"
+                placeholder="Бүх төлөв"
+              />
+              <UiSelectInput
+                v-model="filters.paymentStatus"
+                :options="paymentOptions"
+                placeholder="Бүх төлбөр"
+              />
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <UiTextInput v-model="filters.locationCode" placeholder="Байршлын код" tabular />
+              <UiTextInput v-model="filters.from" type="date" />
+              <UiTextInput v-model="filters.to" type="date" />
+              <UiBtn
+                v-if="activeFilterCount"
+                variant="ghost"
+                :icon="X"
+                @click="resetFilters"
+              >
+                Шүүлт цэвэрлэх ({{ activeFilterCount }})
+              </UiBtn>
+            </div>
           </div>
-        </div>
+        </UiFilterBar>
       </template>
 
       <template #cell-cargoTypeId="{ row }">{{ typeName(row) }}</template>

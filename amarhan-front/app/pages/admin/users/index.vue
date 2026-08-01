@@ -147,16 +147,18 @@ function formatDate(value?: string | null) {
 
     <UiDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="Системийн хэрэглэгч олдсонгүй" @row-click="openEdit">
       <template #toolbar>
-        <div class="space-y-3">
-          <div class="grid gap-3 sm:grid-cols-3">
-            <UiTextInput v-model="filters.search" :icon="Search" placeholder="Нэр, имэйлээр хайх" />
-            <UiSelectInput v-model="filters.role" :options="roleOptions" placeholder="Бүх эрх" />
-            <UiSelectInput v-model="filters.status" :options="statusOptions" placeholder="Бүх төлөв" />
+        <UiFilterBar :active-count="activeFilterCount">
+          <div class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-3">
+              <UiTextInput v-model="filters.search" :icon="Search" placeholder="Нэр, имэйлээр хайх" />
+              <UiSelectInput v-model="filters.role" :options="roleOptions" placeholder="Бүх эрх" />
+              <UiSelectInput v-model="filters.status" :options="statusOptions" placeholder="Бүх төлөв" />
+            </div>
+            <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
+              Шүүлт цэвэрлэх ({{ activeFilterCount }})
+            </UiBtn>
           </div>
-          <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
-            Шүүлт цэвэрлэх ({{ activeFilterCount }})
-          </UiBtn>
-        </div>
+        </UiFilterBar>
       </template>
 
       <template #cell-name="{ row }"><span class="font-medium text-content">{{ `${row.lastname} ${row.firstname}`.trim() }}</span></template>

@@ -3,6 +3,7 @@ import { Search, X, RefreshCw, Ban, Plus } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { usePayments, type Payment, type PaymentSummary } from '~/composables/usePayments'
 import type { Pagination } from '~/composables/usePackages'
+import type { Column } from '~/components/ui/DataTable.vue'
 
 /**
  * Төлбөрийн жагсаалт — introduction.md §2.2
@@ -55,6 +56,16 @@ const statusOptions = computed(() => [
     label: style.label,
   })),
 ])
+
+const columns: Column<Payment>[] = [
+  { key: 'createdAt', label: 'Огноо', tabular: true },
+  { key: 'customerPhone', label: 'Утас', tabular: true, mobileTitle: true },
+  { key: 'trackingNumbers', label: 'Ачаа' },
+  { key: 'method', label: 'Хэлбэр' },
+  { key: 'receivedBy', label: 'Авсан' },
+  { key: 'amount', label: 'Дүн', align: 'right', tabular: true },
+  { key: 'actions', label: '' },
+]
 
 const activeFilterCount = computed(
   () => [filters.phone, filters.method, filters.status, filters.from, filters.to].filter(Boolean).length
@@ -181,7 +192,7 @@ async function applyVoid() {
     </UiPageHeader>
 
     <!-- §2.2 — өдрийн касс тулгах нийлбэрүүд -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
       <!-- 5 багана нарийн тул нэр КОРОТ байх ёстой — урт нэр мөр тасалж,
            дүн нь хоёр мөр болж хэлбэр эвдэрдэг. Тиймээс icon ч хэрэглэхгүй. -->
       <UiStatCard
@@ -200,125 +211,93 @@ async function applyVoid() {
       />
     </div>
 
-    <div class="card">
+    <UiDataTable
+      :columns="columns"
+      :rows="rows"
+      :loading="loading"
+      empty-text="Төлбөр олдсонгүй"
+    >
       <!-- Шүүлт — хүснэгтийн ДЭЭР (Design System v1) -->
-      <div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <UiTextInput v-model="filters.phone" :icon="Search" placeholder="Утас" tabular />
-        <UiSelectInput v-model="filters.method" :options="methodOptions" placeholder="Бүх хэлбэр" />
-        <UiSelectInput v-model="filters.status" :options="statusOptions" placeholder="Бүх төлөв" />
-        <UiTextInput v-model="filters.from" type="date" />
-        <UiTextInput v-model="filters.to" type="date" />
-      </div>
+      <template #toolbar>
+        <UiFilterBar :active-count="activeFilterCount">
+          <template #primary>
+            <UiTextInput v-model="filters.phone" :icon="Search" placeholder="Утас" tabular />
+          </template>
 
-      <UiBtn
-        v-if="activeFilterCount"
-        class="mb-4"
-        size="sm"
-        variant="ghost"
-        :icon="X"
-        @click="resetFilters"
-      >
-        Шүүлт цэвэрлэх ({{ activeFilterCount }})
-      </UiBtn>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <UiSelectInput v-model="filters.method" :options="methodOptions" placeholder="Бүх хэлбэр" />
+            <UiSelectInput v-model="filters.status" :options="statusOptions" placeholder="Бүх төлөв" />
+            <UiTextInput v-model="filters.from" type="date" />
+            <UiTextInput v-model="filters.to" type="date" />
+          </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full border-collapse text-left">
-          <thead>
-            <tr class="border-b border-surface-border">
-              <th class="px-3 py-3 text-body-sm font-medium text-content-secondary">Огноо</th>
-              <th class="px-3 py-3 text-body-sm font-medium text-content-secondary">Утас</th>
-              <th class="px-3 py-3 text-body-sm font-medium text-content-secondary">Ачаа</th>
-              <th class="px-3 py-3 text-body-sm font-medium text-content-secondary">Хэлбэр</th>
-              <th class="px-3 py-3 text-body-sm font-medium text-content-secondary">Авсан</th>
-              <th class="px-3 py-3 text-right text-body-sm font-medium text-content-secondary">
-                Дүн
-              </th>
-              <th class="px-3 py-3" />
-            </tr>
-          </thead>
+          <UiBtn
+            v-if="activeFilterCount"
+            class="mt-3"
+            size="sm"
+            variant="ghost"
+            :icon="X"
+            @click="resetFilters"
+          >
+            Шүүлт цэвэрлэх ({{ activeFilterCount }})
+          </UiBtn>
+        </UiFilterBar>
+      </template>
 
-          <tbody>
-            <template v-if="loading">
-              <tr v-for="n in 5" :key="`skeleton-${n}`" class="border-b border-surface-border">
-                <td v-for="c in 7" :key="c" class="px-3 py-4">
-                  <div class="h-4 animate-pulse rounded bg-surface-hover" />
-                </td>
-              </tr>
-            </template>
+      <template #cell-createdAt="{ row }">
+        <span class="text-body-sm text-content-secondary">{{ formatDateTime(row.createdAt) }}</span>
+      </template>
 
-            <tr v-else-if="rows.length === 0">
-              <td colspan="7" class="px-3 py-16 text-center">
-                <p class="text-body text-content-secondary">Төлбөр олдсонгүй</p>
-                <UiBtn
-                  v-if="!activeFilterCount"
-                  class="mt-4"
-                  :icon="Plus"
-                  to="/admin/payments/collect"
-                >
-                  Анхны төлбөрийг авах
-                </UiBtn>
-                <UiBtn v-else class="mt-4" variant="secondary" @click="resetFilters">
-                  Шүүлтийг цэвэрлэх
-                </UiBtn>
-              </td>
-            </tr>
+      <template #cell-trackingNumbers="{ row }">
+        <span class="text-body-sm text-content-secondary">{{ trackingNumbers(row) }}</span>
+      </template>
 
-            <template v-else>
-              <tr
-                v-for="p in rows"
-                :key="p.id"
-                class="border-b border-surface-border last:border-0 hover:bg-surface-hover"
-              >
-                <td class="tabular px-3 py-3.5 text-body-sm text-content-secondary">
-                  {{ formatDateTime(p.createdAt) }}
-                </td>
-                <td class="tabular px-3 py-3.5 text-body text-content">{{ p.customerPhone }}</td>
-                <td class="tabular px-3 py-3.5 text-body-sm text-content-secondary">
-                  {{ trackingNumbers(p) }}
-                </td>
-                <td class="px-3 py-3.5">
-                  <UiStatusBadge :status="p.method" kind="method" size="sm" />
-                </td>
-                <td class="px-3 py-3.5 text-body-sm text-content-secondary">
-                  {{ receivedByName(p) }}
-                </td>
-                <td class="px-3 py-3.5 text-right">
-                  <span
-                    class="tabular text-body font-semibold"
-                    :class="
-                      p.status === 'voided'
-                        ? 'text-content-disabled line-through'
-                        : 'text-content'
-                    "
-                  >
-                    {{ formatCurrency(p.amount) }}
-                  </span>
-                  <UiStatusBadge
-                    v-if="p.status !== 'completed'"
-                    class="ml-2"
-                    :status="p.status"
-                    kind="record"
-                    size="sm"
-                  />
-                </td>
-                <td class="px-3 py-3.5 text-right">
-                  <UiBtn
-                    v-if="isManagement && p.status === 'completed'"
-                    size="sm"
-                    variant="ghost"
-                    :icon="Ban"
-                    @click="openVoid(p)"
-                  >
-                    Хүчингүй
-                  </UiBtn>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+      <template #cell-method="{ row }">
+        <UiStatusBadge :status="row.method" kind="method" size="sm" />
+      </template>
 
-      <div class="mt-4 border-t border-surface-border pt-4">
+      <template #cell-receivedBy="{ row }">
+        <span class="text-body-sm text-content-secondary">{{ receivedByName(row) }}</span>
+      </template>
+
+      <template #cell-amount="{ row }">
+        <span
+          class="font-semibold"
+          :class="row.status === 'voided' ? 'text-content-disabled line-through' : 'text-content'"
+        >
+          {{ formatCurrency(row.amount) }}
+        </span>
+        <UiStatusBadge
+          v-if="row.status !== 'completed'"
+          class="ml-2"
+          :status="row.status"
+          kind="record"
+          size="sm"
+        />
+      </template>
+
+      <template #cell-actions="{ row }">
+        <UiBtn
+          v-if="isManagement && row.status === 'completed'"
+          size="sm"
+          variant="ghost"
+          :icon="Ban"
+          @click.stop="openVoid(row)"
+        >
+          Хүчингүй
+        </UiBtn>
+      </template>
+
+      <template #empty>
+        <UiBtn v-if="!activeFilterCount" class="mt-4" :icon="Plus" to="/admin/payments/collect">
+          Анхны төлбөрийг авах
+        </UiBtn>
+        <UiBtn v-else class="mt-4" variant="secondary" @click="resetFilters">
+          Шүүлтийг цэвэрлэх
+        </UiBtn>
+      </template>
+
+      <template #footer>
         <UiPagination
           :page="pagination.page"
           :pages="pagination.pages"
@@ -326,8 +305,8 @@ async function applyVoid() {
           :limit="pagination.limit"
           @update:page="filters.page = $event"
         />
-      </div>
-    </div>
+      </template>
+    </UiDataTable>
 
     <UiModal v-model="voidOpen" title="Төлбөрийг хүчингүй болгох" size="sm" persistent>
       <div class="space-y-4">

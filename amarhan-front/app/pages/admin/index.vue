@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
       </template>
     </UiPageHeader>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       <UiStatCard
         v-for="kpi in kpis"
         :key="kpi.label"

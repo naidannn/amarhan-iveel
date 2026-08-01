@@ -158,34 +158,36 @@ function formatDate(value: string) {
       @row-click="openEdit"
     >
       <template #toolbar>
-        <div class="space-y-3">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <UiTextInput
-              v-model="filters.search"
-              :icon="Search"
-              placeholder="Нэр, утас, имэйл"
-            />
-            <UiSelectInput
-              v-model="filters.status"
-              :options="statusOptions"
-              placeholder="Бүх төлөв"
-            />
-            <UiSelectInput
-              v-model="filters.loyaltyTier"
-              :options="tierOptions"
-              placeholder="Бүх урамшуулал"
-            />
-            <UiSelectInput
-              v-model="filters.hasAccount"
-              :options="accountOptions"
-              placeholder="Бүх бүртгэл"
-            />
-          </div>
+        <UiFilterBar :active-count="activeFilterCount">
+          <div class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <UiTextInput
+                v-model="filters.search"
+                :icon="Search"
+                placeholder="Нэр, утас, имэйл"
+              />
+              <UiSelectInput
+                v-model="filters.status"
+                :options="statusOptions"
+                placeholder="Бүх төлөв"
+              />
+              <UiSelectInput
+                v-model="filters.loyaltyTier"
+                :options="tierOptions"
+                placeholder="Бүх урамшуулал"
+              />
+              <UiSelectInput
+                v-model="filters.hasAccount"
+                :options="accountOptions"
+                placeholder="Бүх бүртгэл"
+              />
+            </div>
 
-          <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
-            Шүүлт цэвэрлэх ({{ activeFilterCount }})
-          </UiBtn>
-        </div>
+            <UiBtn v-if="activeFilterCount" size="sm" variant="ghost" :icon="X" @click="resetFilters">
+              Шүүлт цэвэрлэх ({{ activeFilterCount }})
+            </UiBtn>
+          </div>
+        </UiFilterBar>
       </template>
 
       <template #cell-name="{ row }">

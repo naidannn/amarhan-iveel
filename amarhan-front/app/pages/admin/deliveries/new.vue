@@ -246,8 +246,12 @@ function reset() {
                 <th class="px-4 py-3 text-body-sm font-medium text-content-secondary">
                   Ачааны дугаар
                 </th>
-                <th class="px-4 py-3 text-body-sm font-medium text-content-secondary">Төлөв</th>
-                <th class="px-4 py-3 text-body-sm font-medium text-content-secondary">Байршил</th>
+                <th class="hidden px-4 py-3 text-body-sm font-medium text-content-secondary sm:table-cell">
+                  Төлөв
+                </th>
+                <th class="hidden px-4 py-3 text-body-sm font-medium text-content-secondary sm:table-cell">
+                  Байршил
+                </th>
                 <th class="px-4 py-3 text-right text-body-sm font-medium text-content-secondary">
                   Үлдэгдэл
                 </th>
@@ -272,10 +276,10 @@ function reset() {
                 <td class="tabular px-4 py-3 text-body font-medium text-content">
                   {{ p.trackingNumber }}
                 </td>
-                <td class="px-4 py-3">
+                <td class="hidden px-4 py-3 sm:table-cell">
                   <UiStatusBadge :status="p.status" size="sm" />
                 </td>
-                <td class="tabular px-4 py-3 text-body-sm text-content-secondary">
+                <td class="tabular hidden px-4 py-3 text-body-sm text-content-secondary sm:table-cell">
                   {{ p.locationCode ?? '—' }}
                 </td>
                 <td

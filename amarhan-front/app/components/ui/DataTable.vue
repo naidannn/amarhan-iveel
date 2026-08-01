@@ -18,6 +18,8 @@ export interface Column<Row> {
   /** Тоон багана — зэрэгцүүлэх */
   tabular?: boolean
   width?: string
+  /** Гар утасны карт горимд гарчиг болгож харуулах багана. Өгөөгүй бол эхний багана. */
+  mobileTitle?: boolean
 }
 
 const props = withDefaults(
@@ -31,8 +33,10 @@ const props = withDefaults(
     emptyText?: string
     selectable?: boolean
     selected?: Array<string>
+    /** Мөр бүрийг сонгож болох эсэх — өгөөгүй бол бүгд сонгогдоно (BR-45 §5.2 маягийн routeMode-д ашиглагдана) */
+    isRowSelectable?: (row: T) => boolean
   }>(),
-  { rowKey: 'id', emptyText: 'Мэдээлэл олдсонгүй' }
+  { rowKey: 'id', emptyText: 'Мэдээлэл олдсонгүй', isRowSelectable: () => true }
 )
 
 const emit = defineEmits<{
@@ -58,12 +62,16 @@ function toggleSort(column: Column<T>) {
   emit('update:sort', sortState(column.key) === 'asc' ? `-${column.key}` : column.key)
 }
 
+const selectableRows = computed(() => props.rows.filter(props.isRowSelectable))
+
 const allSelected = computed(
-  () => props.rows.length > 0 && props.rows.every(r => props.selected?.includes(keyOf(r)))
+  () =>
+    selectableRows.value.length > 0 &&
+    selectableRows.value.every(r => props.selected?.includes(keyOf(r)))
 )
 
 function toggleAll() {
-  emit('update:selected', allSelected.value ? [] : props.rows.map(keyOf))
+  emit('update:selected', allSelected.value ? [] : selectableRows.value.map(keyOf))
 }
 
 function toggleRow(row: T) {
@@ -74,6 +82,24 @@ function toggleRow(row: T) {
     current.includes(key) ? current.filter(k => k !== key) : [...current, key]
   )
 }
+
+// ── Гар утасны карт горим (`md`-ээс доош) ──────────────────────────────────
+// Хүснэгт хажуу тийш гүйлгэдэг нь жижиг дэлгэц дээр уншихад хэцүү тул
+// эхний баганыг картын гарчиг, үлдсэнийг label:value мөр болгож харуулна.
+// `cell-<key>` slot бүгд шууд дахин ашиглагдана — өгөгдөл алдагдахгүй.
+const titleColumn = computed(
+  () => props.columns.find(c => c.mobileTitle) ?? props.columns[0]
+)
+const detailColumns = computed(() => props.columns.filter(c => c !== titleColumn.value))
+
+const sortableColumns = computed(() => props.columns.filter(c => c.sortable))
+
+const mobileSortOptions = computed(() =>
+  sortableColumns.value.flatMap(c => [
+    { value: c.key, label: `${c.label} — өсөхөөр` },
+    { value: `-${c.key}`, label: `${c.label} — буурахаар` },
+  ])
+)
 </script>
 
 <template>
@@ -83,7 +109,7 @@ function toggleRow(row: T) {
       <slot name="toolbar" />
     </div>
 
-    <div class="overflow-x-auto">
+    <div class="hidden overflow-x-auto md:block">
       <table class="w-full border-collapse text-left">
         <thead>
           <tr class="border-b border-surface-border">
@@ -173,6 +199,7 @@ function toggleRow(row: T) {
             >
               <td v-if="selectable" class="px-4 py-4" @click.stop>
                 <input
+                  v-if="isRowSelectable(row)"
                   type="checkbox"
                   class="h-4 w-4 cursor-pointer rounded border-surface-border text-primary focus:ring-2 focus:ring-primary-200"
                   :checked="selected?.includes(keyOf(row))"
@@ -195,6 +222,96 @@ function toggleRow(row: T) {
           </template>
         </tbody>
       </table>
+    </div>
+
+    <!-- Гар утасны карт горим — `md`-ээс доош хүснэгтийн оронд -->
+    <div class="md:hidden">
+      <div
+        v-if="selectable || mobileSortOptions.length"
+        class="flex items-center gap-3 border-b border-surface-border px-card py-3"
+      >
+        <label
+          v-if="selectable"
+          class="flex shrink-0 items-center gap-2 text-body-sm font-medium text-content"
+        >
+          <input
+            type="checkbox"
+            class="h-4 w-4 cursor-pointer rounded border-surface-border text-primary focus:ring-2 focus:ring-primary-200"
+            :checked="allSelected"
+            :disabled="selectableRows.length === 0"
+            aria-label="Бүгдийг сонгох"
+            @change="toggleAll"
+          />
+          Бүгдийг сонгох
+        </label>
+
+        <UiSelectInput
+          v-if="mobileSortOptions.length"
+          :model-value="sort ?? null"
+          :options="mobileSortOptions"
+          placeholder="Эрэмбэлэх"
+          @update:model-value="v => emit('update:sort', String(v))"
+        />
+      </div>
+
+      <!-- Ачаалж буй -->
+      <div v-if="loading" class="divide-y divide-surface-border">
+        <div v-for="n in 4" :key="`skeleton-card-${n}`" class="space-y-2 px-card py-4">
+          <div class="h-4 w-1/2 animate-pulse rounded bg-surface-hover" />
+          <div class="h-3 w-3/4 animate-pulse rounded bg-surface-hover" />
+          <div class="h-3 w-2/3 animate-pulse rounded bg-surface-hover" />
+        </div>
+      </div>
+
+      <!-- Хоосон -->
+      <div v-else-if="rows.length === 0" class="flex flex-col items-center justify-center px-card py-16 text-center">
+        <Inbox :size="32" :stroke-width="1.6" class="text-content-disabled" />
+        <p class="mt-3 text-body text-content-secondary">{{ emptyText }}</p>
+        <slot name="empty" />
+      </div>
+
+      <!-- Өгөгдөл — карт бүр -->
+      <div v-else class="divide-y divide-surface-border">
+        <div
+          v-for="row in rows"
+          :key="keyOf(row)"
+          class="flex gap-3 px-card py-4"
+          :class="$attrs.onRowClick || $slots.default ? 'cursor-pointer active:bg-surface-hover' : ''"
+          @click="emit('rowClick', row)"
+        >
+          <div v-if="selectable" class="pt-0.5" @click.stop>
+            <input
+              v-if="isRowSelectable(row)"
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border-surface-border text-primary focus:ring-2 focus:ring-primary-200"
+              :checked="selected?.includes(keyOf(row))"
+              :aria-label="`${keyOf(row)} сонгох`"
+              @change="toggleRow(row)"
+            />
+          </div>
+
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <div class="text-body font-semibold text-content">
+              <slot :name="`cell-${titleColumn.key}`" :row="row" :value="row[titleColumn.key]">
+                {{ row[titleColumn.key] }}
+              </slot>
+            </div>
+
+            <div
+              v-for="column in detailColumns"
+              :key="column.key"
+              class="flex items-baseline justify-between gap-3 text-body-sm"
+            >
+              <span class="shrink-0 text-content-secondary">{{ column.label }}</span>
+              <span class="min-w-0 truncate text-right text-content" :class="column.tabular && 'tabular'">
+                <slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]">
+                  {{ row[column.key] }}
+                </slot>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Хуудаслалт — хүснэгтийн ДООР -->

@@ -3,8 +3,10 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../../controllers/public.controller');
+const notificationController = require('../../controllers/notification.controller');
 const validate = require('../../middlewares/validate');
 const validation = require('../../validations/public.validation');
+const notificationValidation = require('../../validations/notification.validation');
 const { publicLimiter } = require('../../middlewares/rate-limit');
 
 /**
@@ -30,5 +32,16 @@ router.get('/pricing', controller.pricing);
 
 // §3, roadmap 5.9/5.10 — Эрээний хаяг, холбоо барих, түгээмэл асуулт
 router.get('/content', controller.content);
+
+/**
+ * §7, roadmap 6.3 — нэвтрээгүй зочин ч харах идэвхтэй нийтийн зарлал.
+ * Хариу цагаан жагсаалттай (`notification.service.js#listPublic`) — зөвхөн
+ * title/body/огноо, дотоод ID/илгээсэн ажилтан гарахгүй.
+ */
+router.get(
+  '/notifications',
+  validate(notificationValidation.listPublic),
+  notificationController.listPublic
+);
 
 module.exports = router;

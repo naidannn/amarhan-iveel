@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard } from 'lucide-vue-next'
+import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard, Bell } from 'lucide-vue-next'
 
 /**
  * Харилцагчийн вэбийн layout — introduction.md §3
@@ -13,9 +13,24 @@ const route = useRoute()
 
 const menuOpen = ref(false)
 
+// §7 (Phase 6) — Bell дэх уншаагүй тоо. Хуудас солигдох бүрт дахин татна
+// (доорх `watch(route.path)`-д аль хэдийн байгаа) — тусдаа polling механизм
+// шаардлагагүй, харилцагч /my/notifications-руу орох бүрт өөрөө шинэчлэгдэнэ.
+const unreadCount = ref(0)
+
+async function loadUnreadCount() {
+  if (!customer.isAuthenticated) return
+  try {
+    unreadCount.value = await useCustomerPortal().unreadNotificationCount()
+  } catch {
+    // Чимээгүй алгасна — bell дэх тоо гоёл чимэглэл, урсгалыг блоклохгүй
+  }
+}
+
 const publicNav = [
   { label: 'Ачаа хайх', to: '/track' },
   { label: 'Хүлээн авах хаяг', to: '/address' },
+  { label: 'Мэдэгдэл', to: '/notifications' },
   { label: 'Тусламж', to: '/help' },
 ]
 
@@ -46,8 +61,10 @@ watch(
   () => route.path,
   () => {
     menuOpen.value = false
+    loadUnreadCount()
   }
 )
+onMounted(loadUnreadCount)
 </script>
 
 <template>
@@ -57,7 +74,7 @@ watch(
       v-if="customer.isAuthenticated"
       class="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-surface-border bg-surface-card lg:flex"
     >
-      <div class="flex h-navbar shrink-0 items-center px-4">
+      <div class="flex h-navbar shrink-0 items-center justify-between px-4">
         <NuxtLink to="/" class="flex items-center">
           <img
             src="/logo-full.png"
@@ -66,6 +83,20 @@ watch(
             width="172"
             height="36"
           />
+        </NuxtLink>
+
+        <NuxtLink
+          to="/my/notifications"
+          class="relative shrink-0 rounded-btn p-2 text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-content"
+          aria-label="Мэдэгдэл"
+        >
+          <Bell :size="19" :stroke-width="2" />
+          <span
+            v-if="unreadCount > 0"
+            class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
+          >
+            {{ unreadCount > 9 ? '9+' : unreadCount }}
+          </span>
         </NuxtLink>
       </div>
 
@@ -151,6 +182,20 @@ watch(
 
           <div class="ml-auto flex items-center gap-2">
             <template v-if="customer.isAuthenticated">
+              <NuxtLink
+                to="/my/notifications"
+                class="relative rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
+                aria-label="Мэдэгдэл"
+              >
+                <Bell :size="20" :stroke-width="2" />
+                <span
+                  v-if="unreadCount > 0"
+                  class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
+                >
+                  {{ unreadCount > 9 ? '9+' : unreadCount }}
+                </span>
+              </NuxtLink>
+
               <NuxtLink
                 to="/my/profile"
                 class="hidden items-center gap-2.5 rounded-btn px-2 py-1.5 hover:bg-surface-hover sm:flex lg:hidden"
@@ -239,6 +284,7 @@ watch(
           <nav class="flex gap-4">
             <NuxtLink to="/track" class="hover:text-content">Ачаа хайх</NuxtLink>
             <NuxtLink to="/address" class="hover:text-content">Хүлээн авах хаяг</NuxtLink>
+            <NuxtLink to="/notifications" class="hover:text-content">Мэдэгдэл</NuxtLink>
             <NuxtLink to="/help" class="hover:text-content">Тусламж</NuxtLink>
           </nav>
         </div>

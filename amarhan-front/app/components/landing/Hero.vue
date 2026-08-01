@@ -1,19 +1,37 @@
 <script setup lang="ts">
-import { Check, MapPin, MessageCircle } from 'lucide-vue-next'
+import { Check, MapPin, MessageCircle, Megaphone } from 'lucide-vue-next'
 
-defineProps<{ notice?: string | null }>()
+defineProps<{
+  notice?: string | null
+  /** §7, roadmap 6.3 — Мэдэгдэл модулиар илгээсэн хамгийн сүүлийн нийтийн зарлал */
+  latestNotification?: { id: string; title: string; body: string } | null
+}>()
 </script>
 
 <template>
   <section class="relative mx-auto max-w-7xl px-5 pb-14 pt-10 sm:px-8 sm:pt-14 lg:pb-16 lg:pt-16">
-    <!-- Зарлал -->
+    <!-- Зарлал (Тохиргоо > Ерөнхий, тогтмол текст) -->
     <div
       v-if="notice"
-      class="mx-auto mb-8 flex max-w-xl items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
+      class="mx-auto flex max-w-xl items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
+      :class="latestNotification ? 'mb-3' : 'mb-8'"
     >
       <MessageCircle :size="17" class="mt-0.5 shrink-0 text-amber-500" />
       <p class="text-body-sm text-amber-800">{{ notice }}</p>
     </div>
+
+    <!-- Мэдэгдэл модулиар илгээсэн хамгийн сүүлийн нийтийн зарлал (§7) -->
+    <NuxtLink
+      v-if="latestNotification"
+      to="/notifications"
+      class="mx-auto mb-8 flex max-w-xl items-start gap-2.5 rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3 transition-colors hover:border-primary-200"
+    >
+      <Megaphone :size="17" class="mt-0.5 shrink-0 text-primary-600" />
+      <p class="text-body-sm text-primary-800">
+        <span class="font-semibold">{{ latestNotification.title }}</span>
+        <span class="ml-1 text-primary-700">— Бүх мэдэгдлийг харах</span>
+      </p>
+    </NuxtLink>
 
     <div class="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10">
       <div class="text-center lg:text-left">

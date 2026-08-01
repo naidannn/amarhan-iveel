@@ -301,7 +301,9 @@ GET    /api/v1/customer/deliveries
 ```
 GET    /api/v1/public/track/:trackingNumber    # төлөв + масклагдсан утас
 GET    /api/v1/public/content                  # Эрээний хаяг, холбоо барих, FAQ
-GET    /api/v1/public/notifications            # §7 — Phase 6
+GET    /api/v1/public/notifications            # §7, roadmap 6.3 (2026-08-02) — идэвхтэй
+                                                # нийтийн зарлал. Хариу цагаан жагсаалттай:
+                                                # зөвхөн id/title/body/createdAt.
 ```
 
 > **`/public/*`-д нэмсэн зам БҮР интернэтэд ил.** `track` нь ҮНЭ, ҮЛДЭГДЭЛ,
@@ -399,6 +401,43 @@ PUT    /api/v1/deliveries/:deliveryId/cancel    # Менежер, Админ, ш
 
 `GET /deliveries/:id` нь `allowedTransitions`-ыг **`manualTransitions()`**-ээс
 буцаана (`cancelled` орохгүй) — UI зөвхөн бодитоор ажиллах товч харуулна.
+
+---
+
+## 8c. Мэдэгдлийн API (§7, Phase 6, 2026-08-01, зочны хэсэг 2026-08-02)
+
+Ажилтан (Админ/Менежер, BR-36 — Ажилтан ✗):
+
+```
+POST   /api/v1/notifications                    # бүх харилцагчид нийтийн зарлал илгээх
+GET    /api/v1/notifications                     # илгээсэн зарлалын түүх
+```
+
+Харилцагч (`/v1/customer`-ийн нэг хэсэг, §8-ийн гурван дүрэмд захирагдана):
+
+```
+GET    /api/v1/customer/notifications             # хувийн (BR-35) + идэвхтэй нийтийн (BR-36), мержсэн
+GET    /api/v1/customer/notifications/unread-count
+PUT    /api/v1/customer/notifications/:id/read
+PUT    /api/v1/customer/notifications/read-all
+```
+
+Нэвтрээгүй зочин (roadmap 6.3, `publicLimiter`-т захирагдана):
+
+```
+GET    /api/v1/public/notifications               # идэвхтэй нийтийн зарлал, цагаан жагсаалттай
+```
+
+ХУВИЙН мэдэгдэл (`audience: 'customer'`) endpoint-гүй — `package.service.js`-ийн
+`create()`/`applyArrival()`/`changeStatus()`-оос `notificationService.notifyPackageEvent()`
+автоматаар үүсгэнэ (BR-35). Throw ХИЙХГҮЙ дизайнтай (`docs/business-rules.md` BR-35) —
+мэдэгдэл бичихэд алдаа гарсан ч ачааны төлөв шилжилт унахгүй.
+
+> Зөвхөн `web` суваг (SMS — roadmap 6.5, хараахан хэрэгжээгүй). Зочны эндпойнт
+> `notificationService.listPublic()`-аар дамжина — `isPublic` гэсэн тусдаа флаг
+> ЗОРИУДААР нэмээгүй: идэвхтэй нийтийн зарлал бүр аль хэдийн БҮХ харилцагчид
+> зориулагдсан, дотоод/санхүүгийн мэдээлэл агуулаагүй энгийн текст тул
+> зочноос нуух шалтгаан алга.
 
 ---
 

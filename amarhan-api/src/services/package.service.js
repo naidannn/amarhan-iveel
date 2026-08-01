@@ -8,6 +8,7 @@ const customerService = require('./customer.service');
 const tariffService = require('./tariff.service');
 const settingService = require('./setting.service');
 const auditService = require('./audit.service');
+const notificationService = require('./notification.service');
 const APIError = require('../utils/APIError');
 const { withTransaction } = require('../utils/transaction');
 const {
@@ -363,6 +364,11 @@ class PackageService {
       return pkg;
     }).catch(err => this.handleWriteError(err, trackingNumber));
 
+    // BR-35 — ачаа шинээр бүртгэгдэхэд харилцагчид мэдэгдэнэ. Транзакцаас
+    // ГАДУУР, throw хийхгүй (notification.service.js) тул бүртгэлийн урсгалыг
+    // блоклохгүй.
+    await notificationService.notifyPackageEvent(created, 'created');
+
     return {
       package: created,
       // BR-24 — багтаамжийн сануулга. ХОРИГЛОХГҮЙ, зөвхөн мэдэгдэнэ
@@ -566,6 +572,10 @@ class PackageService {
 
       return doc;
     });
+
+    // BR-35 — ачаа Монголд ирснийг харилцагчид мэдэгдэнэ (`completeArrival`,
+    // `adoptExisting`(→registered), `create()`-ийн шингээх зам ГУРВУУЛаа энд ирнэ)
+    await notificationService.notifyPackageEvent(updated, PACKAGE_STATUS.REGISTERED);
 
     return {
       package: updated,
@@ -1095,7 +1105,15 @@ class PackageService {
       return updated;
     };
 
-    return opts.session ? run(opts.session) : withTransaction(run);
+    const updated = opts.session ? await run(opts.session) : await withTransaction(run);
+
+    // BR-35 — awaiting_payment/out_for_delivery-д мэдэгдэнэ (`notifyPackageEvent`
+    // танигдаагүй `nextStatus`-д чимээгүй `null` буцаадаг тул нэмэлт нөхцөл
+    // шаардлагагүй). Хүргэлтээс cascade-аар ирсэн дуудлагыг ч хамарна
+    // (`delivery.service.js`-ийн `cascadeToPackages()` энэ метод ЛУУГААР дамждаг).
+    await notificationService.notifyPackageEvent(updated, nextStatus);
+
+    return updated;
   }
 
   /**

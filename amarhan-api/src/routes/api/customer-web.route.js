@@ -4,10 +4,12 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../../controllers/customer-auth.controller');
 const portalController = require('../../controllers/customer-portal.controller');
+const notificationController = require('../../controllers/notification.controller');
 const authorizeCustomer = require('../../middlewares/authorize-customer');
 const validate = require('../../middlewares/validate');
 const authValidation = require('../../validations/customer-auth.validation');
 const portalValidation = require('../../validations/customer-portal.validation');
+const notificationValidation = require('../../validations/notification.validation');
 const { authLimiter, selfRegisterLimiter } = require('../../middlewares/rate-limit');
 
 /**
@@ -110,5 +112,23 @@ router.post(
   validate(portalValidation.createDelivery),
   portalController.createDelivery
 );
+
+/**
+ * §7 (Phase 6) — хувийн (ачааны эвент) + идэвхтэй нийтийн зарлал (BR-35, BR-36).
+ * Илгээх/удирдах нь `notification.route.js`-д (`/v1/notifications`, зөвхөн
+ * Админ/Менежер) — энд ЗӨВХӨН уншиж, өөрийн уншсан төлвөө тэмдэглэнэ.
+ */
+router.get(
+  '/notifications',
+  validate(notificationValidation.customerList),
+  notificationController.listMine
+);
+router.get('/notifications/unread-count', notificationController.unreadCount);
+router.put(
+  '/notifications/:id/read',
+  validate(notificationValidation.markRead),
+  notificationController.markRead
+);
+router.put('/notifications/read-all', notificationController.markAllRead);
 
 module.exports = router;

@@ -17,6 +17,7 @@ const customerWebRouter = require('./customer-web.route');
 const publicRouter = require('./public.route');
 const dashboardRouter = require('./dashboard.route');
 const reportRouter = require('./report.route');
+const notificationRouter = require('./notification.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -53,6 +54,10 @@ router.use('/v1/deliveries', deliveryRouter);
 
 // Phase 5 — тохиргоо ба статик агуулга. Унших: ажилтан, засах: Админ (§9.1).
 router.use('/v1/settings', settingRouter);
+
+// Phase 6 — Мэдэгдэл (§7). Илгээх/удирдах эрх зөвхөн Админ, Менежерт (BR-36).
+// Харилцагчийн уншиж буй хэсэг `/v1/customer/notifications*`-д (доор).
+router.use('/v1/notifications', notificationRouter);
 
 /**
  * Phase 5 — ХАРИЛЦАГЧИЙН вэб (§3).

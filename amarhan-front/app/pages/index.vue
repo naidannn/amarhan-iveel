@@ -12,7 +12,7 @@
  */
 definePageMeta({ layout: 'landing' })
 
-const { content, pricing } = usePublicContent()
+const { content, pricing, notifications } = usePublicContent()
 
 const { data: site } = await useAsyncData('public-content', () => content(), {
   // Backend унтарсан үед нүүр хуудас БҮХЭЛДЭЭ унах ёсгүй
@@ -22,6 +22,19 @@ const { data: site } = await useAsyncData('public-content', () => content(), {
 const { data: tariff } = await useAsyncData('public-pricing', () => pricing(), {
   default: () => null,
 })
+
+/**
+ * §7, roadmap 6.3 — хамгийн сүүлийн идэвхтэй нийтийн зарлал (Мэдэгдэл модуль).
+ * `home_notice` (доор) нь Тохиргоо > Ерөнхийгээс Админ гараар бичдэг НЭГ
+ * ТОГТМОЛ текст — өөр механизм. Мэдэгдэл модулиар илгээсэн зарлал автоматаар
+ * энд харагдахын тулд тусдаа дуудлагатай.
+ */
+const { data: latestNotifications } = await useAsyncData(
+  'public-notifications-home',
+  () => notifications({ page: 1, limit: 1 }),
+  { default: () => null }
+)
+const latestNotification = computed(() => latestNotifications.value?.data?.[0] ?? null)
 
 const address = computed(() => site.value?.erenhot_address ?? null)
 const contact = computed(() => site.value?.contact ?? null)
@@ -42,7 +55,7 @@ useHead({
 
 <template>
   <div>
-    <LandingHero :notice="notice" />
+    <LandingHero :notice="notice" :latest-notification="latestNotification" />
     <LandingFeatures />
     <LandingChinaAddress :address="address" />
     <LandingPricing :tariff="tariff" />

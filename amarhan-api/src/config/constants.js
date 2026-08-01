@@ -43,6 +43,7 @@ exports.AUDIT_ENTITY = {
   CARGO_TYPE: 'cargo_type',
   TARIFF: 'tariff',
   SETTINGS: 'settings',
+  NOTIFICATION: 'notification',
 };
 
 /**
@@ -114,6 +115,11 @@ exports.AUDIT_ACTION = {
   TARIFF_CHANGE: 'settings.tariff_change',
   LOYALTY_CHANGE: 'settings.loyalty_change',
   SETTINGS_UPDATE: 'settings.update',
+
+  // Мэдэгдэл (Phase 6, §7) — зөвхөн Админ/Менежерийн НИЙТИЙН зарлал энд
+  // бүртгэгдэнэ (BR-36). Ачааны эвентээс автоматаар үүсэх ХУВИЙН мэдэгдэл
+  // audit-д БИЧИГДЭХГҮЙ — мөнгө/төлөв өөрчлөгдөөгүй, зөвхөн мэдэгдэл.
+  NOTIFICATION_SEND: 'notification.send',
 };
 
 exports.AUDIT_ACTION_LIST = Object.values(exports.AUDIT_ACTION);
@@ -413,3 +419,21 @@ exports.SETTING_DEFAULTS = {
     note: '',
   },
 };
+
+/**
+ * Мэдэгдлийн зорилтот бүлэг — introduction.md §7 (Phase 6).
+ *
+ * `CUSTOMER` — тухайн ХАРИЛЦАГЧИД зориулсан хувийн мэдэгдэл (ачааны
+ * төлөв өөрчлөгдөх/үүсэх үед систем автоматаар үүсгэнэ, BR-35).
+ * `ALL` — Админ/Менежерийн бүх харилцагчид зориулсан нийтийн зарлал (BR-36).
+ *
+ * Ажилтан (`users`) мэдэгдэл ХҮЛЭЭН АВАГЧ БИШ — зөвхөн илгээгч
+ * (`docs/security-and-permissions.md` §2). Тиймээс `STAFF` гэсэн audience
+ * энд ЗОРИУДААР байхгүй.
+ */
+exports.NOTIFICATION_AUDIENCE = {
+  CUSTOMER: 'customer',
+  ALL: 'all',
+};
+
+exports.NOTIFICATION_AUDIENCE_LIST = Object.values(exports.NOTIFICATION_AUDIENCE);

@@ -165,12 +165,17 @@ watch(
         </button>
 
         <div class="ml-auto flex items-center gap-2">
-          <button
+          <!--
+            §7 — Ажилтан мэдэгдэл ХҮЛЭЭН АВАГЧ БИШ, зөвхөн илгээгч (BR-36) тул
+            unread badge шаардлагагүй — удирдах хуудас руу шилжих товч л хангалттай.
+          -->
+          <NuxtLink
+            to="/admin/notifications"
             class="rounded-btn p-2 text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-content"
             aria-label="Мэдэгдэл"
           >
             <Bell :size="19" :stroke-width="2" />
-          </button>
+          </NuxtLink>
 
           <div class="flex items-center gap-2.5 pl-2">
             <div class="hidden text-right sm:block">

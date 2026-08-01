@@ -471,20 +471,28 @@ schema.index(
 
 ---
 
-## 12. `notifications` (§7)
+## 12. `notifications` (§7, Phase 6 хэрэгжсэн — 2026-08-01)
+
+Нэг коллекц ХОЁР төрлийг хамарна (`audience`-аар ялгана):
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
 | `title`, `body` | String | |
-| `channels` | [`web` \| `sms` \| `push`] | |
-| `audience` | `all` \| `customers` \| `segment` | |
-| `segmentFilter` | Object \| null | Жишээ: `{ loyaltyTier: 'gold' }` |
-| `isPublic` | Boolean | Нэвтрээгүй ч харагдах эсэх (§7) |
-| `publishedAt`, `expiresAt` | Date | |
-| `createdBy` | ObjectId → `users` | |
-| `deliveryStats` | { sent, failed } | |
+| `audience` | `customer` \| `all` | `customer` = тухайн харилцагчид (BR-35), `all` = бүх харилцагчид (BR-36) |
+| `customerId` | ObjectId → `customers`, null | зөвхөн `audience: customer` |
+| `entity`, `entityId`, `entityLabel` | String/ObjectId/String, null | audit-log-той ижил хэв маяг — жишээ `entity:'package'` |
+| `readAt` | Date, null | зөвхөн `audience: customer` (ганц хүлээн авагч тул шууд талбар) |
+| `expiresAt` | Date, null | зөвхөн `audience: all`, `null` = хугацаагүй |
+| `createdBy` | ObjectId → `users`, null | нийтийн зарлал илгээсэн ажилтан; хувийнд `null` (систем) |
 
-`notification_reads`: `{ notificationId, customerId, readAt }` — `{notificationId, customerId}` unique.
+`notification_reads`: `{ notificationId, customerId, readAt }` — `{notificationId, customerId}`
+unique, ЗӨВХӨН `audience: all` бичлэгийн уншсан төлөв (олон харилцагч
+хуваалцдаг тул шууд `readAt`-аар барих боломжгүй).
+
+> **Анхны төлөвлөгөөнөөс хялбарчилсан:** `channels`/`segmentFilter`/`isPublic`/
+> `publishedAt`/`deliveryStats` талбарууд ХЭРЭГЛЭГДЭХГҮЙ — SMS суваг (roadmap
+> 6.5) болон нэвтрээгүй зочны хуудас (roadmap 6.3) хойшлогдсон тул одоохондоо
+> зөвхөн `web` суваг, зорилтод бүлэг нь харилцагч. Хэрэгцээ гарвал нэмнэ.
 
 ---
 

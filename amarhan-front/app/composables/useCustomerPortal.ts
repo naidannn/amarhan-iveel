@@ -71,6 +71,19 @@ export interface DeliverableForDelivery {
   } | null
 }
 
+/** §7 (Phase 6) — хувийн (BR-35) болон идэвхтэй нийтийн (BR-36) мэдэгдэл нэг жагсаалтад */
+export interface CustomerNotification {
+  id: string
+  title: string
+  body: string
+  entity: string | null
+  entityId: string | null
+  entityLabel: string | null
+  audience: 'customer' | 'all'
+  read: boolean
+  createdAt: string
+}
+
 export interface CreatedDelivery {
   id: string
   deliveryNumber: string
@@ -162,6 +175,24 @@ export function useCustomerPortal() {
     return res.data.data
   }
 
+  /** §7 — хувийн + идэвхтэй нийтийн мэдэгдэл, нэг хуудаслалтаар */
+  function notifications(params: { page?: number; limit?: number } = {}) {
+    return list<CustomerNotification>('notifications', params)
+  }
+
+  async function unreadNotificationCount(): Promise<number> {
+    const res = await $axios.get('/api/v1/customer/notifications/unread-count')
+    return res.data.data.count
+  }
+
+  async function markNotificationRead(id: string): Promise<void> {
+    await $axios.put(`/api/v1/customer/notifications/${id}/read`)
+  }
+
+  async function markAllNotificationsRead(): Promise<void> {
+    await $axios.put('/api/v1/customer/notifications/read-all')
+  }
+
   return {
     summary,
     packages,
@@ -172,6 +203,10 @@ export function useCustomerPortal() {
     deliveries,
     deliverableForDelivery,
     createDelivery,
+    notifications,
+    unreadNotificationCount,
+    markNotificationRead,
+    markAllNotificationsRead,
   }
 }
 
@@ -211,7 +246,24 @@ export function usePublicContent() {
     return res
   }
 
-  return { content, pricing, track, trackByPhone }
+  /** §7, roadmap 6.3 — нэвтрээгүй зочны мэдэгдлийн хуудас (идэвхтэй нийтийн зарлал) */
+  async function notifications(params: { page?: number; limit?: number } = {}) {
+    const res = await $fetch<{ data: PublicNotification[]; pagination: any }>(
+      `${base}/api/v1/public/notifications`,
+      { params }
+    )
+    return res
+  }
+
+  return { content, pricing, track, trackByPhone, notifications }
+}
+
+/** §7 — зочинд харагдах цагаан жагсаалттай мэдэгдэл (уншсан төлөвгүй, зөвхөн текст) */
+export interface PublicNotification {
+  id: string
+  title: string
+  body: string
+  createdAt: string
 }
 
 /** Хоосон/тодорхойгүй параметрийг query-д оруулахгүй */

@@ -1,5 +1,21 @@
 <script setup lang="ts">
-import { Plus, Trash2, ExternalLink, ImagePlus, ArrowUp, ArrowDown, X } from 'lucide-vue-next'
+import {
+  Plus,
+  Trash2,
+  ExternalLink,
+  ImagePlus,
+  ArrowUp,
+  ArrowDown,
+  X,
+  MapPin,
+  Megaphone,
+  Phone,
+  HelpCircle,
+  Banknote,
+  ShoppingBag,
+  BookOpen,
+  Menu,
+} from 'lucide-vue-next'
 
 /**
  * Статик агуулга удирдах — roadmap 5.10
@@ -26,6 +42,34 @@ const KEYS = {
   linkOrder: 'content.link_order',
   addressGuides: 'content.address_guides',
 } as const
+
+/**
+ * Хэсэг бүрийг тусад нь харуулах local sidebar — хуудас урт болж, гүйлгэхэд
+ * төвөгтэй болсныг засав (7 хэсэг нэг дор жагссан байсан).
+ */
+const SECTIONS = [
+  { id: 'erenhot', label: 'Эрээний хаяг', icon: MapPin },
+  { id: 'notice', label: 'Нүүрийн зарлал', icon: Megaphone },
+  { id: 'contact', label: 'Холбоо барих', icon: Phone },
+  { id: 'faq', label: 'Түгээмэл асуулт', icon: HelpCircle },
+  { id: 'yuanTransfer', label: 'Юань шилжүүлэг', icon: Banknote },
+  { id: 'linkOrder', label: 'Линк захиалга', icon: ShoppingBag },
+  { id: 'addressGuides', label: 'Хаяг холбох заавар', icon: BookOpen },
+] as const
+type SectionId = (typeof SECTIONS)[number]['id']
+
+const route = useRoute()
+const router = useRouter()
+const activeSection = ref<SectionId>(
+  SECTIONS.some(s => s.id === route.query.tab) ? (route.query.tab as SectionId) : SECTIONS[0].id
+)
+watch(activeSection, id => router.replace({ query: { ...route.query, tab: id } }))
+
+const mobileNavOpen = ref(false)
+function selectSection(id: SectionId) {
+  activeSection.value = id
+  mobileNavOpen.value = false
+}
 
 const erenhot = reactive({
   receiverName: '',
@@ -185,7 +229,7 @@ function saveGuides() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-5">
+  <div class="space-y-5">
     <UiPageHeader
       title="Статик агуулга"
       description="Хэрэглэгчийн вэбэд харагдах мэдээлэл. Хадгалмагц шууд шинэчлэгдэнэ."
@@ -204,9 +248,40 @@ function saveGuides() {
 
     <p v-if="loading" class="py-10 text-center text-body text-content-secondary">Ачаалж байна…</p>
 
-    <template v-else>
+    <div v-else class="lg:flex lg:items-start lg:gap-5">
+      <!-- Хэсгийн жагсаалт: lg-ээс дээш sidebar, доор нь унадаг цэс -->
+      <button
+        class="mb-3 flex w-full items-center gap-2 rounded-card border border-surface-border bg-surface-card px-3.5 py-2.5 text-body font-medium text-content lg:hidden"
+        @click="mobileNavOpen = !mobileNavOpen"
+      >
+        <Menu :size="18" />
+        <component :is="SECTIONS.find(s => s.id === activeSection)!.icon" :size="16" />
+        {{ SECTIONS.find(s => s.id === activeSection)!.label }}
+      </button>
+
+      <nav
+        class="mb-4 shrink-0 space-y-1 rounded-card border border-surface-border bg-surface-card p-2 lg:sticky lg:top-[4.5rem] lg:mb-0 lg:w-64"
+        :class="mobileNavOpen ? 'block' : 'hidden lg:block'"
+      >
+        <button
+          v-for="section in SECTIONS"
+          :key="section.id"
+          class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-left text-[14px] leading-5 font-medium transition-colors duration-200"
+          :class="
+            activeSection === section.id
+              ? 'bg-primary-50 text-primary-600'
+              : 'text-content-secondary hover:bg-surface-hover hover:text-content'
+          "
+          @click="selectSection(section.id)"
+        >
+          <component :is="section.icon" :size="18" :stroke-width="2" />
+          <span class="truncate">{{ section.label }}</span>
+        </button>
+      </nav>
+
+      <div class="min-w-0 flex-1 space-y-5">
       <!-- Эрээний хаяг (§3, 5.9) -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'erenhot'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <h2 class="font-semibold text-content">Эрээн дэх хүлээн авах хаяг</h2>
         <p class="mt-1 text-body-sm text-content-secondary">
           Харилцагч Хятадын дэлгүүрт бичих хаяг. Энэ нь агуулахын байршлын код
@@ -274,7 +349,7 @@ function saveGuides() {
       </section>
 
       <!-- Нүүрийн зарлал -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'notice'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <h2 class="font-semibold text-content">Нүүр хуудасны зарлал</h2>
         <p class="mt-1 text-body-sm text-content-secondary">
           Хоосон үлдээвэл зарлал харагдахгүй.
@@ -299,7 +374,7 @@ function saveGuides() {
       </section>
 
       <!-- Холбоо барих -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'contact'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <h2 class="font-semibold text-content">Холбоо барих</h2>
 
         <div class="mt-4 space-y-4">
@@ -363,7 +438,7 @@ function saveGuides() {
       </section>
 
       <!-- Түгээмэл асуулт -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'faq'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <div class="flex items-center justify-between">
           <h2 class="font-semibold text-content">Түгээмэл асуулт</h2>
           <UiBtn
@@ -430,7 +505,7 @@ function saveGuides() {
       </section>
 
       <!-- Туслах үйлчилгээ — Юань шилжүүлэг -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'yuanTransfer'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <h2 class="font-semibold text-content">Туслах үйлчилгээ — Юань шилжүүлэг</h2>
         <p class="mt-1 text-body-sm text-content-secondary">
           Харилцагч Хятад руу юань мөнгө шилжүүлэхэд харагдах данс, ханш, зааврын мэдээлэл.
@@ -496,7 +571,7 @@ function saveGuides() {
       </section>
 
       <!-- Туслах үйлчилгээ — Линк захиалга -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'linkOrder'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <h2 class="font-semibold text-content">Туслах үйлчилгээ — Линк захиалга</h2>
         <p class="mt-1 text-body-sm text-content-secondary">
           Систем дотор захиалгын урсгал байхгүй — харилцагчийг доорх Facebook
@@ -534,7 +609,7 @@ function saveGuides() {
       </section>
 
       <!-- Хаяг холбох зааварчилгаа -->
-      <section class="rounded-card border border-surface-border bg-surface-card p-5">
+      <section v-if="activeSection === 'addressGuides'" class="rounded-card border border-surface-border bg-surface-card p-5">
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="font-semibold text-content">Хаяг холбох зааварчилгаа</h2>
@@ -724,6 +799,7 @@ function saveGuides() {
           Хадгалах
         </UiBtn>
       </section>
-    </template>
+      </div>
+    </div>
   </div>
 </template>

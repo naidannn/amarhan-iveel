@@ -13,6 +13,14 @@ const route = useRoute()
 
 const menuOpen = ref(false)
 
+// Header дэх юанийн ханшийн тэмдэглэгээ — нээлттэй мэдээлэл тул нэвтрээгүй
+// зочинд ч харагдана (§3, "Туслах үйлчилгээ").
+const { content } = usePublicContent()
+const { data: headerSite } = await useAsyncData('default-layout-content', () => content(), {
+  default: () => null,
+})
+const yuanTransfer = computed(() => headerSite.value?.yuan_transfer ?? null)
+
 // §7 (Phase 6) — Bell дэх уншаагүй тоо. Хуудас солигдох бүрт дахин татна
 // (доорх `watch(route.path)`-д аль хэдийн байгаа) — тусдаа polling механизм
 // шаардлагагүй, харилцагч /my/notifications-руу орох бүрт өөрөө шинэчлэгдэнэ.
@@ -100,6 +108,10 @@ onMounted(loadUnreadCount)
         </NuxtLink>
       </div>
 
+      <div v-if="yuanTransfer" class="border-b border-surface-border px-3 py-3">
+        <ServicesExchangeRateBadge class="w-full justify-center" :data="yuanTransfer" />
+      </div>
+
       <nav class="flex-1 space-y-1 px-3 py-4" aria-label="Хэрэглэгчийн цэс">
         <NuxtLink
           v-for="item in accountNav"
@@ -179,6 +191,8 @@ onMounted(loadUnreadCount)
               {{ item.label }}
             </NuxtLink>
           </nav>
+
+          <ServicesExchangeRateBadge class="ml-2 hidden sm:inline-flex" :data="yuanTransfer" />
 
           <div class="ml-auto flex items-center gap-2">
             <template v-if="customer.isAuthenticated">

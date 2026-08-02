@@ -1082,6 +1082,53 @@ describe('Харилцагчийн вэб (§3)', () => {
       expect(res.status).to.equal(400);
     });
 
+    it('Админ хаяг холбох заавар нэмэхэд нээлттэй хуудсанд шууд тусна', async () => {
+      const admin = await createUserWithToken({ role: ROLES.ADMIN, branchId: branch._id });
+
+      const update = await chai
+        .request(app)
+        .put(`${SETTINGS}/${SETTING_KEY.CONTENT_ADDRESS_GUIDES}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({
+          value: [
+            {
+              id: 'taobao',
+              platform: 'Taobao',
+              thumbnailUrl: '/uploads/guides/taobao.jpg',
+              blocks: [{ imageUrl: '/uploads/guides/step1.jpg', text: 'Хаягийн хэсэгт орно' }],
+            },
+          ],
+        });
+
+      expect(update.status, JSON.stringify(update.body)).to.equal(200);
+
+      const res = await chai.request(app).get(`${PUBLIC}/content`);
+      expect(res.body.data.address_guides).to.have.length(1);
+      expect(res.body.data.address_guides[0].platform).to.equal('Taobao');
+    });
+
+    it('Ажилтан хаяг холбох заавар засахгүй (§9.1)', async () => {
+      const res = await chai
+        .request(app)
+        .put(`${SETTINGS}/${SETTING_KEY.CONTENT_ADDRESS_GUIDES}`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ value: [{ id: 'a', platform: 'Taobao', thumbnailUrl: '', blocks: [] }] });
+
+      expect(res.status).to.equal(403);
+    });
+
+    it('хаяг холбох заавар `platform`-гүй бол хадгалагдахгүй', async () => {
+      const admin = await createUserWithToken({ role: ROLES.ADMIN, branchId: branch._id });
+
+      const res = await chai
+        .request(app)
+        .put(`${SETTINGS}/${SETTING_KEY.CONTENT_ADDRESS_GUIDES}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ value: [{ id: 'a', thumbnailUrl: '', blocks: [] }] });
+
+      expect(res.status).to.equal(400);
+    });
+
     it('танигдахгүй түлхүүр үүсгэхгүй', async () => {
       const admin = await createUserWithToken({ role: ROLES.ADMIN, branchId: branch._id });
 

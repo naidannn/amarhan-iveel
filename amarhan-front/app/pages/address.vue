@@ -17,6 +17,7 @@ const { data: site } = await useAsyncData('public-content-address', () => conten
 })
 
 const address = computed(() => site.value?.erenhot_address ?? null)
+const addressGuides = computed(() => site.value?.address_guides ?? [])
 
 /** Бөглөгдсөн талбар байгаа эсэх — хоосон хаягийг хуулуулах утгагүй */
 const isFilled = computed(() =>
@@ -129,5 +130,7 @@ useHead({ title: 'Хүлээн авах хаяг — Ивээлт Карго' })
         </ul>
       </div>
     </template>
+
+    <LandingAddressGuides :guides="addressGuides" />
   </div>
 </template>

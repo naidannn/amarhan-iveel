@@ -352,6 +352,14 @@ exports.SETTING_KEY = {
   CONTENT_FAQ: 'content.faq',
   CONTENT_HOME_NOTICE: 'content.home_notice',
 
+  // Туслах үйлчилгээ — Юань шилжүүлэг, Линк захиалга. Мөн адил нээлттэй.
+  CONTENT_YUAN_TRANSFER: 'content.yuan_transfer',
+  CONTENT_LINK_ORDER: 'content.link_order',
+
+  // Хятадын онлайн дэлгүүр тус бүрт хаяг холбох зааварчилгаа (thumbnail +
+  // зураг/текст блок). Нээлттэй — нүүр хуудас, `/address`-д харагдана.
+  CONTENT_ADDRESS_GUIDES: 'content.address_guides',
+
   // Дотоод тохиргоо — зөвхөн ажилтанд (§9.1). `content.*`-аас ялгаатай: энэ
   // `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ, `/v1/public/*`-аар нээлттэй уншигдахгүй.
   PAYMENT_BANK_ACCOUNT: 'payment.bank_account',
@@ -369,6 +377,9 @@ exports.PUBLIC_CONTENT_KEYS = [
   exports.SETTING_KEY.CONTENT_CONTACT,
   exports.SETTING_KEY.CONTENT_FAQ,
   exports.SETTING_KEY.CONTENT_HOME_NOTICE,
+  exports.SETTING_KEY.CONTENT_YUAN_TRANSFER,
+  exports.SETTING_KEY.CONTENT_LINK_ORDER,
+  exports.SETTING_KEY.CONTENT_ADDRESS_GUIDES,
 ];
 
 exports.SETTING_DEFAULTS = {
@@ -407,6 +418,37 @@ exports.SETTING_DEFAULTS = {
 
   // Нүүр хуудсанд харагдах зарлал. `null` = зарлал байхгүй.
   [exports.SETTING_KEY.CONTENT_HOME_NOTICE]: null,
+
+  /**
+   * Туслах үйлчилгээ — Юань шилжүүлэг. Харилцагч өөрөө Хятад руу юань
+   * шилжүүлэхэд харуулах заавар. `rate` (1¥ хэдэн ₮) ханшийн зах зээлээс
+   * хамаарч байнга өөрчлөгддөг тул Админ өдөр бүр шинэчилнэ гэдэг
+   * таамаглалтай — анхны утга нь `null` (харагдахгүй).
+   */
+  [exports.SETTING_KEY.CONTENT_YUAN_TRANSFER]: {
+    rate: null,
+    bankAccount: '670005005311193254',
+    accountHolder: '',
+    transferNote: 'yani',
+    facebookUrl: 'https://www.facebook.com/Iweeltcargo',
+    instructions:
+      'Дээрх дансанд шилжүүлгээ хийхдээ гуйлгээний утганд заавал "yani" гэж бичнэ үү. Alipay/WeChat-ээр шилжүүлэлт хийхийг хүсвэл Facebook хуудсаар холбогдоно уу.',
+  },
+
+  /**
+   * Туслах үйлчилгээ — Линк захиалга. Харилцагч Хятадын онлайн дэлгүүрийн
+   * линк илгээж захиалга хийлгэдэг үйлчилгээ — Facebook хуудасны чатаар
+   * зохицуулагддаг тул систем дотор захиалгын урсгал БАЙХГҮЙ, зөвхөн
+   * чиглүүлэх холбоос.
+   */
+  [exports.SETTING_KEY.CONTENT_LINK_ORDER]: {
+    facebookUrl: 'https://www.facebook.com/share/19T3CfBH4q/?mibextid=wwXIfr',
+    instructions: 'Захиалах бараанийхаа линкийг Facebook хуудасны чатаар илгээнэ үү.',
+  },
+
+  // [{ id, platform, thumbnailUrl, blocks: [{ imageUrl, text }] }] — Админ
+  // "Вэбийн агуулга"-аас нэмнэ (шинэ заавар байхгүй бол хоосон).
+  [exports.SETTING_KEY.CONTENT_ADDRESS_GUIDES]: [],
 
   /**
    * Ажилтан төлбөр авахдаа (§1.8, "Данс" хэлбэр) харилцагчид өгөх дансны

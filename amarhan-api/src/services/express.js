@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const config = require('../config');
 const express = require('express');
 const morgan = require('morgan');
@@ -46,6 +47,21 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 app.use(helmet());
+
+/**
+ * Байршуулсан зураг (жишээ: хаяг холбох зааврын thumbnail) — локал диск,
+ * `amarhan-api/uploads/` (`middlewares/upload.js`). `helmet`-ийн
+ * default `Cross-Origin-Resource-Policy: same-origin` frontend (өөр origin,
+ * localhost:3000)-ийг зургийг татахаас сэргийлэх тул энд сулруулна.
+ */
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+  },
+  express.static(path.join(__dirname, '../../uploads'))
+);
 
 // Rate limiting
 app.use(globalLimiter);

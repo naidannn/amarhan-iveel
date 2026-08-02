@@ -18,6 +18,7 @@ const { data: footerSite } = await useAsyncData('landing-footer-content', () => 
   default: () => null,
 })
 const footerContact = computed(() => footerSite.value?.contact ?? null)
+const yuanTransfer = computed(() => footerSite.value?.yuan_transfer ?? null)
 const socialLinks = computed(() =>
   [
     { label: 'Facebook', value: footerContact.value?.facebook, icon: Facebook },
@@ -79,6 +80,8 @@ const navLinks = [
             {{ item.label }}
           </a>
         </nav>
+
+        <ServicesExchangeRateBadge class="ml-3 hidden sm:inline-flex" :data="yuanTransfer" />
 
         <div class="ml-auto flex items-center gap-2">
           <ClientOnly>

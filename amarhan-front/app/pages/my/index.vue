@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Package, Wallet, PackageCheck, Truck, ArrowRight, Plus } from 'lucide-vue-next'
+import { Package, Wallet, PackageCheck, Truck, ArrowRight, Plus, Banknote, Link2 } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /** Харилцагчийн хяналтын самбар — introduction.md §3 */
@@ -7,11 +7,18 @@ definePageMeta({ middleware: 'customer' })
 
 const customer = useCustomerStore()
 const portal = useCustomerPortal()
+const { content } = usePublicContent()
 const { style, label } = usePackageStatus()
 
 const summary = ref<Awaited<ReturnType<typeof portal.summary>> | null>(null)
 const recent = ref<any[]>([])
 const loading = ref(true)
+
+const showYuanModal = ref(false)
+const yuanTransfer = ref<any>(null)
+const linkOrder = ref<any>(null)
+const hasYuanTransfer = computed(() => Boolean(yuanTransfer.value?.bankAccount))
+const hasLinkOrder = computed(() => Boolean(linkOrder.value?.facebookUrl))
 
 onMounted(async () => {
   try {
@@ -20,6 +27,15 @@ onMounted(async () => {
     recent.value = list.data
   } finally {
     loading.value = false
+  }
+
+  // Нээлттэй мэдээлэл тул амжилтгүй болсон ч хяналтын самбар унахгүй байх ёстой
+  try {
+    const site = await content()
+    yuanTransfer.value = site?.yuan_transfer ?? null
+    linkOrder.value = site?.link_order ?? null
+  } catch {
+    // тайван орхино — "Туслах үйлчилгээ" хэсэг зүгээр харагдахгүй
   }
 })
 
@@ -100,6 +116,48 @@ useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
         </p>
       </NuxtLink>
     </div>
+
+    <!-- Туслах үйлчилгээ -->
+    <div
+      v-if="hasYuanTransfer || hasLinkOrder"
+      class="rounded-card border border-surface-border bg-surface-card p-5"
+    >
+      <h2 class="font-semibold text-content">Туслах үйлчилгээ</h2>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <button
+          v-if="hasYuanTransfer"
+          type="button"
+          class="flex items-center gap-3 rounded-btn border border-surface-border p-3.5 text-left transition-colors duration-200 hover:bg-surface-hover"
+          @click="showYuanModal = true"
+        >
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600">
+            <Banknote :size="19" :stroke-width="1.8" />
+          </span>
+          <span>
+            <span class="block font-medium text-content">Юань шилжүүлэг</span>
+            <span class="block text-body-sm text-content-secondary">Данс, ханш, заавар харах</span>
+          </span>
+        </button>
+
+        <NuxtLink
+          v-if="hasLinkOrder"
+          :to="linkOrder.facebookUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-3 rounded-btn border border-surface-border p-3.5 text-left transition-colors duration-200 hover:bg-surface-hover"
+        >
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600">
+            <Link2 :size="19" :stroke-width="1.8" />
+          </span>
+          <span>
+            <span class="block font-medium text-content">Линк захиалга</span>
+            <span class="block text-body-sm text-content-secondary">Facebook хуудсаар захиалах</span>
+          </span>
+        </NuxtLink>
+      </div>
+    </div>
+
+    <ServicesYuanTransferModal v-model="showYuanModal" :data="yuanTransfer" />
 
     <!-- Сүүлийн ачаанууд -->
     <div class="rounded-card border border-surface-border bg-surface-card">

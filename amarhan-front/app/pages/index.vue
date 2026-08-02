@@ -40,6 +40,9 @@ const address = computed(() => site.value?.erenhot_address ?? null)
 const contact = computed(() => site.value?.contact ?? null)
 const faq = computed(() => site.value?.faq ?? [])
 const notice = computed(() => site.value?.home_notice ?? null)
+const yuanTransfer = computed(() => site.value?.yuan_transfer ?? null)
+const linkOrder = computed(() => site.value?.link_order ?? null)
+const addressGuides = computed(() => site.value?.address_guides ?? [])
 
 useHead({
   title: 'Ивээлт Карго — Хятадаас Монгол руу ачаа тээвэрлэлт',
@@ -58,6 +61,8 @@ useHead({
     <LandingHero :notice="notice" :latest-notification="latestNotification" />
     <LandingFeatures />
     <LandingChinaAddress :address="address" />
+    <LandingAddressGuides :guides="addressGuides" />
+    <LandingHelperServices :yuan-transfer="yuanTransfer" :link-order="linkOrder" />
     <LandingPricing :tariff="tariff" />
     <LandingHowItWorks />
     <LandingTrackingDemo />

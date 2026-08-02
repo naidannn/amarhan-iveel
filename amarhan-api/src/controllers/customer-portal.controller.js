@@ -102,3 +102,17 @@ exports.createDelivery = async (req, res, next) => {
     next(error);
   }
 };
+
+/** BR-21d — «Хүргэлтээ авлаа» товч. Эзэмшлийг `deliveryService` дотор шалгана. */
+exports.confirmDeliveryReceived = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.confirmDeliveryReceived(
+      req.customer,
+      req.params.deliveryId,
+      req
+    );
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};

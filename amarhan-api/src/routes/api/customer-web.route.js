@@ -114,6 +114,17 @@ router.post(
 );
 
 /**
+ * BR-21d — харилцагч өөрөө «Хүргэлтээ авлаа» гэж баталгаажуулна. Ажилтны
+ * «Хүргэгдсэн» тэмдэглэлээс ЗОРИУДААР тусдаа төлөв рүү шилждэг
+ * (`delivery.status: 'received'`) — хэн баталгаажуулснаар ялгагдана.
+ */
+router.post(
+  '/deliveries/:deliveryId/receive',
+  validate(portalValidation.confirmDeliveryReceived),
+  portalController.confirmDeliveryReceived
+);
+
+/**
  * §7 (Phase 6) — хувийн (ачааны эвент) + идэвхтэй нийтийн зарлал (BR-35, BR-36).
  * Илгээх/удирдах нь `notification.route.js`-д (`/v1/notifications`, зөвхөн
  * Админ/Менежер) — энд ЗӨВХӨН уншиж, өөрийн уншсан төлвөө тэмдэглэнэ.

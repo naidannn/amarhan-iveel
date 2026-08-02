@@ -756,6 +756,133 @@ describe('Харилцагчийн вэб (§3)', () => {
     });
   });
 
+  describe('BR-21d — харилцагч өөрөө «Хүргэлтээ авлаа» гэж баталгаажуулах', () => {
+    const DELIVERIES = '/api/v1/deliveries';
+    const PAYMENTS = '/api/v1/payments';
+
+    /** Ажилтны хуучин урсгалаар `dispatched` төлөвт хүргэлт бэлдэнэ */
+    async function dispatchedDelivery({ phone = '99112233', price = 20000 } = {}) {
+      const pkg = await registerPackage({ phone, price });
+      await chai
+        .request(app)
+        .post(PAYMENTS)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ amount: price, method: 'cash', packageIds: [pkg.id] });
+
+      const created = await chai
+        .request(app)
+        .post(DELIVERIES)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ packageIds: [pkg.id], address: 'ХУД, 3-р хороо' });
+      expect(created.status, JSON.stringify(created.body)).to.equal(201);
+
+      const dispatched = await chai
+        .request(app)
+        .put(`${DELIVERIES}/${created.body.data.id}/status`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ status: 'dispatched' });
+      expect(dispatched.status, JSON.stringify(dispatched.body)).to.equal(200);
+
+      return { pkg, deliveryId: created.body.data.id };
+    }
+
+    it('«Хүргэлтэнд гарсан» хүргэлтийг харилцагч `received` рүү шилжүүлнэ', async () => {
+      const { pkg, deliveryId } = await dispatchedDelivery();
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/deliveries/${deliveryId}/receive`)
+        .set(asCustomer(token));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.status).to.equal('received');
+      expect(res.body.data.deliveredAt).to.exist;
+
+      const Package = require('../../src/models/package.model');
+      expect((await Package.findById(pkg.id)).status).to.equal('delivered');
+    });
+
+    it('АЖИЛТНЫ `delivered`-ЭЭС ТУСДАА төлөв — хэн баталгаажуулснаар ялгагдана', async () => {
+      const { deliveryId } = await dispatchedDelivery();
+      const { token } = await signUp({ phone: '99112233' });
+
+      await chai.request(app).post(`${CUSTOMER}/deliveries/${deliveryId}/receive`).set(asCustomer(token));
+
+      const Delivery = require('../../src/models/delivery.model');
+      const delivery = await Delivery.findById(deliveryId);
+      expect(delivery.status).to.equal('received');
+      expect(delivery.status).to.not.equal('delivered');
+    });
+
+    it('«Хүргэлт үүссэн» (created) төлөвт байхад баталгаажуулж чадахгүй', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      await chai
+        .request(app)
+        .post(PAYMENTS)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ amount: pkg.finalPrice, method: 'cash', packageIds: [pkg.id] });
+      const created = await chai
+        .request(app)
+        .post(DELIVERIES)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ packageIds: [pkg.id], address: 'ХУД' });
+
+      const { token } = await signUp({ phone: '99112233' });
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/deliveries/${created.body.data.id}/receive`)
+        .set(asCustomer(token));
+
+      expect(res.status).to.equal(409);
+    });
+
+    it('өөр харилцагчийн хүргэлтийг баталгаажуулж чадахгүй (404, 403 БИШ, дүрэм 14)', async () => {
+      const { deliveryId } = await dispatchedDelivery({ phone: '99112233' });
+      const { token } = await signUp({ phone: '88001122' });
+
+      const res = await chai
+        .request(app)
+        .post(`${CUSTOMER}/deliveries/${deliveryId}/receive`)
+        .set(asCustomer(token));
+
+      expect(res.status).to.equal(404);
+    });
+
+    it('нэвтрэхгүйгээр баталгаажуулахгүй', async () => {
+      const { deliveryId } = await dispatchedDelivery();
+      const res = await chai.request(app).post(`${CUSTOMER}/deliveries/${deliveryId}/receive`);
+      expect(res.status).to.equal(401);
+    });
+
+    it('ажилтны ерөнхий төлөв солих endpoint-оор `received` рүү шилжүүлж болохгүй', async () => {
+      const { deliveryId } = await dispatchedDelivery();
+      const res = await chai
+        .request(app)
+        .put(`${DELIVERIES}/${deliveryId}/status`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ status: 'received' });
+
+      expect(res.status).to.equal(400);
+    });
+
+    it('audit-д харилцагчийн үйлдэл болж бичигдэнэ (actorId: null)', async () => {
+      const { deliveryId } = await dispatchedDelivery();
+      const { token } = await signUp({ phone: '99112233' });
+
+      await chai.request(app).post(`${CUSTOMER}/deliveries/${deliveryId}/receive`).set(asCustomer(token));
+
+      const log = await AuditLog.findOne({
+        action: AUDIT_ACTION.DELIVERY_STATUS_CHANGE,
+        entityId: deliveryId,
+        after: 'received',
+      });
+      expect(log, 'audit бичлэг үүсэх ёстой').to.exist;
+      expect(log.actorId).to.equal(null);
+      expect(log.actorName).to.contain('Харилцагч');
+    });
+  });
+
   // ── Профайл ─────────────────────────────────────────────────────────────
 
   describe('Профайл', () => {

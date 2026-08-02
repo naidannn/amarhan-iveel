@@ -617,6 +617,89 @@ class DeliveryService {
     return { succeeded, failed, total: ids.length };
   }
 
+  // ── Харилцагч өөрөө хүлээж авснаа баталгаажуулах (BR-21d) ──────────────
+
+  /**
+   * Харилцагчийн ПОРТАЛ дахь «Хүргэлтээ авлаа» товч.
+   *
+   * АЖИЛТНЫ `changeStatus(..., 'delivered')`-ээс ЗОРИУДААР тусдаа зам: хэн
+   * баталгаажуулснаар (ажилтан хээрийн дээр, эсвэл харилцагч өөрөө) ялгах
+   * ёстой тул `received` төгсгөлийн төлөв рүү зөвхөн ЭНД шилждэг
+   * (`delivery-state.manualTransitions`-д `received` ОРОХГҮЙ тул ажилтны
+   * ерөнхий цэснээс энэ зам нээгдэхгүй).
+   *
+   * `dispatched` төлөвт байхад л §5.2-ын хаалт аль хэдийн давсан байдаг тул
+   * энд төлбөр дахин шалгах шаардлагагүй.
+   */
+  async selfConfirmReceived(customer, id, req) {
+    const delivery = await deliveryRepository.findById(id);
+    // Эзэмшилгүй бичлэгт `403` БИШ `404` (CLAUDE.md §5 дүрэм 14)
+    if (!delivery || String(delivery.customerId) !== String(customer._id)) {
+      throw new APIError('Хүргэлт олдсонгүй', httpStatus.NOT_FOUND);
+    }
+
+    try {
+      deliveryState.assertTransition(delivery.status, DELIVERY_STATUS.RECEIVED);
+    } catch (err) {
+      throw new APIError(err.message, httpStatus.CONFLICT, {
+        code: ERROR_CODE.INVALID_DELIVERY_TRANSITION,
+        details: { from: delivery.status, to: DELIVERY_STATUS.RECEIVED },
+      });
+    }
+
+    const actorName = this.describeCustomer(customer);
+
+    return withTransaction(async session => {
+      const packages = await this.reloadPackages(delivery.packageIds, { session });
+
+      const updated = await deliveryRepository.updateByIdWithSession(
+        id,
+        {
+          status: DELIVERY_STATUS.RECEIVED,
+          deliveredAt: new Date(),
+          $push: {
+            statusHistory: {
+              from: delivery.status,
+              to: DELIVERY_STATUS.RECEIVED,
+              at: new Date(),
+              by: null,
+              byName: actorName,
+              reason: null,
+            },
+          },
+        },
+        { session }
+      );
+
+      await this.cascadeToPackages(packages, DELIVERY_STATUS.RECEIVED, {
+        reason: null,
+        actor: null,
+        actorName,
+        req,
+        session,
+      });
+
+      await auditService.record(
+        {
+          action: AUDIT_ACTION.DELIVERY_STATUS_CHANGE,
+          entity: AUDIT_ENTITY.DELIVERY,
+          entityId: updated._id,
+          entityLabel: updated.deliveryNumber,
+          branchId: updated.branchId,
+          actorName,
+          field: 'status',
+          before: delivery.status,
+          after: DELIVERY_STATUS.RECEIVED,
+          reason: null,
+          req,
+        },
+        { session }
+      );
+
+      return updated;
+    });
+  }
+
   // ── Цуцлах ──────────────────────────────────────────────────────────────
 
   /**
@@ -705,7 +788,7 @@ class DeliveryService {
    * үед алгасах ачаа БАЙХГҮЙ: төлбөрийн хаалт дээр нь ажилласан тул
    * бүгд `paid` төлөвт байна.
    */
-  async cascadeToPackages(packages, deliveryStatus, { reason, actor, req, session }) {
+  async cascadeToPackages(packages, deliveryStatus, { reason, actor, actorName, req, session }) {
     const nextPackageStatus = deliveryState.packageEffect(deliveryStatus);
     if (!nextPackageStatus) return [];
 
@@ -720,7 +803,7 @@ class DeliveryService {
           { reason: reason ?? `Хүргэлт: ${deliveryState.label(deliveryStatus)}` },
           actor,
           req,
-          { session }
+          { session, actorName }
         )
       );
     }

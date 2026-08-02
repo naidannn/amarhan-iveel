@@ -1042,6 +1042,11 @@ class PackageService {
    * @param {import('mongoose').ClientSession} [opts.session] — гадаад транзакц
    *        (Phase 3-ийн төлбөр `paid` төлөвт шилжүүлэхэд ижил транзакц хэрэглэнэ)
    * @param {boolean} [opts.system] — систем өөрөө хийж байгаа шилжилт (BR-09)
+   * @param {string} [opts.actorName] — `actor` АЖИЛТАН БИШ үед (жишээ нь
+   *        харилцагч өөрөө хүргэлтээ хүлээж авснаа баталгаажуулахад cascade-аар
+   *        ирсэн дуудлага, `delivery.service.js selfConfirmReceived`) харагдах
+   *        нэрийг тааруулна — заагаагүй бол `auditService.describeActor(actor)`
+   *        хэвээр (`null` актерт "Систем" гэж буруу бичигдэхээс сэргийлнэ).
    */
   async changeStatus(id, nextStatus, { reason } = {}, actor, req, opts = {}) {
     // Хүчингүй болгох нь эрх ба шалтгаан шаарддаг тусдаа дүрэмтэй (BR-11)
@@ -1074,7 +1079,7 @@ class PackageService {
               to: nextStatus,
               at: new Date(),
               by: actor?._id ?? null,
-              byName: auditService.describeActor(actor),
+              byName: opts.actorName ?? auditService.describeActor(actor),
               reason: reason ?? null,
             },
           },
@@ -1088,6 +1093,7 @@ class PackageService {
       await auditService.record(
         {
           actor,
+          actorName: opts.actorName,
           action: AUDIT_ACTION.PACKAGE_STATUS_CHANGE,
           entity: AUDIT_ENTITY.PACKAGE,
           entityId: updated._id,

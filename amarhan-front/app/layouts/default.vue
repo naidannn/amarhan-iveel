@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard, Bell } from 'lucide-vue-next'
+import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard, Bell, Sun, Moon } from 'lucide-vue-next'
 
 /**
  * Харилцагчийн вэбийн layout — introduction.md §3
@@ -12,6 +12,34 @@ const customer = useCustomerStore()
 const route = useRoute()
 
 const menuOpen = ref(false)
+const { isDark, toggle: toggleDark } = useDarkMode()
+
+/**
+ * `customer.isAuthenticated`-г sidebar/header-ийн бүтэц, class-д ШУУД
+ * ашиглаж болохгүй. `plugins/auth.client.ts` нь mount-аас ӨМНӨ шийддэг тул
+ * буцаж ирсэн (already logged-in) харилцагчид эхний КЛИЕНТ рендер дээр
+ * `isAuthenticated` аль хэдийн `true` байдаг — харин серверт localStorage
+ * байхгүй тул SSR HTML үргэлж `false`-оор гардаг. Энэ зөрүү `useDarkMode`-
+ * ийн `isDark`-тай яг адил hydration mismatch үүсгэдэг бөгөөд Vue 3.4+ үүнийг
+ * class/style attribute дээр АВТОМАТААР засдаггүй (зөвхөн `v-if` мэт бүтцийн
+ * зөрүүг л зассан DOM бичдэг) — тиймээс sidebar ХАРАГДАЖ БАЙХАД header
+ * hidden болохгүй "царцаж", 2 лого зэрэг харагдаж, агуулга sidebar-аар
+ * дарагддаг байсан. Иймд layout-ийн бүтэц ШИЙДЭХ бүх газарт (sidebar/header
+ * v-if, lg:hidden, lg:pl-60, max-w) энэ mount-ийн ДАРАА синхрончилсон
+ * хувьсагчийг ашиглана — `customer.isAuthenticated`-ийг ӨӨРИЙГ нь ЗӨВХӨН
+ * бодит өгөгдөл (нэр, тоо г.м.) харуулахад шууд ашиглаж болно, тэдгээр нь
+ * `v-if`-ээр хамгаалагдсан тул аль хэдийн зөв hydrate хийгддэг.
+ */
+const authLayout = ref(false)
+onMounted(() => {
+  watch(() => customer.isAuthenticated, v => (authLayout.value = v), { immediate: true })
+})
+
+// `UiModal`/`UiToastHost` нь `Teleport to="body"`-оор ЭНЭ layout-ийн DOM
+// модноос гардаг тул `.dark` класс тэдэнд DOM-оор УЛАМЖЛАГДАХГҮЙ. Vue-ийн
+// provide/inject нь Teleport-оор БУСДААГГҮЙ (логик компонентын мод хэвээрээ)
+// тул тэднийг харанхуй горимд оруулах цорын ганц найдвартай зам.
+provide('customerDark', isDark)
 
 // Header дэх юанийн ханшийн тэмдэглэгээ — нээлттэй мэдээлэл тул нэвтрээгүй
 // зочинд ч харагдана (§3, "Туслах үйлчилгээ").
@@ -76,10 +104,10 @@ onMounted(loadUnreadCount)
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface-bg">
+  <div class="min-h-screen bg-surface-bg" :class="{ dark: isDark }">
     <!-- Нэвтэрсэн харилцагчийн desktop sidebar -->
     <aside
-      v-if="customer.isAuthenticated"
+      v-if="authLayout"
       class="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-surface-border bg-surface-card lg:flex"
     >
       <div class="flex h-navbar shrink-0 items-center justify-between px-4">
@@ -87,25 +115,36 @@ onMounted(loadUnreadCount)
           <img
             src="/logo-full.png"
             alt="ИВЭЭЛТ КАРГО"
-            class="h-9 w-[172px] object-contain object-left"
+            class="h-9 w-[172px] rounded-md object-contain object-left dark:bg-white dark:px-2 dark:py-1"
             width="172"
             height="36"
           />
         </NuxtLink>
 
-        <NuxtLink
-          to="/my/notifications"
-          class="relative shrink-0 rounded-btn p-2 text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-content"
-          aria-label="Мэдэгдэл"
-        >
-          <Bell :size="19" :stroke-width="2" />
-          <span
-            v-if="unreadCount > 0"
-            class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
+        <div class="flex shrink-0 items-center gap-1">
+          <button
+            class="rounded-btn p-2 text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-content"
+            :aria-label="isDark ? 'Гэрэлт горим руу шилжих' : 'Харанхуй горим руу шилжих'"
+            @click="toggleDark"
           >
-            {{ unreadCount > 9 ? '9+' : unreadCount }}
-          </span>
-        </NuxtLink>
+            <Sun v-if="isDark" :size="19" :stroke-width="2" />
+            <Moon v-else :size="19" :stroke-width="2" />
+          </button>
+
+          <NuxtLink
+            to="/my/notifications"
+            class="relative rounded-btn p-2 text-content-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-content"
+            aria-label="Мэдэгдэл"
+          >
+            <Bell :size="19" :stroke-width="2" />
+            <span
+              v-if="unreadCount > 0"
+              class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
+            >
+              {{ unreadCount > 9 ? '9+' : unreadCount }}
+            </span>
+          </NuxtLink>
+        </div>
       </div>
 
       <div v-if="yuanTransfer" class="border-b border-surface-border px-3 py-3">
@@ -153,30 +192,30 @@ onMounted(loadUnreadCount)
       </div>
     </aside>
 
-    <div class="flex min-h-screen flex-col" :class="customer.isAuthenticated ? 'lg:pl-60' : ''">
+    <div class="flex min-h-screen flex-col" :class="authLayout ? 'lg:pl-60' : ''">
       <header
         class="sticky top-0 z-30 border-b border-surface-border bg-surface-card"
-        :class="customer.isAuthenticated ? 'lg:hidden' : ''"
+        :class="authLayout ? 'lg:hidden' : ''"
       >
         <div
           class="mx-auto flex h-navbar items-center gap-3 px-4 sm:px-6"
-          :class="customer.isAuthenticated ? 'max-w-none' : 'max-w-6xl'"
+          :class="authLayout ? 'max-w-none' : 'max-w-6xl'"
         >
           <NuxtLink
             to="/"
             class="flex shrink-0 items-center"
-            :class="customer.isAuthenticated ? 'lg:hidden' : ''"
+            :class="authLayout ? 'lg:hidden' : ''"
           >
             <img
               src="/logo-full.png"
               alt="ИВЭЭЛТ КАРГО"
-              class="h-9 w-[172px] object-contain object-left"
+              class="h-9 w-[172px] rounded-md object-contain object-left dark:bg-white dark:px-2 dark:py-1"
               width="172"
               height="36"
             />
           </NuxtLink>
 
-          <nav v-if="!customer.isAuthenticated" class="ml-6 hidden items-center gap-1 lg:flex">
+          <nav v-if="!authLayout" class="ml-6 hidden items-center gap-1 lg:flex">
             <NuxtLink
               v-for="item in publicNav"
               :key="item.to"
@@ -195,7 +234,17 @@ onMounted(loadUnreadCount)
           <ServicesExchangeRateBadge class="ml-2 hidden sm:inline-flex" :data="yuanTransfer" />
 
           <div class="ml-auto flex items-center gap-2">
-            <template v-if="customer.isAuthenticated">
+            <button
+              class="rounded-btn p-2 text-content-secondary hover:bg-surface-hover"
+              :class="authLayout ? 'lg:hidden' : ''"
+              :aria-label="isDark ? 'Гэрэлт горим руу шилжих' : 'Харанхуй горим руу шилжих'"
+              @click="toggleDark"
+            >
+              <Sun v-if="isDark" :size="20" :stroke-width="2" />
+              <Moon v-else :size="20" :stroke-width="2" />
+            </button>
+
+            <template v-if="authLayout">
               <NuxtLink
                 to="/my/notifications"
                 class="relative rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
@@ -285,7 +334,7 @@ onMounted(loadUnreadCount)
 
       <main
         class="mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-8"
-        :class="customer.isAuthenticated ? 'max-w-7xl pb-24 lg:pb-8' : 'max-w-6xl'"
+        :class="authLayout ? 'max-w-7xl pb-24 lg:pb-8' : 'max-w-6xl'"
       >
         <slot />
       </main>
@@ -307,7 +356,7 @@ onMounted(loadUnreadCount)
 
     <!-- Гар утасны 5 tab: доод талд үргэлж харагдана. -->
     <nav
-      v-if="customer.isAuthenticated"
+      v-if="authLayout"
       class="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-5 border-t border-surface-border bg-surface-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_12px_rgba(15,23,42,0.06)] lg:hidden"
       aria-label="Хэрэглэгчийн үндсэн цэс"
     >

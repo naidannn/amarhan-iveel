@@ -247,6 +247,17 @@ class CustomerPortalService {
     };
   }
 
+  /** BR-21d — харилцагчийн порталын «Хүргэлтээ авлаа» товч */
+  async confirmDeliveryReceived(customer, deliveryId, req) {
+    const delivery = await deliveryService.selfConfirmReceived(customer, deliveryId, req);
+    return {
+      id: delivery._id,
+      deliveryNumber: delivery.deliveryNumber,
+      status: delivery.status,
+      deliveredAt: delivery.deliveredAt,
+    };
+  }
+
   // ── Туслах ────────────────────────────────────────────────────────────
 
   /**

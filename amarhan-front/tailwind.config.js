@@ -1,5 +1,6 @@
 import tokens from './app/assets/design-tokens.js'
 import typography from '@tailwindcss/typography'
+import plugin from 'tailwindcss/plugin'
 
 /**
  * Ивээл Карго — Tailwind тохиргоо
@@ -7,7 +8,10 @@ import typography from '@tailwindcss/typography'
  * Өнгө, radius, shadow бүгд `app/assets/design-tokens.js`-ээс ирнэ.
  * Энд hex код ШУУД бичихгүй — токен файлыг л засна.
  *
- * @type {import('tailwindcss').Config}
+ * `surface`/`content` нь CSS хувьсагчаар дамждаг (доорх `darkModeVariables`
+ * plugin) — ЗӨВХӨН харилцагчийн `default`/`landing` layout-ийн үндсэн элемент
+ * дээр `.dark` класс залгагдана (`useDarkMode` composable), админ хэзээ ч
+ * хүрэхгүй тул нэг өнгөний токон системээр хоёр горим зэрэг ажиллана.
  */
 export default {
   // Nuxt 4-т бүх эх код `app/` дотор байна
@@ -38,17 +42,17 @@ export default {
         info: tokens.semantic.info,
 
         surface: {
-          bg: tokens.surface.background,
-          card: tokens.surface.card,
-          border: tokens.surface.border,
-          hover: tokens.surface.hover,
+          bg: 'var(--color-surface-bg)',
+          card: 'var(--color-surface-card)',
+          border: 'var(--color-surface-border)',
+          hover: 'var(--color-surface-hover)',
         },
 
         content: {
-          DEFAULT: tokens.text.primary,
-          secondary: tokens.text.secondary,
-          disabled: tokens.text.disabled,
-          inverse: tokens.text.inverse,
+          DEFAULT: 'var(--color-content)',
+          secondary: 'var(--color-content-secondary)',
+          disabled: 'var(--color-content-disabled)',
+          inverse: 'var(--color-content-inverse)',
         },
       },
 
@@ -106,5 +110,33 @@ export default {
     },
   },
 
-  plugins: [typography],
+  plugins: [
+    typography,
+    // `surface`/`content`-ийн CSS хувьсагчийг токен файлаас гаргана —
+    // `:root` эсвэл `.dark` доторх хатуу hex энд БИШ, зөвхөн design-tokens.js-д.
+    plugin(({ addBase }) => {
+      addBase({
+        ':root': {
+          '--color-surface-bg': tokens.surface.background,
+          '--color-surface-card': tokens.surface.card,
+          '--color-surface-border': tokens.surface.border,
+          '--color-surface-hover': tokens.surface.hover,
+          '--color-content': tokens.text.primary,
+          '--color-content-secondary': tokens.text.secondary,
+          '--color-content-disabled': tokens.text.disabled,
+          '--color-content-inverse': tokens.text.inverse,
+        },
+        '.dark': {
+          '--color-surface-bg': tokens.surfaceDark.background,
+          '--color-surface-card': tokens.surfaceDark.card,
+          '--color-surface-border': tokens.surfaceDark.border,
+          '--color-surface-hover': tokens.surfaceDark.hover,
+          '--color-content': tokens.textDark.primary,
+          '--color-content-secondary': tokens.textDark.secondary,
+          '--color-content-disabled': tokens.textDark.disabled,
+          '--color-content-inverse': tokens.textDark.inverse,
+        },
+      })
+    }),
+  ],
 };

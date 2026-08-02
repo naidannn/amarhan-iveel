@@ -175,6 +175,17 @@ export function useCustomerPortal() {
     return res.data.data
   }
 
+  /**
+   * BR-21d — «Хүргэлтээ авлаа» товч. Ажилтны «Хүргэгдсэн» тэмдэглэлээс
+   * ТУСДАА `received` төлөв рүү шилжинэ — хэн баталгаажуулснаар ялгагдана.
+   */
+  async function confirmDeliveryReceived(
+    id: string
+  ): Promise<{ id: string; deliveryNumber: string; status: DeliveryStatus; deliveredAt: string }> {
+    const res = await $axios.post(`/api/v1/customer/deliveries/${id}/receive`)
+    return res.data.data
+  }
+
   /** §7 — хувийн + идэвхтэй нийтийн мэдэгдэл, нэг хуудаслалтаар */
   function notifications(params: { page?: number; limit?: number } = {}) {
     return list<CustomerNotification>('notifications', params)
@@ -203,6 +214,7 @@ export function useCustomerPortal() {
     deliveries,
     deliverableForDelivery,
     createDelivery,
+    confirmDeliveryReceived,
     notifications,
     unreadNotificationCount,
     markNotificationRead,

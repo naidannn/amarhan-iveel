@@ -70,6 +70,27 @@ const text = {
 };
 
 /**
+ * Харанхуй горим — ЗӨВХӨН харилцагчийн вэб (landing/default layout).
+ * Админ хэсэгт хэрэглэгдэхгүй тул `surface`/`text`-тэй адил бүтэцтэй,
+ * зэрэгцээ тольд гаргав (`tailwind.config.js`-ийн CSS хувьсагчид хоёуланг
+ * уншина, админд ЗАДГАЙ tailwind.config.js-ийн `.dark` хамрах хүрээ хэзээ ч
+ * хүрэхгүй тул автоматаар хамгаалагдана).
+ */
+const surfaceDark = {
+  background: '#0B1220',
+  card: '#131B2C',
+  border: '#243049',
+  hover: '#1C2740',
+};
+
+const textDark = {
+  primary: '#F1F5F9',
+  secondary: '#94A3B8',
+  disabled: '#64748B',
+  inverse: '#0B1220',
+};
+
+/**
  * Ачааны төлөвийн өнгө — introduction.md §1.5
  *
  * Хэрэглэгч дэлгэц харангуутаа "миний ачаа хаана явж байна вэ?" гэдгийг
@@ -145,6 +166,8 @@ const deliveryStatus = {
   created: { label: 'Хүргэлт үүссэн', color: '#6B7280', bg: '#F3F4F6' },
   dispatched: { label: 'Хүргэлтэнд гарсан', color: '#0891B2', bg: '#ECFEFF' },
   delivered: { label: 'Амжилттай хүргэгдсэн', color: '#16A34A', bg: '#F0FDF4' },
+  // BR-21d — харилцагч өөрөө порталдаа баталгаажуулсан (ажилтны `delivered`-ээс тусдаа)
+  received: { label: 'Харилцагч хүлээж авсан', color: '#0D9488', bg: '#F0FDFA' },
   returned: { label: 'Буцаагдсан', color: '#B45309', bg: '#FFFBEB' },
   cancelled: { label: 'Цуцлагдсан', color: '#DC2626', bg: '#FEF2F2' },
 };
@@ -197,6 +220,8 @@ export {
   semantic,
   surface,
   text,
+  surfaceDark,
+  textDark,
   packageStatus,
   paymentMethod,
   paymentRecordStatus,
@@ -217,6 +242,8 @@ export default {
   semantic,
   surface,
   text,
+  surfaceDark,
+  textDark,
   packageStatus,
   paymentMethod,
   paymentRecordStatus,

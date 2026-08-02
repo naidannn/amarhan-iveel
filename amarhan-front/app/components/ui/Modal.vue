@@ -30,6 +30,10 @@ const isOpen = computed(() => props.modelValue)
 const route = useRoute()
 const isAdminModal = computed(() => route.path.startsWith('/admin'))
 
+// `layouts/default.vue`-ээс `provide`-ддэг — landing/admin layout эх
+// сурвалжлаагүй тул анхдагч утга `false` (гэрэлт горим) хэвээр үлдэнэ.
+const isDark = inject<Ref<boolean>>('customerDark', ref(false))
+
 // Модал нээлттэй үед дэвсгэр гүйлгэхээс сэргийлнэ
 const locked = useScrollLock(import.meta.client ? document.body : null)
 watch(isOpen, open => {
@@ -60,6 +64,7 @@ onKeyStroke('Escape', () => {
       <div
         v-if="isOpen"
         class="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
+        :class="isDark && 'dark'"
         @click.self="persistent ? null : close()"
       >
         <div

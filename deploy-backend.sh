@@ -56,9 +56,12 @@ deploy() {
      if [ -d '$BACKEND_DIR/src' ]; then cp -r '$BACKEND_DIR' '$REMOTE_ROOT/.deploy-bak/amarhan-api'; fi"
 
   info "Эх кодыг rsync-ээр серверт хуулж байна ($BACKEND_SRC -> $SSH_HOST:$BACKEND_DIR) ..."
+  # --exclude='uploads': локал дээр энэ directory хоосон (.gitignore-д орсон) тул
+  # exclude хийхгүй бол --delete нь серверт хадгалагдсан бодит upload-уудыг (жишээ нь
+  # хаяг холбох зааврын зурагнуудыг) устгачихна.
   rsync -az --delete \
     --exclude='.env' --exclude='.env.*' --exclude='node_modules' \
-    --exclude='logs' --exclude='test' --exclude='.git' \
+    --exclude='logs' --exclude='test' --exclude='.git' --exclude='uploads' \
     -e "ssh $SSH_OPTS" \
     "$BACKEND_SRC/" "$SSH_HOST:$BACKEND_DIR/"
 
@@ -89,7 +92,7 @@ rollback() {
     set -e
     export PATH=$NODE_BIN:\$PATH
     test -d '$REMOTE_ROOT/.deploy-bak/amarhan-api/src' || { echo "Backup алга — rollback боломжгүй"; exit 1; }
-    rsync -a --delete --exclude='.env' --exclude='node_modules' --exclude='logs' \
+    rsync -a --delete --exclude='.env' --exclude='node_modules' --exclude='logs' --exclude='uploads' \
       '$REMOTE_ROOT/.deploy-bak/amarhan-api/' '$BACKEND_DIR/'
     cd $BACKEND_DIR
     npm install --omit=dev --no-audit --no-fund

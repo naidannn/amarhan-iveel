@@ -138,4 +138,11 @@ module.exports = {
       note: Joi.string().trim().max(500).allow('', null).optional(),
     }),
   },
+
+  /** BR-21d — «Хүргэлтээ авлаа» товч */
+  confirmDeliveryReceived: {
+    params: Joi.object({
+      deliveryId: objectId.required(),
+    }),
+  },
 };

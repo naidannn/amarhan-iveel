@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Truck, Plus, Landmark, Copy, Check } from 'lucide-vue-next'
+import { Truck, Plus, Landmark, Copy, Check, PackageCheck } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 import type { DeliverableForDelivery } from '~/composables/useCustomerPortal'
 
@@ -51,6 +51,25 @@ function formatDate(value: string | null) {
 /** Roadmap 5.8 — харилцагчийн ӨӨРИЙН захиалсан хүргэлтийн хураамж хүлээгдэж байгаа эсэх */
 function feePending(delivery: any) {
   return (delivery.fee ?? 0) > (delivery.feePaidAmount ?? 0)
+}
+
+// ── BR-21d — «Хүргэлтээ авлаа» ─────────────────────────────────────────────
+
+const receivingId = ref<string | null>(null)
+
+async function confirmReceived(delivery: any) {
+  receivingId.value = delivery.id
+  try {
+    await portal.confirmDeliveryReceived(delivery.id)
+    toast.success('Баярлалаа! Хүргэлт хүлээж авсан гэж тэмдэглэгдлээ')
+    await load()
+  } catch (e: any) {
+    toast.error('Тэмдэглэгдсэнгүй', {
+      description: e?.response?.data?.message ?? e.message,
+    })
+  } finally {
+    receivingId.value = null
+  }
 }
 
 // ── Дансны мэдээлэл дахин харах ───────────────────────────────────────────
@@ -166,6 +185,22 @@ useHead({ title: 'Хүргэлт — Ивээлт Карго' })
             </p>
             <UiBtn size="sm" variant="ghost" :icon="Landmark" @click="openBankInfo(delivery)">
               Дансны мэдээлэл харах
+            </UiBtn>
+          </div>
+
+          <!--
+            BR-21d — «Хүргэлтэнд гарсан» үед харилцагч өөрөө хүлээж авснаа
+            баталгаажуулна. Ажилтны «Хүргэгдсэн» тэмдэглэлээс ТУСДАА `received`
+            төлөв рүү шилжинэ — хэн баталгаажуулснаар ялгагдана.
+          -->
+          <div v-if="delivery.status === 'dispatched'" class="mt-2">
+            <UiBtn
+              size="sm"
+              :icon="PackageCheck"
+              :loading="receivingId === delivery.id"
+              @click="confirmReceived(delivery)"
+            >
+              Хүргэлтээ авлаа
             </UiBtn>
           </div>
 

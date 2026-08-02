@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
 
 /**
@@ -13,6 +12,11 @@ const multer = require('multer');
  * эзэмшигчийн шийдвэрээр репогоос устсан (`CLAUDE.md` §7.1), сэргээхгүй.
  * Файлын нэрийг СЕРВЕР ҮҮСГЭНЭ (`uuid + өргөтгөл`) — клиентийн нэрийг шууд
  * ашиглавал path traversal, давхардал, урт/тэмдэгтийн асуудал үүснэ.
+ *
+ * Диск рүү шууд бичихгүй, санах ойд (`memoryStorage`) түр байрлуулаад
+ * `upload.controller.js`-д sharp-аар хэмжээг багасгаж/шахаж дараа нь бичнэ —
+ * учир нь гар утасны камерын зураг ихэвчлэн хэдэн MB байдаг тул шахахгүй бол
+ * `uploads/guides/` хурдан хэтэрхий том болно.
  */
 const UPLOAD_ROOT = path.join(__dirname, '../../uploads');
 const GUIDES_DIR = path.join(UPLOAD_ROOT, 'guides');
@@ -26,16 +30,6 @@ const ALLOWED_MIME_TO_EXT = {
   'image/gif': '.gif',
 };
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, GUIDES_DIR);
-  },
-  filename(req, file, cb) {
-    const ext = ALLOWED_MIME_TO_EXT[file.mimetype] || path.extname(file.originalname) || '';
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
-
 function fileFilter(req, file, cb) {
   if (!ALLOWED_MIME_TO_EXT[file.mimetype]) {
     return cb(new Error('Зөвхөн JPG, PNG, WEBP, GIF зураг оруулна'));
@@ -43,8 +37,12 @@ function fileFilter(req, file, cb) {
   cb(null, true);
 }
 
-module.exports = multer({
-  storage,
+const upload = multer({
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
+
+module.exports = upload;
+module.exports.GUIDES_DIR = GUIDES_DIR;
+module.exports.ALLOWED_MIME_TO_EXT = ALLOWED_MIME_TO_EXT;

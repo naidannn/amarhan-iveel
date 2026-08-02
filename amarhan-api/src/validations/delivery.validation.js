@@ -17,8 +17,12 @@ const address = Joi.string().trim().min(3).max(500);
 /**
  * Ажилтан гараар оноож болох төлөвүүд. `cancelled` ОРОХГҮЙ — цуцлах нь
  * шалтгаан ба өндөр эрх шаардсан тусдаа endpoint (`PUT /:id/cancel`).
+ * `received` ОРОХГҮЙ (BR-21d) — зөвхөн харилцагчийн өөрийн порталаас
+ * (`POST /customer/deliveries/:id/receive`) гардаг тусдаа зам.
  */
-const MANUAL_STATUS_LIST = DELIVERY_STATUS_LIST.filter(s => s !== DELIVERY_STATUS.CANCELLED);
+const MANUAL_STATUS_LIST = DELIVERY_STATUS_LIST.filter(
+  s => s !== DELIVERY_STATUS.CANCELLED && s !== DELIVERY_STATUS.RECEIVED
+);
 
 module.exports = {
   list: {

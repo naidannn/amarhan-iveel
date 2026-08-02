@@ -422,7 +422,7 @@ schema.index(
 | `address` | String, required | |
 | `phone` | String (8 орон) | **Хүлээн авагчийн** утас — `customerPhone`-оос ялгаатай байж болно (гэр бүл, ажлын хаяг). Заагаагүй бол харилцагчийнхыг авна |
 | `note` | String \| null | |
-| `status` | Enum: `created` \| `dispatched` \| `delivered` \| `returned` \| `cancelled` | §5.1, BR-21 |
+| `status` | Enum: `created` \| `dispatched` \| `delivered` \| `received` \| `returned` \| `cancelled` | §5.1, BR-21, BR-21d — `delivered` (ажилтан) ба `received` (харилцагч өөрөө) хоёр ТУСДАА терминал төлөв |
 | `driverId` | ObjectId → `users` \| null | Системд бүртгэлтэй ажилтан |
 | `driverName`, `driverPhone` | String \| null | Гэрээт/гадны жолооч. `driverId` өгсөн үед нэр ХУУЛБАРЛАГДАНА — ажилтан устсан ч түүхэнд үлдэнэ |
 | `scheduledDate` | Date \| null | Өдрийн маршрутын бүлэглэл |

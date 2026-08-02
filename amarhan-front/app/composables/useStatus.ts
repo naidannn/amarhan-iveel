@@ -21,7 +21,13 @@ export type PackageStatus =
   | 'returned'
   | 'cancelled'
 
-export type DeliveryStatus = 'created' | 'dispatched' | 'delivered' | 'returned' | 'cancelled'
+export type DeliveryStatus =
+  | 'created'
+  | 'dispatched'
+  | 'delivered'
+  | 'received'
+  | 'returned'
+  | 'cancelled'
 
 export interface StatusStyle {
   label: string

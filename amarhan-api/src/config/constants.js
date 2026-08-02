@@ -256,6 +256,10 @@ exports.DELIVERY_STATUS = {
   CREATED: 'created',
   DISPATCHED: 'dispatched',
   DELIVERED: 'delivered',
+  // BR-21d — харилцагч ӨӨРӨӨ порталаасаа хүлээж авснаа баталгаажуулсан.
+  // `DELIVERED`-ээс ЗОРИУДААР тусдаа: хэн баталгаажуулснаар ялгах ёстой
+  // (ажилтан хээрийн дээр тэмдэглэсэн эсвэл харилцагч өөрөө дарсан).
+  RECEIVED: 'received',
   RETURNED: 'returned',
   CANCELLED: 'cancelled',
 };

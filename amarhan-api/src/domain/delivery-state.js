@@ -25,8 +25,19 @@ const D = DELIVERY_STATUS;
  * Хоосон массив = ТӨГСГӨЛИЙН төлөв.
  *
  *   created → dispatched → delivered
+ *      ↓            ↘ received
  *      ↓            ↘ returned → dispatched
  *   cancelled
+ *
+ * ЯАГААД `delivered` БА `received` ХОЁУЛАА БАЙДАГ (BR-21d): хүргэлт ХОЁР
+ * талаас дуусч болно — ажилтан хээрийн дээр "хүргэгдсэн" гэж тэмдэглэх
+ * (`delivered`), эсвэл харилцагч өөрөө порталдаа "хүргэлтээ авлаа" товч
+ * дарах (`received`). Хоёуланг НЭГ `delivered` төлөвт нийлүүлбэл хожим хэн
+ * баталгаажуулсныг ялгах боломжгүй болно — маргаан гарвал (харилцагч
+ * "аваагүй" гэх, ажилтан "хүргэсэн" гэх) шийдвэрлэх баримт алга.
+ * `received`-д ЗӨВХӨН харилцагчийн өөрийн порталын endpoint шилждэг
+ * (`deliveryService.selfConfirmReceived`) — `manualTransitions`-д ОРОХГҮЙ
+ * тул ажилтны ерөнхий төлөв солих цэснээс энэ рүү шилжих боломжгүй.
  *
  * ЯАГААД `returned → dispatched` БАЙДАГ: хаяг олдоогүй, харилцагч утсаа
  * авахгүй байсан ачаа маргааш дахин гарна. Шинэ хүргэлт үүсгэхийг шаардвал
@@ -41,9 +52,10 @@ const D = DELIVERY_STATUS;
  */
 const TRANSITIONS = Object.freeze({
   [D.CREATED]: [D.DISPATCHED, D.CANCELLED],
-  [D.DISPATCHED]: [D.DELIVERED, D.RETURNED],
+  [D.DISPATCHED]: [D.DELIVERED, D.RECEIVED, D.RETURNED],
   [D.RETURNED]: [D.DISPATCHED],
   [D.DELIVERED]: [],
+  [D.RECEIVED]: [],
   [D.CANCELLED]: [],
 });
 
@@ -55,6 +67,7 @@ const STATUS_LABEL = Object.freeze({
   [D.CREATED]: 'Хүргэлт үүссэн',
   [D.DISPATCHED]: 'Хүргэлтэнд гарсан',
   [D.DELIVERED]: 'Амжилттай хүргэгдсэн',
+  [D.RECEIVED]: 'Харилцагч хүлээж авсан',
   [D.RETURNED]: 'Буцаагдсан',
   [D.CANCELLED]: 'Цуцлагдсан',
 });
@@ -85,6 +98,9 @@ const PACKAGE_EFFECT = Object.freeze({
   [D.CREATED]: null,
   [D.DISPATCHED]: PACKAGE_STATUS.OUT_FOR_DELIVERY,
   [D.DELIVERED]: PACKAGE_STATUS.DELIVERED,
+  // Харилцагч ӨӨРӨӨ баталгаажуулсан ч ачааны хувьд ижил үр дүн — харилцагчид
+  // хүрсэн. Хэн баталгаажуулсныг зөвхөн ХҮРГЭЛТИЙН төлөв ялгана (BR-21d).
+  [D.RECEIVED]: PACKAGE_STATUS.DELIVERED,
   [D.RETURNED]: PACKAGE_STATUS.RETURNED,
   [D.CANCELLED]: null,
 });
@@ -126,9 +142,13 @@ function canTransition(from, to) {
  * `cancelled` ОРОХГҮЙ: цуцлах нь эрх (Менежер/Админ) ба шалтгаан шаарддаг
  * тусдаа урсгал, тусдаа товчоор гарна (`package-state.manualTransitions`-ийн
  * ижил зарчим).
+ *
+ * `received` ОРОХГҮЙ (BR-21d): энэ төлөв ЗӨВХӨН харилцагчийн өөрийн
+ * порталаас гардаг — ажилтны энгийн төлөв солих цэснээс сонгогдвол хэн
+ * бодитоор баталгаажуулсан гэдгийг ялгах боломж алдагдана.
  */
 function manualTransitions(from) {
-  return allowedTransitions(from).filter(to => to !== D.CANCELLED);
+  return allowedTransitions(from).filter(to => to !== D.CANCELLED && to !== D.RECEIVED);
 }
 
 function isTerminal(status) {

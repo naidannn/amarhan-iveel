@@ -18,6 +18,8 @@ const TODAY_DELIVERY_STATUSES = [
   DELIVERY_STATUS.CREATED,
   DELIVERY_STATUS.DISPATCHED,
   DELIVERY_STATUS.DELIVERED,
+  // BR-21d — харилцагч өөрөө баталгаажуулсан ч "өнөөдрийн хүргэлт" гэдэг утгаараа адилхан
+  DELIVERY_STATUS.RECEIVED,
 ];
 
 /**
@@ -115,8 +117,16 @@ class DashboardRepository {
             $group: {
               _id: null,
               total: { $sum: 1 },
+              // Хэн баталгаажуулснаас үл хамааран (ажилтан `delivered`, харилцагч
+              // өөрөө `received`) энэ dashboard тоонд "хүргэгдсэн" гэж адилхан орно
               delivered: {
-                $sum: { $cond: [{ $eq: ['$status', DELIVERY_STATUS.DELIVERED] }, 1, 0] },
+                $sum: {
+                  $cond: [
+                    { $in: ['$status', [DELIVERY_STATUS.DELIVERED, DELIVERY_STATUS.RECEIVED]] },
+                    1,
+                    0,
+                  ],
+                },
               },
               pending: {
                 $sum: {

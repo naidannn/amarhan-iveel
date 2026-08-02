@@ -9,6 +9,10 @@ import type { ToastKind } from '~/composables/useToast'
  */
 const { items, dismiss } = useToast()
 
+// `layouts/default.vue`-ээс `provide`-ддэг — Modal.vue-тэй адил шалтгаанаар
+// (Teleport DOM-оос гардаг, provide/inject л хүрнэ).
+const isDark = inject<Ref<boolean>>('customerDark', ref(false))
+
 const STYLES: Record<ToastKind, { icon: Component; color: string }> = {
   success: { icon: CheckCircle2, color: tokens.semantic.success },
   error: { icon: XCircle, color: tokens.semantic.error },
@@ -21,6 +25,7 @@ const STYLES: Record<ToastKind, { icon: Component; color: string }> = {
   <Teleport to="body">
     <div
       class="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2"
+      :class="isDark && 'dark'"
       role="status"
       aria-live="polite"
     >

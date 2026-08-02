@@ -189,6 +189,10 @@ class CustomerPortalService {
       status: d.status,
       address: d.address,
       phone: d.phone,
+      // Харилцагч зөвхөн ӨӨРИЙН хүргэлтийн жолоочийн холбоо барих
+      // мэдээллийг харна. `driverId` зэрэг дотоод мэдээллийг гаргахгүй.
+      driverName: d.driverName,
+      driverPhone: d.driverPhone,
       packageCount: (d.packageIds ?? []).length,
       scheduledDate: d.scheduledDate,
       dispatchedAt: d.dispatchedAt,

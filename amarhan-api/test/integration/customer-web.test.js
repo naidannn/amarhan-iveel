@@ -562,6 +562,25 @@ describe('Харилцагчийн вэб (§3)', () => {
       expect(res.body.data.payment.status).to.equal('pending');
     });
 
+    it('өөрийн хүргэлтийн жолоочийн нэр, утсыг жагсаалтад харна', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+      const booked = await bookDelivery(token, { packageIds: [pkg.id], address: 'ХУД' });
+
+      const assigned = await chai
+        .request(app)
+        .put(`${DELIVERIES}/${booked.body.data.id}`)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ driverName: 'Батбаяр', driverPhone: '99001122' });
+      expect(assigned.status, JSON.stringify(assigned.body)).to.equal(200);
+
+      const res = await chai.request(app).get(`${CUSTOMER}/deliveries`).set(asCustomer(token));
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data[0].driverName).to.equal('Батбаяр');
+      expect(res.body.data[0].driverPhone).to.equal('99001122');
+      expect(res.body.data[0]).to.not.have.property('driverId');
+    });
+
     it('аль хэдийн бүрэн төлөгдсөн ачаанд ЗӨВХӨН хураамж ногдоно', async () => {
       const pkg = await registerPackage({ phone: '99112233', price: 20000 });
       await chai

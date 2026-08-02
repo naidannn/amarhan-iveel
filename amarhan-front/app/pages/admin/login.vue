@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+  <div class="relative flex min-h-screen flex-col justify-center bg-gradient-to-br from-gray-50 to-gray-100 py-12 sm:px-6 lg:px-8">
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
       <div class="flex justify-center">
         <div class="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -108,6 +108,10 @@
         </form>
       </div>
     </div>
+
+    <footer class="absolute inset-x-0 bottom-5 text-center">
+      <DeveloperCredit />
+    </footer>
   </div>
 </template>
 
@@ -201,4 +205,3 @@ const handleLogin = async () => {
   }
 }
 </script>
-

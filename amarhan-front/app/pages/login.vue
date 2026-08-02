@@ -43,8 +43,7 @@ useHead({ title: 'Нэвтрэх — Ивээлт Карго' })
 <template>
   <div class="mx-auto max-w-sm py-8 sm:py-14">
     <div class="text-center">
-      <LandingBrandLogo />
-      <h1 class="mt-4 text-h1 font-bold text-content">Нэвтрэх</h1>
+      <h1 class="text-h1 font-bold text-content">Нэвтрэх</h1>
       <p class="mt-1.5 text-body text-content-secondary">
         Утасны дугаар эсвэл имэйлээрээ нэвтэрнэ үү
       </p>

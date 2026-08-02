@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Facebook, LayoutDashboard, Mail, MapPin, Menu, MessageCircle, Send, X } from 'lucide-vue-next'
+import { Facebook, Mail, MapPin, MessageCircle, Send } from 'lucide-vue-next'
 
 /**
  * Нүүр хуудасны premium landing layout — зөвхөн `pages/index.vue`-д ашиглагдана.
@@ -8,8 +8,6 @@ import { Facebook, LayoutDashboard, Mail, MapPin, Menu, MessageCircle, Send, X }
  * зорилготой (цагаан, glass, том типографи), бусад хуудас (`/track`, `/my/*`)
  * бол өдөр тутмын ажлын дэлгэц тул `default.vue`-ийн нягт дизайныг хэвээр үлдээв.
  */
-const customer = useCustomerStore()
-const menuOpen = ref(false)
 const { content } = usePublicContent()
 
 // Footer дээрх холбоо барих сувгууд нь админ тохиргооноос ирнэ. Өгөгдөл хоосон
@@ -32,12 +30,6 @@ const socialLinks = computed(() =>
     }))
 )
 
-const navLinks = [
-  { label: 'Тариф', to: '/#pricing' },
-  { label: 'Хэрхэн ажилладаг вэ', to: '/#how-it-works' },
-  { label: 'Түгээмэл асуулт', to: '/#faq' },
-  { label: 'Хүлээн авах хаяг', to: '/address' },
-]
 </script>
 
 <template>
@@ -63,93 +55,7 @@ const navLinks = [
       />
     </div>
 
-    <header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl">
-      <div class="mx-auto flex h-[72px] max-w-7xl items-center gap-2 px-5 sm:gap-3 sm:px-8">
-        <NuxtLink to="/" class="flex shrink-0 items-center">
-          <LandingBrandLogo compact class="sm:hidden" aria-label="ИВЭЭЛТ КАРГО" />
-          <LandingBrandLogo class="hidden sm:flex" aria-label="ИВЭЭЛТ КАРГО" />
-        </NuxtLink>
-
-        <nav class="ml-8 hidden items-center gap-1 lg:flex">
-          <a
-            v-for="item in navLinks"
-            :key="item.to"
-            :href="item.to"
-            class="rounded-full px-3.5 py-2 text-body-sm font-medium text-slate-500 transition-colors duration-200 hover:bg-slate-100 hover:text-slate-900"
-          >
-            {{ item.label }}
-          </a>
-        </nav>
-
-        <ServicesExchangeRateBadge class="ml-3 hidden sm:inline-flex" :data="yuanTransfer" />
-
-        <div class="ml-auto flex items-center gap-2">
-          <ClientOnly>
-            <div v-if="customer.isAuthenticated" class="flex items-center gap-2">
-              <UiBtn size="sm" to="/my" class="sm:hidden">Хэрэглэгчийн вэб</UiBtn>
-              <UiBtn size="sm" to="/my" :icon="LayoutDashboard" class="hidden sm:inline-flex">Хэрэглэгчийн вэб</UiBtn>
-            </div>
-            <div v-else class="flex items-center gap-2">
-              <NuxtLink
-                to="/login"
-                class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:inline-flex"
-              >
-                Нэвтрэх
-              </NuxtLink>
-              <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
-            </div>
-            <template #fallback>
-              <div class="flex items-center gap-2">
-                <NuxtLink
-                  to="/login"
-                  class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:inline-flex"
-                >
-                  Нэвтрэх
-                </NuxtLink>
-                <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
-              </div>
-            </template>
-          </ClientOnly>
-
-          <button
-            class="rounded-full p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
-            :aria-label="menuOpen ? 'Цэс хаах' : 'Цэс нээх'"
-            @click="menuOpen = !menuOpen"
-          >
-            <X v-if="menuOpen" :size="20" />
-            <Menu v-else :size="20" />
-          </button>
-        </div>
-      </div>
-
-      <div v-if="menuOpen" class="border-t border-slate-200/70 bg-white/95 lg:hidden">
-        <nav class="mx-auto max-w-7xl space-y-1 px-5 py-4">
-          <a
-            v-for="item in navLinks"
-            :key="item.to"
-            :href="item.to"
-            class="block rounded-xl px-3 py-2.5 text-body font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            @click="menuOpen = false"
-          >
-            {{ item.label }}
-          </a>
-          <div class="my-2 border-t border-slate-200" />
-          <NuxtLink
-            v-if="!customer.isAuthenticated"
-            to="/login"
-            class="block rounded-xl px-3 py-2.5 text-body font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-          >
-            Нэвтрэх
-          </NuxtLink>
-          <NuxtLink
-            :to="customer.isAuthenticated ? '/my' : '/register'"
-            class="block rounded-xl px-3 py-2.5 text-body font-semibold text-primary-600 hover:bg-slate-100"
-          >
-            {{ customer.isAuthenticated ? 'Хэрэглэгчийн вэб' : 'Бүртгүүлэх' }}
-          </NuxtLink>
-        </nav>
-      </div>
-    </header>
+    <PublicHeader :yuan-transfer="yuanTransfer" />
 
     <main class="relative">
       <slot />
@@ -237,6 +143,10 @@ const navLinks = [
           class="mt-6 flex flex-col gap-2 text-body-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between"
         >
           <p>© {{ new Date().getFullYear() }} Ивээлт Карго. Бүх эрх хуулиар хамгаалагдсан.</p>
+        </div>
+
+        <div class="mt-6 border-t border-slate-200/70 pt-4 text-center">
+          <DeveloperCredit />
         </div>
       </div>
     </footer>

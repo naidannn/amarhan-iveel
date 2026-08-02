@@ -50,8 +50,7 @@ useHead({ title: 'Бүртгүүлэх — Ивээлт Карго' })
 <template>
   <div class="mx-auto max-w-sm py-8 sm:py-12">
     <div class="text-center">
-      <img src="/logo-mark.png" alt="ИВЭЭЛТ КАРГО" class="mx-auto h-11 w-14 object-contain" width="56" height="44" />
-      <h1 class="mt-4 text-h1 font-bold text-content">Бүртгүүлэх</h1>
+      <h1 class="text-h1 font-bold text-content">Бүртгүүлэх</h1>
     </div>
 
     <div

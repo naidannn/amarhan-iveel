@@ -57,6 +57,23 @@ export interface CustomerSummary {
   balance: number
 }
 
+export interface CustomerDelivery {
+  id: string
+  deliveryNumber: string
+  status: DeliveryStatus
+  address: string
+  phone: string
+  driverName: string | null
+  driverPhone: string | null
+  packageCount: number
+  scheduledDate: string | null
+  dispatchedAt: string | null
+  deliveredAt: string | null
+  fee: number
+  feePaidAmount: number
+  createdAt: string
+}
+
 /** Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалах */
 export interface DeliverableForDelivery {
   packages: CustomerPackage[]
@@ -152,7 +169,7 @@ export function useCustomerPortal() {
   }
 
   function deliveries(params: { page?: number; limit?: number; status?: string } = {}) {
-    return list<any>('deliveries', params)
+    return list<CustomerDelivery>('deliveries', params)
   }
 
   /** Roadmap 5.8 — захиалж болох ачаа + тооцоолсон хураамж + дансны мэдээлэл */

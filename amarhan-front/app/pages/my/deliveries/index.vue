@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Truck, Plus, Landmark, Copy, Check, PackageCheck } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
-import type { DeliverableForDelivery } from '~/composables/useCustomerPortal'
+import type { CustomerDelivery, DeliverableForDelivery } from '~/composables/useCustomerPortal'
 
 /**
  * Хүргэлтийн түүх — introduction.md §5, roadmap 5.8
@@ -21,7 +21,7 @@ const toast = useToast()
 const { style, label } = useDeliveryStatus()
 
 const page = ref(1)
-const items = ref<any[]>([])
+const items = ref<CustomerDelivery[]>([])
 const pagination = ref({ page: 1, pages: 1, total: 0, limit: 20 })
 const loading = ref(true)
 
@@ -49,7 +49,7 @@ function formatDate(value: string | null) {
 }
 
 /** Roadmap 5.8 — харилцагчийн ӨӨРИЙН захиалсан хүргэлтийн хураамж хүлээгдэж байгаа эсэх */
-function feePending(delivery: any) {
+function feePending(delivery: CustomerDelivery) {
   return (delivery.fee ?? 0) > (delivery.feePaidAmount ?? 0)
 }
 
@@ -57,7 +57,7 @@ function feePending(delivery: any) {
 
 const receivingId = ref<string | null>(null)
 
-async function confirmReceived(delivery: any) {
+async function confirmReceived(delivery: CustomerDelivery) {
   receivingId.value = delivery.id
   try {
     await portal.confirmDeliveryReceived(delivery.id)
@@ -75,12 +75,12 @@ async function confirmReceived(delivery: any) {
 // ── Дансны мэдээлэл дахин харах ───────────────────────────────────────────
 
 const bankModalOpen = ref(false)
-const bankModalDelivery = ref<any | null>(null)
+const bankModalDelivery = ref<CustomerDelivery | null>(null)
 const bankAccount = ref<DeliverableForDelivery['bankAccount'] | null>(null)
 const bankLoading = ref(false)
 const copied = ref(false)
 
-async function openBankInfo(delivery: any = null) {
+async function openBankInfo(delivery: CustomerDelivery | null = null) {
   bankModalDelivery.value = delivery
   bankModalOpen.value = true
   if (bankAccount.value) return
@@ -212,6 +212,19 @@ useHead({ title: 'Хүргэлт — Ивээлт Карго' })
             <div>
               <dt class="text-body-sm text-content-secondary">Товлосон огноо</dt>
               <dd class="text-body tabular text-content">{{ formatDate(delivery.scheduledDate) }}</dd>
+            </div>
+            <div v-if="delivery.driverName || delivery.driverPhone" class="sm:col-span-2">
+              <dt class="text-body-sm text-content-secondary">Хүргэлтийн жолооч</dt>
+              <dd class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-content">
+                <span v-if="delivery.driverName" class="font-medium">{{ delivery.driverName }}</span>
+                <a
+                  v-if="delivery.driverPhone"
+                  :href="`tel:${delivery.driverPhone}`"
+                  class="tabular text-primary-700 hover:underline"
+                >
+                  {{ delivery.driverPhone }}
+                </a>
+              </dd>
             </div>
           </dl>
         </li>

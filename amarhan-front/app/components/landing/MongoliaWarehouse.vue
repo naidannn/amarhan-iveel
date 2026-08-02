@@ -24,13 +24,13 @@ const rows = computed(() =>
   ].filter(row => row.value)
 )
 
-// API key шаардахгүй Google Maps query embed. Админаас оруулсан хаяг өөрчлөгдвөл
-// газрын зураг ч дагаж шинэчлэгдэнэ; Google Maps холбоос нь тусдаа "томоор нээх" үйлдэл хэвээр.
-const mapEmbedUrl = computed(() =>
-  props.contact?.address
-    ? `https://www.google.com/maps?q=${encodeURIComponent(props.contact.address)}&output=embed`
-    : null
-)
+// API key шаардахгүй Google Maps query embed. Байгууллагын нэрээр хайвал Google-ийн
+// business pin (Ивээлт Карго) гарна; урт текстэн хаяг дангаараа хайгдахад Улаанбаатарын
+// ерөнхий зураг руу төвлөрдөг. Google Maps холбоос нь тусдаа "томоор нээх" үйлдэл хэвээр.
+const mapEmbedUrl = computed(() => {
+  const query = props.contact?.googleMapsUrl ? 'Ивээлт Карго' : props.contact?.address
+  return query ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed` : null
+})
 </script>
 
 <template>

@@ -63,13 +63,6 @@ async function loadUnreadCount() {
   }
 }
 
-const publicNav = [
-  { label: 'Ачаа хайх', to: '/track' },
-  { label: 'Хүлээн авах хаяг', to: '/address' },
-  { label: 'Мэдэгдэл', to: '/notifications' },
-  { label: 'Тусламж', to: '/help' },
-]
-
 const accountNav = [
   { label: 'Хяналт', to: '/my', icon: LayoutDashboard },
   { label: 'Миний ачаа', to: '/my/packages', icon: Package },
@@ -104,7 +97,9 @@ onMounted(loadUnreadCount)
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface-bg" :class="{ dark: isDark }">
+  <!-- Зочны хуудсууд нүүр хуудастай ижил цайвар хийцтэй байна.
+       Dark mode нь зөвхөн нэвтэрсэн хэрэглэгчийн вэбэд үйлчилнэ. -->
+  <div class="min-h-screen bg-surface-bg" :class="{ dark: authLayout && isDark }">
     <!-- Нэвтэрсэн харилцагчийн desktop sidebar -->
     <aside
       v-if="authLayout"
@@ -193,10 +188,9 @@ onMounted(loadUnreadCount)
     </aside>
 
     <div class="flex min-h-screen flex-col" :class="authLayout ? 'lg:pl-60' : ''">
-      <header
-        class="sticky top-0 z-30 border-b border-surface-border bg-surface-card"
-        :class="authLayout ? 'lg:hidden' : ''"
-      >
+      <PublicHeader v-if="!authLayout" :yuan-transfer="yuanTransfer" />
+
+      <header v-else class="sticky top-0 z-30 border-b border-surface-border bg-surface-card lg:hidden">
         <div
           class="mx-auto flex h-navbar items-center gap-3 px-4 sm:px-6"
           :class="authLayout ? 'max-w-none' : 'max-w-6xl'"
@@ -215,22 +209,6 @@ onMounted(loadUnreadCount)
             />
           </NuxtLink>
 
-          <nav v-if="!authLayout" class="ml-6 hidden items-center gap-1 lg:flex">
-            <NuxtLink
-              v-for="item in publicNav"
-              :key="item.to"
-              :to="item.to"
-              class="rounded-btn px-3 py-2 text-body font-medium transition-colors duration-200"
-              :class="
-                isActive(item.to)
-                  ? 'text-primary-600'
-                  : 'text-content-secondary hover:bg-surface-hover hover:text-content'
-              "
-            >
-              {{ item.label }}
-            </NuxtLink>
-          </nav>
-
           <ServicesExchangeRateBadge class="ml-2 hidden sm:inline-flex" :data="yuanTransfer" />
 
           <div class="ml-auto flex items-center gap-2">
@@ -244,40 +222,33 @@ onMounted(loadUnreadCount)
               <Moon v-else :size="20" :stroke-width="2" />
             </button>
 
-            <template v-if="authLayout">
-              <NuxtLink
-                to="/my/notifications"
-                class="relative rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
-                aria-label="Мэдэгдэл"
+            <NuxtLink
+              to="/my/notifications"
+              class="relative rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
+              aria-label="Мэдэгдэл"
+            >
+              <Bell :size="20" :stroke-width="2" />
+              <span
+                v-if="unreadCount > 0"
+                class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
               >
-                <Bell :size="20" :stroke-width="2" />
-                <span
-                  v-if="unreadCount > 0"
-                  class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-white"
-                >
-                  {{ unreadCount > 9 ? '9+' : unreadCount }}
-                </span>
-              </NuxtLink>
+                {{ unreadCount > 9 ? '9+' : unreadCount }}
+              </span>
+            </NuxtLink>
 
-              <NuxtLink
-                to="/my/profile"
-                class="hidden items-center gap-2.5 rounded-btn px-2 py-1.5 hover:bg-surface-hover sm:flex lg:hidden"
+            <NuxtLink
+              to="/my/profile"
+              class="hidden items-center gap-2.5 rounded-btn px-2 py-1.5 hover:bg-surface-hover sm:flex lg:hidden"
+            >
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-body font-bold text-primary-600"
               >
-                <div
-                  class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-body font-bold text-primary-600"
-                >
-                  {{ initials }}
-                </div>
-                <span class="max-w-[10rem] truncate text-body font-medium text-content">
-                  {{ customer.displayName }}
-                </span>
-              </NuxtLink>
-            </template>
-
-            <template v-else>
-              <UiBtn variant="ghost" size="sm" to="/login" class="hidden sm:inline-flex">Нэвтрэх</UiBtn>
-              <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
-            </template>
+                {{ initials }}
+              </div>
+              <span class="max-w-[10rem] truncate text-body font-medium text-content">
+                {{ customer.displayName }}
+              </span>
+            </NuxtLink>
 
             <button
               class="rounded-btn p-2 text-content-secondary hover:bg-surface-hover lg:hidden"
@@ -293,41 +264,13 @@ onMounted(loadUnreadCount)
         <!-- Мобайл нэмэлт цэс: account-ийн 5 хуудас нь доод tab-д байна. -->
         <div v-if="menuOpen" class="border-t border-surface-border bg-surface-card lg:hidden">
           <nav class="mx-auto max-w-6xl space-y-1 px-4 py-3">
-            <NuxtLink
-              v-for="item in publicNav"
-              :key="item.to"
-              :to="item.to"
-              class="block rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover"
+            <button
+              class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover hover:text-error"
+              @click="logout"
             >
-              {{ item.label }}
-            </NuxtLink>
-
-            <div class="my-2 border-t border-surface-border" />
-
-            <template v-if="customer.isAuthenticated">
-              <button
-                class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover hover:text-error"
-                @click="logout"
-              >
-                <LogOut :size="18" :stroke-width="2" />
-                Гарах
-              </button>
-            </template>
-
-            <template v-else>
-              <NuxtLink
-                to="/login"
-                class="block rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover"
-              >
-                Нэвтрэх
-              </NuxtLink>
-              <NuxtLink
-                to="/register"
-                class="block rounded-btn px-3 py-2.5 text-body font-semibold text-primary-600 hover:bg-surface-hover"
-              >
-                Бүртгүүлэх
-              </NuxtLink>
-            </template>
+              <LogOut :size="18" :stroke-width="2" />
+              Гарах
+            </button>
           </nav>
         </div>
       </header>
@@ -350,6 +293,9 @@ onMounted(loadUnreadCount)
             <NuxtLink to="/notifications" class="hover:text-content">Мэдэгдэл</NuxtLink>
             <NuxtLink to="/help" class="hover:text-content">Тусламж</NuxtLink>
           </nav>
+        </div>
+        <div class="border-t border-surface-border/70 px-4 py-3 text-center sm:px-6">
+          <DeveloperCredit />
         </div>
       </footer>
     </div>

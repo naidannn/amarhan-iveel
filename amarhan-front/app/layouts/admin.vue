@@ -152,7 +152,7 @@ watch(
     </aside>
 
     <!-- Үндсэн хэсэг -->
-    <div class="lg:pl-60">
+    <div class="flex min-h-screen flex-col lg:pl-60">
       <header
         class="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-surface-border bg-surface-card px-3 sm:px-4"
       >
@@ -193,9 +193,13 @@ watch(
         </div>
       </header>
 
-      <main class="p-3 sm:p-4">
+      <main class="flex-1 p-3 sm:p-4">
         <slot />
       </main>
+
+      <footer class="border-t border-surface-border bg-surface-card px-4 py-3 text-center">
+        <DeveloperCredit />
+      </footer>
     </div>
 
     <!-- Toast-ууд layout бүрт НЭГ удаа -->

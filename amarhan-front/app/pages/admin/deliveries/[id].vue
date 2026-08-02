@@ -78,6 +78,8 @@ async function load() {
     unpaidFee.value = result.unpaidFee ?? 0
     feePayments.value = result.feePayments ?? []
     allowedTransitions.value = result.allowedTransitions ?? []
+    driverForm.name = result.delivery.driverName ?? ''
+    driverForm.phone = result.delivery.driverPhone ?? ''
   } catch (e: any) {
     toast.error('Хүргэлт ачаалагдсангүй', { description: e.message })
   } finally {
@@ -261,15 +263,49 @@ async function applyCancel() {
 // ── Засах (зөвхөн `created`) ─────────────────────────────────────────────
 
 const editOpen = ref(false)
-const edit = reactive({ address: '', phone: '', driverName: '', driverPhone: '', scheduledDate: '', note: '' })
+const edit = reactive({ address: '', phone: '', scheduledDate: '', note: '' })
+
+// Жолоочийн мэдээллийг дэлгэрэнгүй хуудаснаас шууд шинэчилнэ.
+// Ингэснээр ажилтан бүх хүргэлтийн формыг дахин нээх шаардлагагүй.
+const driverForm = reactive({ name: '', phone: '' })
+const driverSaving = ref(false)
+
+const driverChanged = computed(() => {
+  const d = delivery.value
+  return !!d && (driverForm.name.trim() !== (d.driverName ?? '') || driverForm.phone.trim() !== (d.driverPhone ?? ''))
+})
+
+async function saveDriver() {
+  if (!driverChanged.value) return
+
+  const name = driverForm.name.trim()
+  const phone = driverForm.phone.trim()
+
+  if (phone && !name) {
+    toast.error('Жолоочийн нэрийг оруулна уу')
+    return
+  }
+
+  driverSaving.value = true
+  try {
+    await api.update(id.value, {
+      driverName: name || null,
+      driverPhone: phone || null,
+    })
+    toast.success('Жолоочийн мэдээлэл хадгалагдлаа')
+    await load()
+  } catch (e: any) {
+    toast.error('Жолоочийн мэдээлэл хадгалагдсангүй', { description: e.message, duration: 9000 })
+  } finally {
+    driverSaving.value = false
+  }
+}
 
 function openEdit() {
   const d = delivery.value
   if (!d) return
   edit.address = d.address
   edit.phone = d.phone
-  edit.driverName = d.driverName ?? ''
-  edit.driverPhone = d.driverPhone ?? ''
   edit.scheduledDate = d.scheduledDate ? d.scheduledDate.slice(0, 10) : ''
   edit.note = d.note ?? ''
   editOpen.value = true
@@ -281,8 +317,6 @@ async function applyEdit() {
     await api.update(id.value, {
       address: edit.address.trim(),
       phone: edit.phone.trim() || undefined,
-      driverName: edit.driverName.trim() || null,
-      driverPhone: edit.driverPhone.trim() || null,
       scheduledDate: edit.scheduledDate || null,
       note: edit.note.trim() || null,
     })
@@ -587,11 +621,48 @@ const printOpen = ref(false)
             </div>
           </div>
 
-          <div class="flex gap-2">
-            <Truck :size="17" class="mt-0.5 shrink-0 text-content-secondary" />
-            <div class="min-w-0">
-              <p class="text-body-sm text-content-secondary">Жолооч</p>
-              <p class="text-body font-medium text-content">{{ driverLabel }}</p>
+          <div class="border-t border-surface-border pt-3">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-2">
+                <Truck :size="17" class="shrink-0 text-content-secondary" />
+                <div>
+                  <p class="text-body-sm text-content-secondary">Жолоочийн мэдээлэл</p>
+                  <p v-if="delivery.status !== 'created'" class="text-body font-medium text-content">
+                    {{ driverLabel }}
+                  </p>
+                </div>
+              </div>
+              <UiBtn
+                v-if="delivery.status === 'created'"
+                size="sm"
+                :loading="driverSaving"
+                :disabled="!driverChanged"
+                @click="saveDriver"
+              >
+                Хадгалах
+              </UiBtn>
+            </div>
+
+            <div v-if="delivery.status === 'created'" class="grid gap-3 sm:grid-cols-2">
+              <UiField label="Жолоочийн нэр" for="driver-name">
+                <UiTextInput
+                  id="driver-name"
+                  v-model="driverForm.name"
+                  :icon="User"
+                  placeholder="Батбаяр"
+                  @enter="saveDriver"
+                />
+              </UiField>
+              <UiField label="Утасны дугаар" for="driver-phone">
+                <UiTextInput
+                  id="driver-phone"
+                  v-model="driverForm.phone"
+                  type="tel"
+                  placeholder="99001122"
+                  tabular
+                  @enter="saveDriver"
+                />
+              </UiField>
             </div>
           </div>
 
@@ -679,12 +750,6 @@ const printOpen = ref(false)
           </UiField>
           <UiField label="Товлосон огноо">
             <UiTextInput v-model="edit.scheduledDate" type="date" />
-          </UiField>
-          <UiField label="Жолооч">
-            <UiTextInput v-model="edit.driverName" />
-          </UiField>
-          <UiField label="Жолоочийн утас">
-            <UiTextInput v-model="edit.driverPhone" type="tel" tabular />
           </UiField>
         </div>
         <UiField label="Тэмдэглэл">

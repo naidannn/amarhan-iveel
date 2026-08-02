@@ -56,7 +56,15 @@ function formatDateYmd(value: string | null) {
   }).format(new Date(value))
 }
 
-useHead({ title: `${trackingNumber.value} — Ачаа хайх` })
+useHead({
+  title: `${trackingNumber.value} — Ачаа хайх`,
+  meta: [
+    {
+      name: 'description',
+      content: `${trackingNumber.value} дугаартай ачааны хүргэлтийн явцыг эндээс шалгана уу — Ивээлт Карго.`,
+    },
+  ],
+})
 </script>
 
 <template>

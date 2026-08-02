@@ -10,7 +10,15 @@ function search() {
   navigateTo(`/track/${encodeURIComponent(value)}`)
 }
 
-useHead({ title: 'Ачаа хайх — Ивээлт Карго' })
+useHead({
+  title: 'Ачаа хайх — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Ачааны дугаараар хайж, тээврийн явцыг онлайнаар шалгана уу — Ивээлт Карго.',
+    },
+  ],
+})
 </script>
 
 <template>

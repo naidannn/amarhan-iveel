@@ -37,7 +37,15 @@ onMounted(async () => {
   if (await customer.checkAuth()) await navigateTo(redirect.value)
 })
 
-useHead({ title: 'Нэвтрэх — Ивээлт Карго' })
+useHead({
+  title: 'Нэвтрэх — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Ивээлт Карго-ийн харилцагчийн порталд нэвтэрч ачаа, төлбөр, хүргэлтээ хянана уу.',
+    },
+  ],
+})
 </script>
 
 <template>

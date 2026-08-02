@@ -10,7 +10,15 @@ import type { PublicNotification } from '~/composables/useCustomerPortal'
  * харилцагчид (`/my/notifications`), учир нь тодорхой хүнд хамаарна.
  * Уншсан/уншаагүй төлөв энд байхгүй (зочинд харилцагчийн бичлэг үгүй).
  */
-useHead({ title: 'Мэдэгдэл — Ивээлт Карго' })
+useHead({
+  title: 'Мэдэгдэл — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Ивээлт Карго-ийн шинэ мэдэгдэл, зарлалуудыг эндээс хараарай.',
+    },
+  ],
+})
 
 const { notifications } = usePublicContent()
 const page = ref(1)

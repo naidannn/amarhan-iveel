@@ -63,7 +63,15 @@ async function copyAll() {
   }
 }
 
-useHead({ title: 'Хүлээн авах хаяг — Ивээлт Карго' })
+useHead({
+  title: 'Хүлээн авах хаяг — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Эрээн дэх ачаа хүлээн авах хаяг, холбогдох мэдээлэл — Ивээлт Карго.',
+    },
+  ],
+})
 </script>
 
 <template>

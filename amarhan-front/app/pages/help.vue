@@ -27,7 +27,15 @@ const contactRows = computed(() =>
 
 const open = ref<number | null>(null)
 
-useHead({ title: 'Тусламж — Ивээлт Карго' })
+useHead({
+  title: 'Тусламж — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Түгээмэл асуулт хариулт, холбогдох мэдээлэл — Ивээлт Карго-той холбоотой асуултдаа хариулт олоорой.',
+    },
+  ],
+})
 </script>
 
 <template>

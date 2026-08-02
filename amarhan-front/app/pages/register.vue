@@ -44,7 +44,15 @@ async function submit() {
   }
 }
 
-useHead({ title: 'Бүртгүүлэх — Ивээлт Карго' })
+useHead({
+  title: 'Бүртгүүлэх — Ивээлт Карго',
+  meta: [
+    {
+      name: 'description',
+      content: 'Ивээлт Карго-д харилцагчаар бүртгүүлж, ачаагаа онлайнаар хянаж эхлээрэй.',
+    },
+  ],
+})
 </script>
 
 <template>

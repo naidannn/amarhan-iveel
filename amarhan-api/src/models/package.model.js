@@ -313,8 +313,27 @@ const packageSchema = new Schema(
       maxlength: 500,
       default: null,
     },
+
+    /**
+     * Хуучин системээс шилжүүлсэн ачааны эх сурвалж дахь өвөрмөц дугаар
+     * (жишээ: `completed:78774`, `ub:37386`) — `scripts/import-legacy-packages.js`.
+     *
+     * ЯАГААД ШААРДЛАГАТАЙ: import скрипт ДАХИН (production дээр ч) ажиллах ёстой
+     * тул аль бичлэг аль хэдийн шилжсэнийг мэдэх идемпотент түлхүүр хэрэгтэй —
+     * `trackingNumber` дангаараа давхардал зөвшөөрдөг тул (легаси өгөгдөлд ч
+     * бодитоор давхардсан байсан) хангалтгүй.
+     */
+    legacySourceId: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
+);
+
+packageSchema.index(
+  { legacySourceId: 1 },
+  { unique: true, partialFilterExpression: { legacySourceId: { $type: 'string' } } }
 );
 
 /**

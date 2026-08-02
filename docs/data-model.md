@@ -248,6 +248,7 @@ notifications, settings  (бие даасан)
 | `registrationSource` | Enum: `staff` \| `customer` | BR-46 — бичлэгийг ХЭН эхлүүлсэн. Шингээхэд ӨӨРЧЛӨГДӨХГҮЙ (түүхэн баримт). `registeredBy: null` нь "систем/seed" гэсэн утга ч агуулдаг тул тэр талбар үүнийг заахгүй |
 | `isDuplicateApproved` | Boolean | §1.3 — Менежер зөвшөөрсөн давхардал |
 | `cancelledAt`, `cancelReason` | Date, String | §1.6 |
+| `legacySourceId` | String \| null | Хуучин системээс шилжүүлсэн ачааны эх сурвалж дахь өвөрмөц дугаар (`completed:<ilg_id>`, `ub:<ilg_id>`) — `scripts/import-legacy-packages.js`-ийн идемпотент түлхүүр. Unique partial index (`activeTrackingNumber`-тай ижил хэв маяг) |
 
 ### Төлөвийн enum (§1.5)
 

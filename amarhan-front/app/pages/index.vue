@@ -60,10 +60,10 @@ useHead({
   <div>
     <LandingHero :notice="notice" :latest-notification="latestNotification" />
     <LandingFeatures />
-    <LandingChinaAddress :address="address" />
-    <LandingAddressGuides :guides="addressGuides" />
     <LandingHelperServices :yuan-transfer="yuanTransfer" :link-order="linkOrder" />
     <LandingPricing :tariff="tariff" />
+    <LandingChinaAddress :address="address" />
+    <LandingAddressGuides :guides="addressGuides" />
     <LandingHowItWorks />
     <LandingTrackingDemo />
     <LandingTrust />

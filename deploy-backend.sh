@@ -23,7 +23,7 @@ BACKEND_DIR="${BACKEND_DIR:-$REMOTE_ROOT/amarhan-api}"
 PM2_PROCESS="${PM2_PROCESS:-iveelt-api}"
 # Сервер дээрх pm2 процесс node 22-оор ажилладаг (ecosystem.config.cjs)
 NODE_BIN="${NODE_BIN:-/home/ubuntu/.nvm/versions/node/v22.22.2/bin}"
-HEALTH_URL="${HEALTH_URL:-https://iveelt.amarhan.mn/api/status}"
+HEALTH_URL="${HEALTH_URL:-https://iweeltcargo.com/api/status}"
 
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
 

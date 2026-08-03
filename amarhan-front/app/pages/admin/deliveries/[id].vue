@@ -350,7 +350,7 @@ const printOpen = ref(false)
           Засах
         </UiBtn>
         <UiBtn v-if="delivery" variant="secondary" :icon="Printer" @click="printOpen = true">
-          Маршрут хэвлэх
+          Баримт хэвлэх
         </UiBtn>
       </template>
     </UiPageHeader>

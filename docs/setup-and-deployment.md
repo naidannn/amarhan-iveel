@@ -22,7 +22,7 @@ PM2 хоёр процесс ажиллуулна (`ecosystem.config.cjs`, зөв
 | Процесс | cwd | Port | Тайлбар |
 |---|---|---|---|
 | `iveelt-api` | `amarhan-api/` | 4002 | `NODE_ENV=production` |
-| `iveelt-front` | `amarhan-front/` | 3004 | `NUXT_PUBLIC_API_URL=https://iveelt.amarhan.mn` (өөрийн домэйн рүү заана — доор §4 үзнэ үү) |
+| `iveelt-front` | `amarhan-front/` | 3004 | `NUXT_PUBLIC_API_URL=https://iweeltcargo.com` (өөрийн домэйн рүү заана — доор §4 үзнэ үү) |
 
 Node 22 (`~/.nvm/versions/node/v22.22.2`) ашиглана.
 
@@ -40,11 +40,22 @@ Node 22 (`~/.nvm/versions/node/v22.22.2`) ашиглана.
 
 Хоёулаа deploy дараа `HEALTH_URL`-ээр амьд эсэхийг шалгаж, амжилтгүй бол зогсоно (rollback-ыг гараар дуудна).
 
-## 4. Nginx маршрутлалт (iveelt.amarhan.mn)
+## 4. Nginx маршрутлалт (iweeltcargo.com)
 
 > ⚠️ **Энэ тохиргоо репод БАЙХГҮЙ** — зөвхөн серверт гараар засварлагдсан
-> (`/etc/nginx/sites-available/iveelt.amarhan.mn`). Шинэ сервер босгох/сэргээх үед
+> (`/etc/nginx/sites-available/iweeltcargo.com`). Шинэ сервер босгох/сэргээх үед
 > дараах бүтцийг гараар дахин үүсгэх шаардлагатай.
+>
+> **2026-08-04:** Домэйн `iveelt.amarhan.mn` → `iweeltcargo.com` болов (A record
+> эзэмшигчээс шинэ домэйн руу заасан). SSL Let's Encrypt-ээр дахин авсан
+> (`www.iweeltcargo.com` нь apex руу 301 redirect хийдэг). Хуучин
+> `iveelt.amarhan.mn` nginx site бүрмөсөн disable хийгдсэн (`sites-enabled`-ээс
+> хассан, `sites-available`-д хадгалагдсан, cert устгаагүй — сэргээх шаардлага
+> гарвал symlink-ийг л буцааж үүсгэнэ). `amarhan-api/.env`-ийн `CORS_ORIGINS`,
+> `FRONTEND_URL`, `GOOGLE_CALLBACK_URL` мөн `ecosystem.config.cjs`-ийн
+> `NUXT_PUBLIC_API_URL` шинэ домэйн руу шинэчлэгдсэн. **Google Cloud
+> Console-ийн "Authorized redirect URIs"-г ГАРААР шинэчлэх шаардлагатай** —
+> энэ автоматаар хийгдээгүй, эс тэгвэл Google OAuth эвдэрнэ.
 
 Frontend (Nuxt SSR, 3004) болон Backend API (4002) **нэг домэйн дор**:
 

@@ -23,8 +23,8 @@ REMOTE_ROOT="${REMOTE_ROOT:-/var/www/iveel-amarhan}"
 REMOTE_FRONTEND_DIR="${REMOTE_FRONTEND_DIR:-$REMOTE_ROOT/amarhan-front}"
 PM2_PROCESS="${PM2_PROCESS:-iveelt-front}"
 NODE_BIN="${NODE_BIN:-/home/ubuntu/.nvm/versions/node/v22.22.2/bin}"
-HEALTH_URL="${HEALTH_URL:-https://iveelt.amarhan.mn/}"
-NUXT_PUBLIC_API_URL="${NUXT_PUBLIC_API_URL:-https://iveelt.amarhan.mn}"
+HEALTH_URL="${HEALTH_URL:-https://iweeltcargo.com/}"
+NUXT_PUBLIC_API_URL="${NUXT_PUBLIC_API_URL:-https://iweeltcargo.com}"
 
 SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
 

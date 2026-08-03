@@ -40,6 +40,19 @@ class ReportService {
     data.revenue.daily = fillSeries(series.dailyKeys, data.revenue.daily);
     data.revenue.monthly = fillSeries(series.monthlyKeys, data.revenue.monthly);
     data.revenue.yearly = fillSeries(series.yearlyKeys, data.revenue.yearly);
+    data.efficiency.packageRevenue.daily = fillSeries(
+      series.dailyKeys,
+      data.efficiency.packageRevenue.daily
+    );
+    data.efficiency.expenses.daily = fillSeries(series.dailyKeys, data.efficiency.expenses.daily);
+    // BR-47a — өдрийн цэвэр үр дүн = өдрийн "олох ёстой орлого" − өдрийн зарлага.
+    data.efficiency.profit = {
+      total: data.efficiency.packageRevenue.total - data.efficiency.expenses.total,
+      daily: series.dailyKeys.reduce((result, key) => {
+        result[key] = data.efficiency.packageRevenue.daily[key] - data.efficiency.expenses.daily[key];
+        return result;
+      }, {}),
+    };
     const result = {
       ...data,
       period,

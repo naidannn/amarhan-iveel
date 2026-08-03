@@ -609,7 +609,31 @@ Cron-оор өдөр бүр (мөн урсгал өдөрт нэмэгдүүлж
 
 ---
 
-## 16. Migration тэмдэглэл
+## 16. `expenses` — байгууллагын зарлага (BR-47, шинэ 2026-08-03)
+
+| Талбар | Төрөл | Тайлбар |
+|---|---|---|
+| `amount` | Number (₮) | Сөрөг бус бүхэл тоо |
+| `category` | Enum: `rent`\|`salary`\|`fuel`\|`office`\|`maintenance`\|`cargo`\|`other` | |
+| `categoryLabel` | String \| null | Зөвхөн `category:'other'` үед — заавал |
+| `description` | String | Тайлбар, `min 3 max 500` |
+| `date` | Date | Зарлага гарсан өдөр (тайлангийн бүлэглэлт эндээс, `createdAt`-аас тусдаа) |
+| `branchId` | ObjectId → `branches` | BR-22a |
+| `status` | Enum: `active` \| `voided` | |
+| `createdBy`, `createdByName` | ObjectId, String | Бүртгэсэн ажилтан (снапшот нэртэй) |
+| `voidedAt`, `voidedBy`, `voidReason` | Date, ObjectId, String | `payments`-ийн void гурвалтай ижил (BR-47) |
+
+**Индекс:** `{ date: -1, branchId: 1 }`, `{ status: 1, date: -1 }`,
+`{ category: 1, date: -1 }`, `{ branchId: 1, createdAt: -1 }`.
+
+> Зөвхөн Менежер/Админ бичнэ (BR-47). `payments`-ийн адил ХЭЗЭЭ Ч устгагдахгүй,
+> зөвхөн `voided` болно. `docs/business-rules.md` BR-47a-ийн үр ашгийн тайлан
+> энэ коллекцоос тухайн өдрийн зарлагыг ачааны "олох ёстой орлого"-той
+> харьцуулна.
+
+---
+
+## 17. Migration тэмдэглэл
 
 | # | Migration | Phase |
 |---|---|---|

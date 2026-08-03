@@ -2,7 +2,8 @@
 
 const Package = require('../models/package.model');
 const Payment = require('../models/payment.model');
-const { PACKAGE_STATUS, PAYMENT_RECORD_STATUS, PAYMENT_STATUS } = require('../config/constants');
+const Expense = require('../models/expense.model');
+const { PACKAGE_STATUS, PAYMENT_RECORD_STATUS, PAYMENT_STATUS, EXPENSE_STATUS } = require('../config/constants');
 
 const MONGOLIA_TIME_ZONE = 'Asia/Ulaanbaatar';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -10,6 +11,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ARRIVED_PACKAGE_SCOPE = {
   status: { $nin: [PACKAGE_STATUS.IN_ERLIAN, PACKAGE_STATUS.CANCELLED] },
 };
+
+const EXPENSE_ACTIVE_SCOPE = { status: EXPENSE_STATUS.ACTIVE };
 
 /**
  * Тайлангийн зөвхөн уншилтын aggregate query-ууд.
@@ -41,6 +44,10 @@ class ReportRepository {
       discounts,
       paymentAging,
       averagePaymentTime,
+      packageRevenueSummary,
+      packageRevenueDaily,
+      expensesSummary,
+      expensesDaily,
     ] = await Promise.all([
       this.cargoSnapshot(branchScope),
       this.cargoGrowth(packageScope, range),
@@ -55,6 +62,10 @@ class ReportRepository {
       this.discounts(packageScope, range.periodStart, range.periodEnd),
       this.paymentAging(branchScope, series.threeDaysAgo, series.sevenDaysAgo),
       this.averagePaymentTime(completedPaymentScope, range.periodStart, range.periodEnd),
+      this.packageRevenueSummary(packageScope, range.periodStart, range.periodEnd),
+      this.groupPackageRevenue(packageScope, series.dailyStart, range.periodEnd),
+      this.expensesSummary(branchScope, range.periodStart, range.periodEnd),
+      this.groupExpenses(branchScope, series.dailyStart, range.periodEnd),
     ]);
 
     return {
@@ -77,6 +88,22 @@ class ReportRepository {
       payments: {
         ...paymentAging,
         averageDays: averagePaymentTime,
+      },
+      // BR-47a — өдрийн үр ашгийн тайлан: "олох ёстой орлого" (Σ finalPrice,
+      // ирсэн өдрөөр, төлбөр орсон эсэхээс үл хамааран) vs тухайн өдрийн зарлага.
+      // `revenue`-ээс ЗОРИУДААР тусдаа — тэр бодит орсон төлбөрөөр (`payments.createdAt`).
+      efficiency: {
+        packageRevenue: {
+          total: packageRevenueSummary.total,
+          count: packageRevenueSummary.count,
+          daily: toValueMap(packageRevenueDaily),
+        },
+        expenses: {
+          total: expensesSummary.total,
+          count: expensesSummary.count,
+          byCategory: expensesSummary.byCategory,
+          daily: toValueMap(expensesDaily),
+        },
       },
     };
   }
@@ -300,6 +327,63 @@ class ReportRepository {
     ]);
 
     return Math.round(rows[0]?.value ?? 0);
+  }
+
+  /**
+   * BR-47a — "олох ёстой орлого": Σ `finalPrice`, ирсэн (`arrivedAt`) өдрөөр,
+   * ТӨЛБӨР ОРСОН эсэхээс үл хамааран. `revenueSummary()`-ээс ЗОРИУДААР тусдаа
+   * (тэр бодит орсон `payments.createdAt`-аар) — тайланд хоёуланг зэрэг харна.
+   */
+  async packageRevenueSummary(packageScope, start, end) {
+    const rows = await Package.aggregate([
+      { $match: { ...packageScope, arrivedAt: { $gte: start, $lt: end } } },
+      { $group: { _id: null, value: { $sum: '$finalPrice' }, count: { $sum: 1 } } },
+    ]);
+    const row = rows[0] ?? { value: 0, count: 0 };
+    return { total: row.value, count: row.count };
+  }
+
+  groupPackageRevenue(packageScope, start, end) {
+    return Package.aggregate([
+      { $match: { ...packageScope, arrivedAt: { $gte: start, $lt: end } } },
+      { $group: { _id: dateGroup('$arrivedAt', '%Y-%m-%d'), value: { $sum: '$finalPrice' } } },
+      { $sort: { _id: 1 } },
+    ]);
+  }
+
+  async expensesSummary(branchScope, start, end) {
+    const rows = await Expense.aggregate([
+      {
+        $match: {
+          ...branchScope,
+          ...EXPENSE_ACTIVE_SCOPE,
+          date: { $gte: start, $lt: end },
+        },
+      },
+      {
+        $facet: {
+          total: [{ $group: { _id: null, value: { $sum: '$amount' }, count: { $sum: 1 } } }],
+          categories: [{ $group: { _id: '$category', value: { $sum: '$amount' }, count: { $sum: 1 } } }],
+        },
+      },
+    ]);
+
+    const data = rows[0] ?? { total: [], categories: [] };
+    const total = data.total[0] ?? { value: 0, count: 0 };
+
+    return {
+      total: total.value,
+      count: total.count,
+      byCategory: toMethodMap(data.categories),
+    };
+  }
+
+  groupExpenses(branchScope, start, end) {
+    return Expense.aggregate([
+      { $match: { ...branchScope, ...EXPENSE_ACTIVE_SCOPE, date: { $gte: start, $lt: end } } },
+      { $group: { _id: dateGroup('$date', '%Y-%m-%d'), value: { $sum: '$amount' } } },
+      { $sort: { _id: 1 } },
+    ]);
   }
 }
 

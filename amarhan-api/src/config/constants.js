@@ -44,6 +44,7 @@ exports.AUDIT_ENTITY = {
   TARIFF: 'tariff',
   SETTINGS: 'settings',
   NOTIFICATION: 'notification',
+  EXPENSE: 'expense',
 };
 
 /**
@@ -120,6 +121,10 @@ exports.AUDIT_ACTION = {
   // бүртгэгдэнэ (BR-36). Ачааны эвентээс автоматаар үүсэх ХУВИЙН мэдэгдэл
   // audit-д БИЧИГДЭХГҮЙ — мөнгө/төлөв өөрчлөгдөөгүй, зөвхөн мэдэгдэл.
   NOTIFICATION_SEND: 'notification.send',
+
+  // Зарлага (BR-47) — байгууллагын ерөнхий зардал. Менежер/Админ л бичнэ.
+  EXPENSE_CREATE: 'expense.create',
+  EXPENSE_VOID: 'expense.void',
 };
 
 exports.AUDIT_ACTION_LIST = Object.values(exports.AUDIT_ACTION);
@@ -228,6 +233,36 @@ exports.PAYMENT_RECORD_STATUS = {
 exports.PAYMENT_RECORD_STATUS_LIST = Object.values(exports.PAYMENT_RECORD_STATUS);
 
 /**
+ * Байгууллагын зарлагын ангилал — BR-47.
+ *
+ * Тогтмол жагсаалт (эзэмшигчийн сонголт), `OTHER` сонговол ажилтан
+ * `categoryLabel`-аар чөлөөт нэр өгнө. `CARGO` — ачааны тээвэрлэлтийн зардал
+ * (Эрээн↔Улаанбаатар чиглэлийн тээврийн төлбөр гэх мэт).
+ */
+exports.EXPENSE_CATEGORY = {
+  RENT: 'rent',
+  SALARY: 'salary',
+  FUEL: 'fuel',
+  OFFICE: 'office',
+  MAINTENANCE: 'maintenance',
+  CARGO: 'cargo',
+  OTHER: 'other',
+};
+
+exports.EXPENSE_CATEGORY_LIST = Object.values(exports.EXPENSE_CATEGORY);
+
+/**
+ * Зарлагын бичлэгийн төлөв — BR-47, `payments.status`-тай ижил зарчим.
+ * `pending` шаардлагагүй (зарлага онлайн интеграцгүй, шууд бүртгэгдэнэ).
+ */
+exports.EXPENSE_STATUS = {
+  ACTIVE: 'active',
+  VOIDED: 'voided',
+};
+
+exports.EXPENSE_STATUS_LIST = Object.values(exports.EXPENSE_STATUS);
+
+/**
  * Нэгтгэсэн нэхэмжлэхийн төлөв — §2.3.
  *
  * Нэхэмжлэх нь ТООЦООНЫ эх сурвалж БИШ — зөвхөн "ажилтан эдгээр ачааг нэг дор
@@ -304,6 +339,8 @@ exports.ERROR_CODE = {
   PHONE_TAKEN: 'PHONE_TAKEN',
   PHONE_REQUIRED: 'PHONE_REQUIRED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  // BR-47 — зарлага
+  EXPENSE_ALREADY_VOIDED: 'EXPENSE_ALREADY_VOIDED',
 };
 
 /**

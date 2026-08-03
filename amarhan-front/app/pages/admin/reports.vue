@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { BarChart3, CalendarDays, CircleDollarSign, Clock3, Package, RefreshCw, Wallet } from 'lucide-vue-next'
+import { BarChart3, CalendarDays, CircleDollarSign, Clock3, Package, RefreshCw, Scale, Wallet } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 import { useReports, type ReportPeriod, type ReportsSummary } from '~/composables/useReports'
+import { EXPENSE_CATEGORY_LABELS, type ExpenseCategory } from '~/composables/useExpenses'
+import type { Column } from '~/components/ui/DataTable.vue'
 
 definePageMeta({ layout: 'admin', middleware: 'auth' })
 useHead({ title: 'Тайлан — Ивээл Карго' })
@@ -13,6 +15,21 @@ const loading = ref(true)
 const period = ref<ReportPeriod>('30d')
 const cargoChart = ref<'daily' | 'monthly' | 'weekly'>('daily')
 const revenueChart = ref<'daily' | 'monthly' | 'yearly'>('daily')
+
+/**
+ * Тайлан бүрийг ТУСДАА табаар харуулна — өмнө нь бүгд нэг хуудсанд эгнэж,
+ * доошоо их скролдох шаардлагатай байсныг засав. Хугацааны сонголт (доор)
+ * бүх табд НИЙТЛЭГ хэвээр — API нэг хүсэлтээр бүх тайланг авчирдаг тул
+ * таб солиход дахин ачаалахгүй, зөвхөн харагдацыг сэлгэнэ.
+ */
+type ReportTab = 'cargo' | 'revenue' | 'payments' | 'efficiency'
+const activeTab = ref<ReportTab>('cargo')
+const tabs: Array<{ key: ReportTab; label: string; icon: any }> = [
+  { key: 'cargo', label: 'Ачаа', icon: Package },
+  { key: 'revenue', label: 'Орлого', icon: CircleDollarSign },
+  { key: 'payments', label: 'Төлбөр', icon: Wallet },
+  { key: 'efficiency', label: 'Үр ашиг', icon: Scale },
+]
 
 const periodOptions: Array<{ value: ReportPeriod; label: string }> = [
   { value: '7d', label: '7 хоног' },
@@ -88,6 +105,59 @@ const agingData = computed(() =>
   agingBuckets.map(bucket => report.value?.payments.aging[bucket.key]?.value ?? 0)
 )
 
+// BR-47a — өдрийн үр ашгийн тайлан: "олох ёстой орлого" vs зарлага vs ашиг.
+// Зөвхөн ӨДРИЙН цонх (сар/жилийн задаргаа шаардлагагүй, sub-tab байхгүй).
+const efficiencyChartData = computed(() => {
+  if (!report.value) return { labels: [], datasets: [] }
+  const { packageRevenue, expenses, profit } = report.value.efficiency
+  const labels = Object.keys(packageRevenue.daily).sort()
+  return {
+    labels: labels.map(formatDayLabel),
+    datasets: [
+      { label: 'Ачааны орлого', data: labels.map(label => packageRevenue.daily[label]), color: '#355DFF' },
+      { label: 'Зарлага', data: labels.map(label => expenses.daily[label]), color: '#DC2626' },
+      { label: 'Цэвэр үр дүн', data: labels.map(label => profit.daily[label]), color: '#16A34A' },
+    ],
+  }
+})
+
+const expenseCategoryRows = computed(() => {
+  if (!report.value) return []
+  return Object.entries(report.value.efficiency.expenses.byCategory)
+    .map(([key, value]) => ({
+      key,
+      label: EXPENSE_CATEGORY_LABELS[key as ExpenseCategory] ?? key,
+      ...value,
+    }))
+    .sort((a, b) => b.value - a.value)
+})
+
+/** Хүснэгт хамгийн СҮҮЛИЙН өдрөөс эхэлж харуулна — графикийн (өсөх) дарааллаас ЗОРИУДААР эсрэг */
+interface EfficiencyRow {
+  date: string
+  revenue: number
+  expense: number
+  profit: number
+}
+const efficiencyTableColumns: Column<EfficiencyRow>[] = [
+  { key: 'date', label: 'Огноо', tabular: true, mobileTitle: true },
+  { key: 'revenue', label: 'Ачааны орлого', align: 'right', tabular: true },
+  { key: 'expense', label: 'Зарлага', align: 'right', tabular: true },
+  { key: 'profit', label: 'Цэвэр ашиг', align: 'right', tabular: true },
+]
+const efficiencyTableRows = computed<EfficiencyRow[]>(() => {
+  if (!report.value) return []
+  const { packageRevenue, expenses, profit } = report.value.efficiency
+  return Object.keys(packageRevenue.daily)
+    .sort((a, b) => b.localeCompare(a))
+    .map(date => ({
+      date,
+      revenue: packageRevenue.daily[date] ?? 0,
+      expense: expenses.daily[date] ?? 0,
+      profit: profit.daily[date] ?? 0,
+    }))
+})
+
 const methods = [
   { key: 'cash', label: 'Бэлэн', color: '#16A34A' },
   { key: 'qpay', label: 'QPay', color: '#7C3AED' },
@@ -127,6 +197,11 @@ function formatMonthLabel(value: string) {
   return `${year.slice(2)}.${month}`
 }
 
+function formatDateLabel(value: string) {
+  const [year, month, day] = value.split('-')
+  return `${year}.${month}.${day}`
+}
+
 function generatedLabel() {
   if (!report.value?.generatedAt) return ''
   return new Date(report.value.generatedAt).toLocaleTimeString('mn-MN', { hour: '2-digit', minute: '2-digit' })
@@ -145,6 +220,22 @@ onMounted(load)
         <UiBtn variant="secondary" :icon="RefreshCw" :loading="loading" @click="load">Сэргээх</UiBtn>
       </template>
     </UiPageHeader>
+
+    <!-- Тайлан бүр ТУСДАА таб — нэг дор бүгдийг эгнүүлбэл хэт удаан скролдох болсон -->
+    <div class="mb-4 flex flex-wrap gap-1 rounded-card border border-surface-border bg-surface-card p-1.5 shadow-card">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        type="button"
+        class="flex items-center gap-2 rounded-btn px-4 py-2 text-body-sm font-medium transition-colors"
+        :class="activeTab === tab.key ? 'bg-primary-50 text-primary-600' : 'text-content-secondary hover:text-content hover:bg-surface-hover'"
+        :aria-pressed="activeTab === tab.key"
+        @click="activeTab = tab.key"
+      >
+        <component :is="tab.icon" :size="16" :stroke-width="2" />
+        {{ tab.label }}
+      </button>
+    </div>
 
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-card border border-surface-border bg-surface-card p-3 shadow-card">
       <div class="flex items-center gap-2 text-body-sm font-medium text-content-secondary">
@@ -165,7 +256,7 @@ onMounted(load)
       </div>
     </div>
 
-    <section>
+    <section v-if="activeTab === 'cargo'">
       <div class="mb-4 flex items-center gap-2">
         <Package :size="20" class="text-primary-600" />
         <div>
@@ -195,7 +286,7 @@ onMounted(load)
       </div>
     </section>
 
-    <section class="mt-10">
+    <section v-else-if="activeTab === 'revenue'">
       <div class="mb-4 flex items-center gap-2">
         <CircleDollarSign :size="20" class="text-success" />
         <div>
@@ -239,7 +330,7 @@ onMounted(load)
       </div>
     </section>
 
-    <section class="mt-10 pb-4">
+    <section v-else-if="activeTab === 'payments'" class="pb-4">
       <div class="mb-4 flex items-center gap-2">
         <Wallet :size="20" class="text-warning" />
         <div>
@@ -261,6 +352,107 @@ onMounted(load)
           <p class="mt-1 text-body-sm text-content-secondary">Төлөөгүй үлдэгдлийн дүнгээр</p>
         </div>
         <ReportTrendChart class="mt-5" :labels="agingLabels" :datasets="[{ label: 'Үлдэгдэл', data: agingData, color: '#B45309' }]" type="bar" :loading="loading" :value-label="formatCurrency" />
+      </div>
+    </section>
+
+    <section v-else-if="activeTab === 'efficiency'" class="pb-4">
+      <div class="mb-4 flex items-center gap-2">
+        <Scale :size="20" class="text-primary-600" />
+        <div>
+          <h2 class="text-h4 text-content">Үр ашгийн тайлан</h2>
+          <p class="text-body-sm text-content-secondary">
+            Тухайн өдөр бүртгэгдсэн ачааны олох ёстой орлого (төлбөр орсон эсэхээс үл хамааран)
+            ба тухайн өдрийн зарлагыг харьцуулна
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <UiStatCard
+          label="Ачааны орлого (бүртгэсэн)"
+          :value="formatCurrency(report?.efficiency.packageRevenue.total ?? 0)"
+          :hint="`${report?.efficiency.packageRevenue.count ?? 0} ачаа · төлбөр орсон эсэхээс үл хамааран`"
+          :icon="Package"
+          accent="#355DFF"
+          :loading="loading"
+        />
+        <UiStatCard
+          label="Зарлага"
+          :value="formatCurrency(report?.efficiency.expenses.total ?? 0)"
+          :hint="`${report?.efficiency.expenses.count ?? 0} бүртгэл`"
+          :icon="Wallet"
+          accent="#DC2626"
+          :loading="loading"
+        />
+        <UiStatCard
+          label="Цэвэр үр дүн"
+          :value="formatCurrency(report?.efficiency.profit.total ?? 0)"
+          hint="Ачааны орлого − Зарлага"
+          :icon="Scale"
+          :accent="(report?.efficiency.profit.total ?? 0) >= 0 ? '#16A34A' : '#DC2626'"
+          :loading="loading"
+        />
+      </div>
+
+      <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-5">
+        <div class="card xl:col-span-3">
+          <h3 class="text-h4 text-content">Өдөр бүрийн орлого, зарлага, ашиг</h3>
+          <p class="mt-1 text-body-sm text-content-secondary">Сүүлийн 30 хүртэлх хоног</p>
+          <ReportTrendChart
+            class="mt-5"
+            :labels="efficiencyChartData.labels"
+            :datasets="efficiencyChartData.datasets"
+            type="line"
+            :loading="loading"
+            :value-label="formatCurrency"
+          />
+        </div>
+
+        <div class="card xl:col-span-2">
+          <h3 class="text-h4 text-content">Зарлагын ангилал</h3>
+          <p class="mt-1 text-body-sm text-content-secondary">Сонгосон хугацааны задаргаа</p>
+          <div v-if="expenseCategoryRows.length === 0" class="mt-5 text-body-sm text-content-secondary">
+            Энэ хугацаанд зарлага бүртгэгдээгүй
+          </div>
+          <div v-else class="mt-5 divide-y divide-surface-border">
+            <div
+              v-for="row in expenseCategoryRows"
+              :key="row.key"
+              class="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <span class="text-body text-content-secondary">{{ row.label }}</span>
+              <span class="text-right">
+                <strong class="tabular block text-body text-content">{{ formatCurrency(row.value) }}</strong>
+                <small class="text-body-sm text-content-secondary">{{ row.count }} бүртгэл</small>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Өдөр бүрээр дэлгэрэнгүй хүснэгт — графикийг дэмжинэ, тоог нарийн харах -->
+      <div class="mt-6">
+        <h3 class="mb-3 text-h4 text-content">Өдөр бүрийн задаргаа</h3>
+        <UiDataTable
+          :columns="efficiencyTableColumns"
+          :rows="efficiencyTableRows"
+          row-key="date"
+          :loading="loading"
+          empty-text="Энэ хугацаанд өгөгдөл алга"
+        >
+          <template #cell-date="{ row }">
+            <span class="text-content">{{ formatDateLabel(row.date) }}</span>
+          </template>
+          <template #cell-revenue="{ row }">
+            <span class="text-content">{{ formatCurrency(row.revenue) }}</span>
+          </template>
+          <template #cell-expense="{ row }">
+            <span :class="row.expense > 0 ? 'text-error' : 'text-content-secondary'">{{ formatCurrency(row.expense) }}</span>
+          </template>
+          <template #cell-profit="{ row }">
+            <span class="font-semibold" :class="row.profit >= 0 ? 'text-success' : 'text-error'">{{ formatCurrency(row.profit) }}</span>
+          </template>
+        </UiDataTable>
       </div>
     </section>
   </div>

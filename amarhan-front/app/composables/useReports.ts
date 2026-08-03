@@ -42,6 +42,21 @@ export interface ReportsSummary {
     averageDays: number
     aging: Record<string, ReportValue>
   }
+  /**
+   * BR-47a — өдрийн үр ашгийн тайлан. `revenue`-ээс ЗОРИУДААР тусдаа:
+   * `packageRevenue` нь "олох ёстой орлого" (Σ finalPrice, ирсэн өдрөөр,
+   * төлбөр орсон эсэхээс үл хамааран), `revenue` нь БОДИТ орсон төлбөр.
+   */
+  efficiency: {
+    packageRevenue: { total: number; count: number; daily: Record<string, number> }
+    expenses: {
+      total: number
+      count: number
+      byCategory: Record<string, ReportValue>
+      daily: Record<string, number>
+    }
+    profit: { total: number; daily: Record<string, number> }
+  }
   period: ReportPeriod
   generatedAt: string
   cacheTtlSeconds: number

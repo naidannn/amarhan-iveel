@@ -17,6 +17,7 @@ const customerWebRouter = require('./customer-web.route');
 const publicRouter = require('./public.route');
 const dashboardRouter = require('./dashboard.route');
 const reportRouter = require('./report.route');
+const expenseRouter = require('./expense.route');
 const notificationRouter = require('./notification.route');
 const uploadRouter = require('./upload.route');
 
@@ -44,6 +45,9 @@ router.use('/v1/dashboard', dashboardRouter);
 
 // Тайлан — кэштэй aggregate endpoint. Менежерийн салбарын хамрах хүрээг service шийднэ.
 router.use('/v1/reports', reportRouter);
+
+// BR-47 — байгууллагын зарлага. Менежер/Админ л хандана (Ажилтан хандахгүй).
+router.use('/v1/expenses', expenseRouter);
 
 // Phase 3 — төлбөрийн модуль (§1.8, §2). Нэхэмжлэх нь `/payments/invoices`-д
 // байрлана: тэр нь бие даасан объект БИШ, төлбөр авах урсгалын хэсэг (§2.3).

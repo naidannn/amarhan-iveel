@@ -243,6 +243,33 @@ async function applyVoid() {
   }
 }
 
+// ── Утас холбох/засах (BR-45 §1.1–1.5 — утас заавал биш, дурын үед холбоно) ─
+const phoneOpen = ref(false)
+const newPhone = ref('')
+
+function openPhone() {
+  newPhone.value = customer.value?.phone ?? pkg.value?.customerPhone ?? ''
+  phoneOpen.value = true
+}
+
+async function applyPhone() {
+  if (!newPhone.value.trim()) {
+    toast.error('Утасны дугаарыг оруулна уу')
+    return
+  }
+  busy.value = true
+  try {
+    await api.update(id.value, { phone: newPhone.value.trim() })
+    toast.success('Утасны дугаар шинэчлэгдлээ')
+    phoneOpen.value = false
+    await load()
+  } catch (e: any) {
+    toast.error('Утас шинэчлэгдсэнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    busy.value = false
+  }
+}
+
 // ── Байршил шилжүүлэх (BR-25) ────────────────────────────────────────────
 const locationOpen = ref(false)
 const newLocation = ref('')
@@ -540,11 +567,22 @@ const printOpen = ref(false)
             <dl class="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6">
               <div>
                 <dt class="text-body-sm text-content-secondary">Харилцагч</dt>
-                <dd class="tabular mt-0.5 text-body font-medium text-content">
-                  {{ customer?.phone ?? pkg.customerPhone ?? 'Холбоогүй' }}
-                  <span v-if="customer?.name" class="font-normal text-content-secondary">
-                    · {{ customer.name }}
+                <dd class="mt-0.5 flex items-center gap-1.5 text-body font-medium text-content">
+                  <span class="tabular">
+                    {{ customer?.phone ?? pkg.customerPhone ?? 'Холбоогүй' }}
+                    <span v-if="customer?.name" class="font-normal text-content-secondary">
+                      · {{ customer.name }}
+                    </span>
                   </span>
+                  <button
+                    v-if="pkg.status !== 'cancelled'"
+                    type="button"
+                    class="shrink-0 text-content-secondary transition-colors hover:text-primary"
+                    title="Утас засах"
+                    @click="openPhone"
+                  >
+                    <Pencil :size="14" />
+                  </button>
                 </dd>
               </div>
 
@@ -996,6 +1034,31 @@ const printOpen = ref(false)
         <template #footer>
           <UiBtn variant="secondary" @click="priceOpen = false">Болих</UiBtn>
           <UiBtn :loading="busy" @click="applyPrice">Хадгалах</UiBtn>
+        </template>
+      </UiModal>
+
+      <UiModal v-model="phoneOpen" title="Утасны дугаар холбох/засах">
+        <div class="space-y-4">
+          <p class="tabular text-body text-content-secondary">
+            Одоогийн утас:
+            <span class="font-medium text-content">
+              {{ customer?.phone ?? pkg.customerPhone ?? 'Холбоогүй' }}
+            </span>
+          </p>
+
+          <UiField label="Шинэ утасны дугаар" required>
+            <UiTextInput v-model="newPhone" type="tel" placeholder="99112233" tabular />
+          </UiField>
+
+          <p class="text-body-sm text-content-secondary">
+            Өөр дугаар оруулбал ачаа тэр дугаарын харилцагчтай холбогдоно (шинэ бол
+            автоматаар үүснэ).
+          </p>
+        </div>
+
+        <template #footer>
+          <UiBtn variant="secondary" @click="phoneOpen = false">Болих</UiBtn>
+          <UiBtn :loading="busy" @click="applyPhone">Хадгалах</UiBtn>
         </template>
       </UiModal>
 

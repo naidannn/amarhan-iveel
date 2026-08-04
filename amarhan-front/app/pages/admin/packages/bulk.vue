@@ -11,16 +11,21 @@ import {
   PenLine,
   Calculator,
   AlertTriangle,
+  FileSpreadsheet,
 } from 'lucide-vue-next'
 import type { CargoPackage } from '~/composables/usePackages'
+import type { ParsedImportRow } from '~/utils/packageBulkImport'
 
 /**
  * ОЛНООР АЧАА БҮРТГЭХ
  *
  * "Ачаа бүртгэх" (`new.vue`)-ийн хурдны зарчмыг ХОЛИМОГ ХАРИЛЦАГЧДЫН
  * БАГЦАД өргөтгөсөн хувилбар: нэг дэлгэц дээр олон мөр (дугаар+утас тус
- * бүрээрээ өөр харилцагч) бөглөөд НЭГ товчоор бүгдийг илгээнэ. Excel/CSV
- * АШИГЛАХГҮЙ — цэвэр вэб форм.
+ * бүрээрээ өөр харилцагч) бөглөөд НЭГ товчоор бүгдийг илгээнэ. Excel файл
+ * эсвэл хуулж буулгасан датагаар (`PackageBulkImportDialog`) МӨРИЙН
+ * ХҮСНЭГТИЙГ Л бөглөж болно — ачааг шууд үүсгэдэггүй, ажилтан хараад
+ * шалгасны дараа л "Бүгдийг бүртгэх"-ээр илгээнэ (validate/submit урсгал
+ * хэвээрээ).
  *
  * Байршил, ачааны төрөл, үнийн горим, бүртгэлийн төлөв БҮХ мөрөнд НИЙТЛЭГ
  * (sticky) — ажлын нэг ээлжинд ихэвчлэн нэг тавиур дээр ижил төрлийн ачаа
@@ -82,7 +87,11 @@ const sticky = reactive({
   mode: 'manual' as PriceMode,
   cargoTypeId: null as string | null,
   locationCode: '',
+  /** "Эрээнд байгаа" багцад НЭГ удаа сонгож бүх мөрөнд адилхан хэрэглэнэ */
+  erlianDate: new Date().toISOString().slice(0, 10),
 })
+
+const showImport = ref(false)
 
 const isErlian = computed(() => sticky.registrationStatus === 'in_erlian')
 const isMeasured = computed(() => sticky.mode === 'measured')
@@ -93,6 +102,7 @@ const saving = ref(false)
 const recent = ref<CargoPackage[]>([])
 
 const trackingRefs = ref<Array<{ focus: () => void } | null>>([])
+const phoneRefs = ref<Array<{ focus: () => void } | null>>([])
 
 const columnCount = computed(() => (isErlian.value ? 4 : 6))
 
@@ -177,8 +187,43 @@ function removeRow(index: number) {
   rows.value.splice(index, 1)
 }
 
-/** Enter дарахад дараагийн мөр рүү шилжинэ — сүүлийн мөр дээр шинэ мөр нэмнэ */
+/** Excel/paste-ээс ирсэн мөрүүдийг одоо байгаа хоосон мөрүүдийн оронд нэмнэ — ачаа шууд ҮҮСГЭХГҮЙ. */
+function applyImportedRows(imported: ParsedImportRow[]) {
+  const kept = rows.value.filter(row => !isRowBlank(row))
+  const room = MAX_ROWS - kept.length
+  const accepted = imported.slice(0, Math.max(room, 0))
+
+  for (const item of accepted) {
+    kept.push({
+      key: rowKeySeq++,
+      trackingNumber: item.trackingNumber,
+      phone: item.phone,
+      customerName: item.customerName,
+      quantity: item.quantity ?? 1,
+      weightKg: item.weightKg,
+      price: item.price,
+      error: null,
+      prefilled: false,
+    })
+  }
+
+  rows.value = kept.length > 0 ? kept : [blankRow()]
+
+  if (accepted.length < imported.length) {
+    toast.info(`Нэг дор дээд тал нь ${MAX_ROWS} мөр бүртгэнэ`, {
+      description: `${imported.length - accepted.length} мөр багтаагүй тул алгаслаа`,
+    })
+  }
+  toast.success(`${accepted.length} мөр импортлогдлоо`)
+}
+
+/** Дугаарыг barcode уншигчаар оруулахад Enter автоматаар дагадаг тул дараагийн БАГАНА (утас) руу шилжинэ */
 function handleTrackingEnter(index: number) {
+  phoneRefs.value[index]?.focus()
+}
+
+/** Утасны талбараас Enter дарахад дараагийн мөрийн дугаар руу шилжинэ — сүүлийн мөр дээр шинэ мөр нэмнэ */
+function handlePhoneEnter(index: number) {
   if (index === rows.value.length - 1) {
     addRow()
     return
@@ -249,6 +294,7 @@ function buildRowPayload(row: BulkRow): Record<string, any> {
 
   if (isErlian.value) {
     base.status = 'in_erlian'
+    if (sticky.erlianDate) base.arrivedAt = sticky.erlianDate
     return base
   }
 
@@ -402,6 +448,10 @@ async function submitAll() {
               <Globe2 :size="13" class="mt-0.5 shrink-0" />
               Жин, үнэ, байршил "Ирц бүртгэх"-ээр Монголд ирэхэд мөр тус бүрт нь гүйцээгдэнэ.
             </p>
+
+            <UiField v-if="isErlian" label="Огноо" class="mt-2 max-w-[200px]">
+              <UiTextInput v-model="sticky.erlianDate" type="date" />
+            </UiField>
           </div>
 
           <div v-if="!isErlian" class="grid gap-3 sm:grid-cols-2">
@@ -498,12 +548,14 @@ async function submitAll() {
                     </td>
                     <td class="py-1.5 pr-2">
                       <UiTextInput
+                        :ref="(el: any) => (phoneRefs[index] = el)"
                         v-model="row.phone"
                         type="tel"
                         :icon="Phone"
                         placeholder="99112233"
                         tabular
                         :invalid="Boolean(row.error)"
+                        @enter="handlePhoneEnter(index)"
                       />
                     </td>
                     <td class="py-1.5 pr-2">
@@ -564,13 +616,20 @@ async function submitAll() {
             </table>
           </div>
 
-          <UiBtn variant="ghost" size="sm" :icon="Plus" class="mt-2" @click="addRow">Мөр нэмэх</UiBtn>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <UiBtn variant="ghost" size="sm" :icon="Plus" @click="addRow">Мөр нэмэх</UiBtn>
+            <UiBtn variant="ghost" size="sm" :icon="FileSpreadsheet" @click="showImport = true">
+              Excel-с оруулах
+            </UiBtn>
+          </div>
         </div>
+
+        <PackageBulkImportDialog v-model="showImport" @apply="applyImportedRows" />
 
         <div class="flex items-center gap-3">
           <UiBtn :icon="Check" :loading="saving" @click="submitAll">Бүгдийг бүртгэх</UiBtn>
           <p class="text-body-sm text-content-secondary">
-            Дугаарын талбарт Enter дарахад дараагийн мөр рүү шилжинэ.
+            Дугаарын талбарт Enter дарахад утасны талбар руу, утаснаас Enter дарахад дараагийн мөр рүү шилжинэ.
           </p>
         </div>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Wallet, Landmark, CreditCard, Smartphone, Copy, Check } from 'lucide-vue-next'
+import { Wallet, Landmark, CreditCard, Smartphone, Copy, Check, Plus, Trash2 } from 'lucide-vue-next'
 import { usePayments, type PaymentMethodValue } from '~/composables/usePayments'
 import type { CargoPackage } from '~/composables/usePackages'
 
@@ -89,6 +89,50 @@ const amount = ref<number | null>(null)
 const note = ref('')
 const busy = ref(false)
 
+/**
+ * Хуваасан төлбөрийн горим — заавал биш (optional). Анхны сонголт
+ * ("Нэг хэлбэрээр") бол дүн бүтнээр, ганц хэлбэрээр төлөгдөнө — одоогийн
+ * зан төлөв өөрчлөгдөхгүй. "Хуваах" сонговол хэлбэр бүрд ТУСДАА мөр (жишээ нь
+ * Бэлэн 3000 + Данс 3000) — BR-13-ийн дагуу хэлбэр бүр тусдаа `payments`
+ * бичлэг болж бүртгэгдэнэ.
+ */
+type SplitMode = 'full' | 'split'
+interface SplitRow {
+  method: PaymentMethodValue
+  amount: number | null
+}
+
+const splitMode = ref<SplitMode>('full')
+const splitRows = ref<SplitRow[]>([])
+
+function methodLabel(value: PaymentMethodValue) {
+  return METHODS.find(m => m.value === value)?.label ?? value
+}
+
+function nextSplitMethod(): PaymentMethodValue {
+  const used = new Set(splitRows.value.map(r => r.method))
+  return METHODS.find(m => !used.has(m.value))?.value ?? METHODS[0].value
+}
+
+function setSplitMode(mode: SplitMode) {
+  splitMode.value = mode
+  if (mode === 'split' && splitRows.value.length === 0) {
+    const half = Math.round(totalBalance.value / 2)
+    splitRows.value = [
+      { method: 'cash', amount: half },
+      { method: 'bank', amount: totalBalance.value - half },
+    ]
+  }
+}
+
+function addSplitRow() {
+  splitRows.value.push({ method: nextSplitMethod(), amount: null })
+}
+
+function removeSplitRow(index: number) {
+  splitRows.value.splice(index, 1)
+}
+
 /** Төлөх ёстой дүн. Нэхэмжлэхтэй бол түүний үлдэгдэл давуу эрхтэй */
 const totalBalance = computed(() => {
   if (props.invoiceBalance != null) return props.invoiceBalance
@@ -106,9 +150,18 @@ const remaining = computed(() => {
 
 const isOverpaying = computed(() => (amount.value ?? 0) > totalBalance.value)
 
-const canSubmit = computed(
-  () => !busy.value && (amount.value ?? 0) > 0 && !isOverpaying.value
+const splitTotal = computed(() => splitRows.value.reduce((sum, r) => sum + (r.amount ?? 0), 0))
+const splitRemaining = computed(() => Math.max(totalBalance.value - splitTotal.value, 0))
+const isSplitOverpaying = computed(() => splitTotal.value > totalBalance.value)
+const splitRowsValid = computed(
+  () => splitRows.value.length >= 2 && splitRows.value.every(r => (r.amount ?? 0) > 0)
 )
+
+const canSubmit = computed(() => {
+  if (busy.value) return false
+  if (splitMode.value === 'split') return splitRowsValid.value && !isSplitOverpaying.value
+  return (amount.value ?? 0) > 0 && !isOverpaying.value
+})
 
 // Модал онгойх бүрт бүрэн дүнг санал болгоно — хамгийн түгээмэл тохиолдол
 watch(
@@ -118,6 +171,8 @@ watch(
     amount.value = totalBalance.value
     method.value = 'cash'
     note.value = ''
+    splitMode.value = 'full'
+    splitRows.value = []
     loadBankAccount()
   }
 )
@@ -130,6 +185,18 @@ async function submit() {
   if (!canSubmit.value) return
 
   busy.value = true
+  try {
+    if (splitMode.value === 'split') {
+      await submitSplit()
+    } else {
+      await submitSingle()
+    }
+  } finally {
+    busy.value = false
+  }
+}
+
+async function submitSingle() {
   try {
     await api.create({
       amount: amount.value as number,
@@ -149,8 +216,53 @@ async function submit() {
     close()
   } catch (e: any) {
     toast.error('Төлбөр бүртгэгдсэнгүй', { description: e.message, duration: 9000 })
-  } finally {
-    busy.value = false
+  }
+}
+
+/**
+ * Хэлбэр бүрд ТУСДАА бичлэг (BR-13) тул дараалан бүртгэнэ. Зарим нь
+ * бүртгэгдээд дараагийнх нь алдаатай унавал өмнөх амжилттайг буцаах
+ * боломжгүй тул хийгдсэн хэсгээ ажилтанд тодорхой мэдэгдэнэ.
+ */
+async function submitSplit() {
+  let succeeded = 0
+  let firstError: string | undefined
+
+  for (const row of splitRows.value) {
+    try {
+      await api.create({
+        amount: row.amount as number,
+        method: row.method,
+        ...(props.invoiceId
+          ? { invoiceId: props.invoiceId }
+          : { packageIds: props.packages.map(p => p.id) }),
+        ...(note.value.trim() ? { note: note.value.trim() } : {}),
+      })
+      succeeded++
+    } catch (e: any) {
+      firstError = e.message
+      break
+    }
+  }
+
+  const total = splitRows.value.length
+
+  if (succeeded === total) {
+    toast.success('Хуваасан төлбөр бүртгэгдлээ', {
+      description: splitRows.value
+        .map(r => `${methodLabel(r.method)} ${formatCurrency(r.amount as number)}`)
+        .join(' · '),
+    })
+    emit('paid')
+    close()
+  } else if (succeeded > 0) {
+    toast.warning(`${succeeded}/${total} төлбөр бүртгэгдээд зогслоо`, {
+      description: firstError,
+      duration: 9000,
+    })
+    emit('paid')
+  } else {
+    toast.error('Төлбөр бүртгэгдсэнгүй', { description: firstError, duration: 9000 })
   }
 }
 </script>
@@ -164,95 +276,222 @@ async function submit() {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="space-y-5">
-      <!-- Хэлбэр (§1.8). Хуваасан төлбөр = хэлбэр бүрт ТУСДАА бүртгэл (BR-13) -->
-      <UiField label="Төлбөрийн хэлбэр" required>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <!-- Горим — заавал биш. Анхны сонголт "Нэг хэлбэрээр" = одоогийн зан
+           төлөв (бүтнээр эсвэл хэсэгчилсэн ганц хэлбэрээр). "Хуваах" сонговол
+           хэлбэр бүрт ТУСДАА мөр (жишээ нь Бэлэн 3000 + Данс 3000) — BR-13 -->
+      <UiField label="Төлбөрийн горим">
+        <div class="grid grid-cols-2 gap-2">
           <button
-            v-for="option in METHODS"
-            :key="option.value"
             type="button"
-            class="flex flex-col items-center gap-1.5 rounded-btn border px-3 py-3 text-body-sm font-medium transition-all duration-200"
+            class="rounded-btn border px-3 py-2.5 text-body-sm font-medium transition-colors duration-200"
             :class="
-              method === option.value
+              splitMode === 'full'
                 ? 'border-primary bg-primary-50 text-primary-700'
                 : 'border-surface-border text-content-secondary hover:bg-surface-hover'
             "
-            @click="method = option.value"
+            @click="setSplitMode('full')"
           >
-            <component :is="option.icon" :size="19" :stroke-width="2" />
-            {{ option.label }}
+            Нэг хэлбэрээр
           </button>
-        </div>
-      </UiField>
-
-      <!-- "Данс" сонгоход харилцагчид өгөх дансны мэдээллийг ажилтан
-           энд шууд хуулж авна (`payment.bank_account`, зөвхөн дотоод) -->
-      <div
-        v-if="method === 'bank' && bankAccount && bankAccountText"
-        class="rounded-card border border-surface-border bg-surface-hover px-4 py-3.5"
-      >
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-body-sm font-semibold text-content">Дансны мэдээлэл</p>
           <button
             type="button"
-            class="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-body-sm font-medium transition-colors"
+            class="rounded-btn border px-3 py-2.5 text-body-sm font-medium transition-colors duration-200"
             :class="
-              copied
-                ? 'bg-primary-600 text-white'
-                : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+              splitMode === 'split'
+                ? 'border-primary bg-primary-50 text-primary-700'
+                : 'border-surface-border text-content-secondary hover:bg-surface-hover'
             "
-            @click="copyBankAccount"
+            @click="setSplitMode('split')"
           >
-            <component :is="copied ? Check : Copy" :size="13" />
-            {{ copied ? 'Хуулагдлаа' : 'Хуулах' }}
+            Хэд хэдэн хэлбэрээр хуваах
           </button>
         </div>
-        <dl class="mt-2 space-y-1 text-body-sm">
-          <div v-if="bankAccount.bankName" class="flex justify-between gap-3">
-            <dt class="text-content-secondary">Банк</dt>
-            <dd class="font-medium text-content">{{ bankAccount.bankName }}</dd>
-          </div>
-          <div v-if="bankAccount.accountNumber" class="flex justify-between gap-3">
-            <dt class="text-content-secondary">Дансны дугаар</dt>
-            <dd class="tabular font-medium text-content">{{ bankAccount.accountNumber }}</dd>
-          </div>
-          <div v-if="bankAccount.accountHolder" class="flex justify-between gap-3">
-            <dt class="text-content-secondary">Эзэмшигч</dt>
-            <dd class="font-medium text-content">{{ bankAccount.accountHolder }}</dd>
-          </div>
-        </dl>
-        <p v-if="bankAccount.note" class="mt-2 text-body-sm text-content-secondary">
-          {{ bankAccount.note }}
-        </p>
-      </div>
-
-      <UiField
-        label="Дүн"
-        required
-        :error="isOverpaying ? 'Үлдэгдлээс их дүн бүртгэх боломжгүй' : null"
-        hint="Хэсэгчилсэн дүн бичвэл үлдсэнийг дараа нь өөр хэлбэрээр авч болно"
-      >
-        <UiTextInput
-          v-model="amount"
-          type="number"
-          suffix="₮"
-          tabular
-          :invalid="isOverpaying"
-          @enter="submit"
-        />
       </UiField>
 
-      <!-- Хэсэгчилсэн төлбөрт үлдэх дүнг ТОДООР харуулна — ажилтан хэрэглэгчид
-           хэлэх шаардлагатай тоо -->
-      <div
-        v-if="amount != null && remaining > 0 && !isOverpaying"
-        class="flex items-center justify-between rounded-card border border-warning/30 bg-warning/5 px-4 py-3"
-      >
-        <span class="text-body text-content-secondary">Төлбөрийн дараах үлдэгдэл</span>
-        <span class="tabular text-body font-bold text-warning">
-          {{ formatCurrency(remaining) }}
-        </span>
-      </div>
+      <template v-if="splitMode === 'full'">
+        <!-- Хэлбэр (§1.8) -->
+        <UiField label="Төлбөрийн хэлбэр" required>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button
+              v-for="option in METHODS"
+              :key="option.value"
+              type="button"
+              class="flex flex-col items-center gap-1.5 rounded-btn border px-3 py-3 text-body-sm font-medium transition-all duration-200"
+              :class="
+                method === option.value
+                  ? 'border-primary bg-primary-50 text-primary-700'
+                  : 'border-surface-border text-content-secondary hover:bg-surface-hover'
+              "
+              @click="method = option.value"
+            >
+              <component :is="option.icon" :size="19" :stroke-width="2" />
+              {{ option.label }}
+            </button>
+          </div>
+        </UiField>
+
+        <!-- "Данс" сонгоход харилцагчид өгөх дансны мэдээллийг ажилтан
+             энд шууд хуулж авна (`payment.bank_account`, зөвхөн дотоод) -->
+        <div
+          v-if="method === 'bank' && bankAccount && bankAccountText"
+          class="rounded-card border border-surface-border bg-surface-hover px-4 py-3.5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-body-sm font-semibold text-content">Дансны мэдээлэл</p>
+            <button
+              type="button"
+              class="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-body-sm font-medium transition-colors"
+              :class="
+                copied
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+              "
+              @click="copyBankAccount"
+            >
+              <component :is="copied ? Check : Copy" :size="13" />
+              {{ copied ? 'Хуулагдлаа' : 'Хуулах' }}
+            </button>
+          </div>
+          <dl class="mt-2 space-y-1 text-body-sm">
+            <div v-if="bankAccount.bankName" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Банк</dt>
+              <dd class="font-medium text-content">{{ bankAccount.bankName }}</dd>
+            </div>
+            <div v-if="bankAccount.accountNumber" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Дансны дугаар</dt>
+              <dd class="tabular font-medium text-content">{{ bankAccount.accountNumber }}</dd>
+            </div>
+            <div v-if="bankAccount.accountHolder" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Эзэмшигч</dt>
+              <dd class="font-medium text-content">{{ bankAccount.accountHolder }}</dd>
+            </div>
+          </dl>
+          <p v-if="bankAccount.note" class="mt-2 text-body-sm text-content-secondary">
+            {{ bankAccount.note }}
+          </p>
+        </div>
+
+        <UiField
+          label="Дүн"
+          required
+          :error="isOverpaying ? 'Үлдэгдлээс их дүн бүртгэх боломжгүй' : null"
+          hint="Хэсэгчилсэн дүн бичвэл үлдсэнийг дараа нь өөр хэлбэрээр авч болно"
+        >
+          <UiTextInput
+            v-model="amount"
+            type="number"
+            suffix="₮"
+            tabular
+            :invalid="isOverpaying"
+            @enter="submit"
+          />
+        </UiField>
+
+        <!-- Хэсэгчилсэн төлбөрт үлдэх дүнг ТОДООР харуулна — ажилтан хэрэглэгчид
+             хэлэх шаардлагатай тоо -->
+        <div
+          v-if="amount != null && remaining > 0 && !isOverpaying"
+          class="flex items-center justify-between rounded-card border border-warning/30 bg-warning/5 px-4 py-3"
+        >
+          <span class="text-body text-content-secondary">Төлбөрийн дараах үлдэгдэл</span>
+          <span class="tabular text-body font-bold text-warning">
+            {{ formatCurrency(remaining) }}
+          </span>
+        </div>
+      </template>
+
+      <template v-else>
+        <UiField
+          label="Хуваасан төлбөр"
+          required
+          :error="isSplitOverpaying ? 'Нийт дүн үлдэгдлээс их байна' : null"
+          hint="Мөр бүр хэлбэр тус бүрдээ тусдаа бүртгэл болно (BR-13)"
+        >
+          <div class="space-y-2">
+            <div v-for="(row, i) in splitRows" :key="i" class="flex items-center gap-2">
+              <UiSelectInput
+                v-model="row.method"
+                class="w-32 shrink-0"
+                :options="METHODS.map(m => ({ value: m.value, label: m.label }))"
+              />
+              <UiTextInput
+                v-model="row.amount"
+                type="number"
+                suffix="₮"
+                tabular
+                class="flex-1"
+                :invalid="isSplitOverpaying"
+              />
+              <UiBtn
+                variant="ghost"
+                size="sm"
+                :icon="Trash2"
+                :disabled="splitRows.length <= 2"
+                aria-label="Мөр устгах"
+                @click="removeSplitRow(i)"
+              />
+            </div>
+          </div>
+
+          <UiBtn class="mt-2" size="sm" variant="secondary" :icon="Plus" @click="addSplitRow">
+            Мөр нэмэх
+          </UiBtn>
+        </UiField>
+
+        <!-- "Данс" мөр орсон бол дансны мэдээллийг энд ч харуулна -->
+        <div
+          v-if="splitRows.some(r => r.method === 'bank') && bankAccount && bankAccountText"
+          class="rounded-card border border-surface-border bg-surface-hover px-4 py-3.5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-body-sm font-semibold text-content">Дансны мэдээлэл</p>
+            <button
+              type="button"
+              class="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-body-sm font-medium transition-colors"
+              :class="
+                copied
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-primary-50 text-primary-700 hover:bg-primary-100'
+              "
+              @click="copyBankAccount"
+            >
+              <component :is="copied ? Check : Copy" :size="13" />
+              {{ copied ? 'Хуулагдлаа' : 'Хуулах' }}
+            </button>
+          </div>
+          <dl class="mt-2 space-y-1 text-body-sm">
+            <div v-if="bankAccount.bankName" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Банк</dt>
+              <dd class="font-medium text-content">{{ bankAccount.bankName }}</dd>
+            </div>
+            <div v-if="bankAccount.accountNumber" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Дансны дугаар</dt>
+              <dd class="tabular font-medium text-content">{{ bankAccount.accountNumber }}</dd>
+            </div>
+            <div v-if="bankAccount.accountHolder" class="flex justify-between gap-3">
+              <dt class="text-content-secondary">Эзэмшигч</dt>
+              <dd class="font-medium text-content">{{ bankAccount.accountHolder }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="flex items-center justify-between rounded-card border border-surface-border px-4 py-3">
+          <span class="text-body text-content-secondary">Нийт</span>
+          <span class="tabular text-body font-bold" :class="isSplitOverpaying ? 'text-error' : 'text-content'">
+            {{ formatCurrency(splitTotal) }}
+          </span>
+        </div>
+
+        <div
+          v-if="splitRemaining > 0 && !isSplitOverpaying"
+          class="flex items-center justify-between rounded-card border border-warning/30 bg-warning/5 px-4 py-3"
+        >
+          <span class="text-body text-content-secondary">Төлбөрийн дараах үлдэгдэл</span>
+          <span class="tabular text-body font-bold text-warning">
+            {{ formatCurrency(splitRemaining) }}
+          </span>
+        </div>
+      </template>
 
       <UiField label="Тэмдэглэл" hint="Заавал биш">
         <UiTextArea v-model="note" :rows="2" placeholder="Жишээ: дансны гүйлгээний дугаар" />
@@ -280,7 +519,7 @@ async function submit() {
     <template #footer>
       <UiBtn variant="ghost" :disabled="busy" @click="close">Болих</UiBtn>
       <UiBtn :loading="busy" :disabled="!canSubmit" @click="submit">
-        {{ formatCurrency(amount ?? 0) }} бүртгэх
+        {{ formatCurrency(splitMode === 'split' ? splitTotal : (amount ?? 0)) }} бүртгэх
       </UiBtn>
     </template>
   </UiModal>

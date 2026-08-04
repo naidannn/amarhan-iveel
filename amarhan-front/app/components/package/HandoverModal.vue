@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, PackageCheck, Wallet, Landmark, CreditCard, Smartphone, User } from 'lucide-vue-next'
+import { Search, PackageCheck, Wallet, Landmark, CreditCard, Smartphone, User, Plus, Trash2 } from 'lucide-vue-next'
 import { usePayments, type PaymentMethodValue, type Invoice } from '~/composables/usePayments'
 import { useCustomers, type CustomerSummary } from '~/composables/useCustomers'
 import type { CargoPackage } from '~/composables/usePackages'
@@ -57,6 +57,61 @@ const selected = ref<string[]>([])
 const method = ref<PaymentMethodValue>('cash')
 const invoice = ref<Invoice | null>(null)
 
+/**
+ * Хуваасан төлбөрийн горим — заавал биш (optional). Энд ЯГ бүтэн үлдэгдлийг
+ * л төлдөг тул (§1.9 — хагас төлөгдсөн ачааг хүлээлгэж болохгүй, BR-19) мөрийн
+ * нийлбэр ЯГ `selectedTotal`-тай тэнцэх ёстой, дутуу/илүү зөвшөөрөгдөхгүй.
+ * Хэлбэр бүр BR-13-ийн дагуу тусдаа `payments` бичлэг болно.
+ */
+type SplitMode = 'full' | 'split'
+interface SplitRow {
+  method: PaymentMethodValue
+  amount: number | null
+}
+
+const splitMode = ref<SplitMode>('full')
+const splitRows = ref<SplitRow[]>([])
+
+function nextSplitMethod(): PaymentMethodValue {
+  const used = new Set(splitRows.value.map(r => r.method))
+  return METHODS.find(m => !used.has(m.value))?.value ?? METHODS[0].value
+}
+
+function setSplitMode(mode: SplitMode) {
+  splitMode.value = mode
+  if (mode === 'split' && splitRows.value.length === 0) {
+    const half = Math.round(selectedTotal.value / 2)
+    splitRows.value = [
+      { method: 'cash', amount: half },
+      { method: 'bank', amount: selectedTotal.value - half },
+    ]
+  }
+}
+
+function addSplitRow() {
+  splitRows.value.push({ method: nextSplitMethod(), amount: null })
+}
+
+function removeSplitRow(index: number) {
+  splitRows.value.splice(index, 1)
+}
+
+const splitTotal = computed(() => splitRows.value.reduce((sum, r) => sum + (r.amount ?? 0), 0))
+const isSplitMismatch = computed(
+  () => splitMode.value === 'split' && splitTotal.value !== selectedTotal.value
+)
+const splitRowsValid = computed(
+  () => splitRows.value.length >= 2 && splitRows.value.every(r => (r.amount ?? 0) > 0)
+)
+
+const canHandOver = computed(() => {
+  if (selected.value.length === 0) return false
+  if (selectedTotal.value > 0 && splitMode.value === 'split') {
+    return splitRowsValid.value && !isSplitMismatch.value
+  }
+  return true
+})
+
 // Нэрээр хайхад олон харилцагч таарвал сонгуулна
 const candidates = ref<CustomerSummary[]>([])
 
@@ -87,6 +142,8 @@ function toggle(id: string) {
     : [...selected.value, id]
   // Сонголт өөрчлөгдвөл өмнөх нэхэмжлэх дүн зөрнө — дахин үүсгэнэ
   invoice.value = null
+  // Хуваасан мөрүүд шинэ нийт дүнтэй зөрөх тул шинээр бодуулна
+  splitRows.value = []
 }
 
 /**
@@ -219,11 +276,17 @@ function clearResult() {
 
 /**
  * Нэг товчлол: шаардлагатай бол нэхэмжлэх үүсгэж бүтэн дүнг нэг хэлбэрээр
+ * (эсвэл заавал биш "хуваах" горимд хэлбэр бүрт тусдаа мөрөөр, BR-13)
  * төлүүлээд, дараа нь сонгосон бүх ачааг `picked_up` рүү шилжүүлнэ.
  */
 async function handOver() {
   if (selected.value.length === 0) {
     toast.error('Ачаа сонгоно уу')
+    return
+  }
+
+  if (isSplitMismatch.value) {
+    toast.error('Хуваасан дүнгийн нийлбэр яг үлдэгдэлтэй тэнцэх ёстой')
     return
   }
 
@@ -237,7 +300,34 @@ async function handOver() {
       // Модал онгойсноос хойш өөр ажилтан төлбөр авсан байж болно — үлдэгдлийг
       // ДАХИН уншиж бодно (BR-16), client талд таамаглахгүй
       const detail = await paymentApi.invoiceDetail(invoice.value.id)
-      if (detail.balance > 0) {
+
+      if (splitMode.value === 'split') {
+        if (detail.balance !== splitTotal.value) {
+          toast.error('Үлдэгдэл өөрчлөгдсөн байна', {
+            description: `Одоогийн үлдэгдэл: ${formatCurrency(detail.balance)}. Дахин оролдоно уу.`,
+            duration: 9000,
+          })
+          return
+        }
+        try {
+          for (const row of splitRows.value) {
+            await paymentApi.create({
+              amount: row.amount as number,
+              method: row.method,
+              invoiceId: invoice.value.id,
+            })
+          }
+        } catch (e: any) {
+          // Мөр бүр тусдаа бичлэг (BR-13) тул өмнөх амжилттайг буцаах боломжгүй —
+          // мөрийг дахин уншуулж ажилтныг шинэ үлдэгдэлтэйгээр дахин оролдуулна
+          splitRows.value = []
+          toast.error('Хуваасан төлбөр дутуу бүртгэгдлээ — үлдэгдлийг шалгаад дахин оролдоно уу', {
+            description: e.message,
+            duration: 9000,
+          })
+          return
+        }
+      } else if (detail.balance > 0) {
         await paymentApi.create({
           amount: detail.balance,
           method: method.value,
@@ -273,6 +363,8 @@ function reset() {
   searching.value = false
   candidates.value = []
   method.value = 'cash'
+  splitMode.value = 'full'
+  splitRows.value = []
   clearResult()
 }
 
@@ -397,25 +489,101 @@ function close() {
         </div>
 
         <template v-if="packages.length">
-          <UiField v-if="selectedTotal > 0" label="Төлбөрийн хэлбэр" required>
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <button
-                v-for="option in METHODS"
-                :key="option.value"
-                type="button"
-                class="flex flex-col items-center gap-1.5 rounded-btn border px-3 py-3 text-body-sm font-medium transition-all duration-200"
-                :class="
-                  method === option.value
-                    ? 'border-primary bg-primary-50 text-primary-700'
-                    : 'border-surface-border text-content-secondary hover:bg-surface-hover'
-                "
-                @click="method = option.value"
-              >
-                <component :is="option.icon" :size="19" :stroke-width="2" />
-                {{ option.label }}
-              </button>
-            </div>
-          </UiField>
+          <template v-if="selectedTotal > 0">
+            <UiField label="Төлбөрийн горим">
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  class="rounded-btn border px-3 py-2.5 text-body-sm font-medium transition-colors duration-200"
+                  :class="
+                    splitMode === 'full'
+                      ? 'border-primary bg-primary-50 text-primary-700'
+                      : 'border-surface-border text-content-secondary hover:bg-surface-hover'
+                  "
+                  @click="setSplitMode('full')"
+                >
+                  Нэг хэлбэрээр
+                </button>
+                <button
+                  type="button"
+                  class="rounded-btn border px-3 py-2.5 text-body-sm font-medium transition-colors duration-200"
+                  :class="
+                    splitMode === 'split'
+                      ? 'border-primary bg-primary-50 text-primary-700'
+                      : 'border-surface-border text-content-secondary hover:bg-surface-hover'
+                  "
+                  @click="setSplitMode('split')"
+                >
+                  Хэд хэдэн хэлбэрээр хуваах
+                </button>
+              </div>
+            </UiField>
+
+            <UiField v-if="splitMode === 'full'" label="Төлбөрийн хэлбэр" required>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button
+                  v-for="option in METHODS"
+                  :key="option.value"
+                  type="button"
+                  class="flex flex-col items-center gap-1.5 rounded-btn border px-3 py-3 text-body-sm font-medium transition-all duration-200"
+                  :class="
+                    method === option.value
+                      ? 'border-primary bg-primary-50 text-primary-700'
+                      : 'border-surface-border text-content-secondary hover:bg-surface-hover'
+                  "
+                  @click="method = option.value"
+                >
+                  <component :is="option.icon" :size="19" :stroke-width="2" />
+                  {{ option.label }}
+                </button>
+              </div>
+            </UiField>
+
+            <UiField
+              v-else
+              label="Хуваасан төлбөр"
+              required
+              :error="isSplitMismatch ? 'Нийлбэр яг үлдэгдэлтэй тэнцэх ёстой' : null"
+              hint="Мөр бүр хэлбэр тус бүрдээ тусдаа бүртгэл болно (BR-13)"
+            >
+              <div class="space-y-2">
+                <div v-for="(row, i) in splitRows" :key="i" class="flex items-center gap-2">
+                  <UiSelectInput
+                    v-model="row.method"
+                    class="w-32 shrink-0"
+                    :options="METHODS.map(m => ({ value: m.value, label: m.label }))"
+                  />
+                  <UiTextInput
+                    v-model="row.amount"
+                    type="number"
+                    suffix="₮"
+                    tabular
+                    class="flex-1"
+                    :invalid="isSplitMismatch"
+                  />
+                  <UiBtn
+                    variant="ghost"
+                    size="sm"
+                    :icon="Trash2"
+                    :disabled="splitRows.length <= 2"
+                    aria-label="Мөр устгах"
+                    @click="removeSplitRow(i)"
+                  />
+                </div>
+              </div>
+
+              <UiBtn class="mt-2" size="sm" variant="secondary" :icon="Plus" @click="addSplitRow">
+                Мөр нэмэх
+              </UiBtn>
+
+              <div class="mt-3 flex items-center justify-between text-body-sm">
+                <span class="text-content-secondary">Мөрүүдийн нийлбэр</span>
+                <span class="tabular font-semibold" :class="isSplitMismatch ? 'text-error' : 'text-content'">
+                  {{ formatCurrency(splitTotal) }}
+                </span>
+              </div>
+            </UiField>
+          </template>
 
           <div class="flex items-center justify-between rounded-card border border-surface-border px-4 py-3">
             <span class="text-body text-content-secondary">
@@ -439,7 +607,7 @@ function close() {
         variant="success"
         :icon="PackageCheck"
         :loading="busy"
-        :disabled="selected.length === 0"
+        :disabled="!canHandOver"
         @click="handOver"
       >
         {{ selected.length }} ачааг хүлээлгэн өгөх

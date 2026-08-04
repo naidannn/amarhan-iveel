@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, RefreshCw, Search, X } from 'lucide-vue-next'
+import { Plus, RefreshCw, Search, Trash2, X } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import type { Column } from '~/components/ui/DataTable.vue'
 import type {
@@ -14,6 +14,7 @@ useHead({ title: 'Харилцагч — Ивээл Карго' })
 
 const api = useCustomers()
 const toast = useToast()
+const auth = useAuthStore()
 
 const rows = ref<AdminCustomer[]>([])
 const pagination = ref<CustomerPagination>({ page: 1, pages: 1, total: 0, limit: 50 })
@@ -21,6 +22,10 @@ const loading = ref(true)
 const editorOpen = ref(false)
 const editingCustomer = ref<AdminCustomer | null>(null)
 const saving = ref(false)
+const deleteOpen = ref(false)
+const deletingCustomer = ref<AdminCustomer | null>(null)
+const deleting = ref(false)
+const isAdmin = computed(() => auth.isAdmin)
 
 const filters = reactive<CustomerFilters>({
   search: '',
@@ -61,7 +66,7 @@ const columns: Column<AdminCustomer>[] = [
   { key: 'loyaltyTier', label: 'Урамшуулал' },
   { key: 'status', label: 'Төлөв' },
   { key: 'createdAt', label: 'Бүртгэсэн', tabular: true },
-  { key: 'actions', label: '', align: 'right', width: '96px' },
+  { key: 'actions', label: '', align: 'right', width: '148px' },
 ]
 
 const activeFilterCount = computed(
@@ -112,6 +117,11 @@ function openEdit(customer: AdminCustomer) {
   editorOpen.value = true
 }
 
+function openDelete(customer: AdminCustomer) {
+  deletingCustomer.value = customer
+  deleteOpen.value = true
+}
+
 async function saveCustomer(payload: AdminCustomerPayload) {
   saving.value = true
   try {
@@ -128,6 +138,23 @@ async function saveCustomer(payload: AdminCustomerPayload) {
     toast.error('Хадгалж чадсангүй', { description: e.message })
   } finally {
     saving.value = false
+  }
+}
+
+async function removeCustomer() {
+  if (!deletingCustomer.value) return
+
+  deleting.value = true
+  try {
+    await api.remove(deletingCustomer.value.id)
+    toast.success('Харилцагч бүрмөсөн устлаа')
+    deleteOpen.value = false
+    deletingCustomer.value = null
+    await load()
+  } catch (e: any) {
+    toast.error('Харилцагч устгаж чадсангүй', { description: e.message })
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -226,7 +253,18 @@ function formatDate(value: string) {
       </template>
 
       <template #cell-actions="{ row }">
-        <UiBtn size="sm" variant="ghost" @click.stop="openEdit(row)">Засах</UiBtn>
+        <div class="flex justify-end gap-1">
+          <UiBtn size="sm" variant="ghost" @click.stop="openEdit(row)">Засах</UiBtn>
+          <UiBtn
+            v-if="isAdmin"
+            size="sm"
+            variant="ghost"
+            :icon="Trash2"
+            aria-label="Харилцагч устгах"
+            title="Харилцагч устгах"
+            @click.stop="openDelete(row)"
+          />
+        </div>
       </template>
 
       <template #empty>
@@ -260,6 +298,25 @@ function formatDate(value: string) {
         @cancel="editorOpen = false"
         @submit="saveCustomer"
       />
+    </UiModal>
+
+    <UiModal v-model="deleteOpen" title="Харилцагч устгах" size="sm" persistent>
+      <div class="space-y-3">
+        <p class="text-body text-content">
+          <span class="font-semibold">{{ deletingCustomer?.name || deletingCustomer?.phone }}</span>
+          харилцагчийн бичлэг бүрмөсөн устах гэж байна.
+        </p>
+        <p class="text-body-sm text-content-secondary">
+          Энэ үйлдлийг буцаах боломжгүй. Ачааны түүхтэй харилцагчийг устгахгүй.
+        </p>
+      </div>
+
+      <template #footer>
+        <UiBtn variant="secondary" :disabled="deleting" @click="deleteOpen = false">Болих</UiBtn>
+        <UiBtn variant="danger" :icon="Trash2" :loading="deleting" @click="removeCustomer">
+          Бүрмөсөн устгах
+        </UiBtn>
+      </template>
     </UiModal>
   </div>
 </template>

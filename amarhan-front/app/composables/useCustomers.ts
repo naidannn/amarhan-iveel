@@ -104,6 +104,8 @@ export function useCustomers() {
     call<AdminCustomer>(() => $axios.post(API, payload))
   const update = (id: string, payload: AdminCustomerPayload) =>
     call<AdminCustomer>(() => $axios.put(`${API}/${id}`, payload))
+  const remove = (id: string) =>
+    call<{ deleted: boolean; phone: string }>(() => $axios.delete(`${API}/${id}`))
 
-  return { search, list, get, create, update }
+  return { search, list, get, create, update, remove }
 }

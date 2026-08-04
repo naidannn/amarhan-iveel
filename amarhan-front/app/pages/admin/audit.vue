@@ -77,6 +77,7 @@ const ACTION_LABELS: Record<string, string> = {
   'payment.void': 'Төлбөр хүчингүй болгов',
   'customer.create': 'Харилцагч үүсгэв',
   'customer.update': 'Харилцагч засав',
+  'customer.delete': 'Харилцагч устгав',
   'customer.loyalty_adjust': 'Урамшуулал өөрчлөв',
   'user.create': 'Ажилтан үүсгэв',
   'user.update': 'Ажилтан засав',

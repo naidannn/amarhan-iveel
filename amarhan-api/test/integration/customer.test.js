@@ -6,11 +6,12 @@ const { expect } = chai;
 
 const { app } = require('../../src/services/express');
 const Customer = require('../../src/models/customer.model');
+const Package = require('../../src/models/package.model');
 const AuditLog = require('../../src/models/audit-log.model');
 const customerService = require('../../src/services/customer.service');
 const { createUserWithToken, createUser } = require('../factories/user.factory');
-const { createCustomer } = require('../factories/domain.factory');
-const { ROLES, AUDIT_ACTION } = require('../../src/config/constants');
+const { createCustomer, createBranch } = require('../factories/domain.factory');
+const { ROLES, AUDIT_ACTION, PRICE_SOURCE } = require('../../src/config/constants');
 
 chai.use(chaiHttp);
 
@@ -261,6 +262,71 @@ describe('Харилцагч (§3)', () => {
         .send({ loyaltyPoints: 500 });
 
       expect(res.status).to.equal(400);
+    });
+  });
+
+  describe('Харилцагч устгах', () => {
+    it('Админ ачаагүй харилцагчийг устгаж, audit-д бүрэн snapshot үлдээнэ', async () => {
+      const customer = await createCustomer({ phone: '99112233', name: 'Устгах харилцагч' });
+      const { token } = await createUserWithToken({ role: ROLES.ADMIN });
+
+      const res = await chai
+        .request(app)
+        .delete(`/api/v1/customers/${customer._id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.deep.include({ deleted: true, phone: '99112233' });
+      expect(await Customer.findById(customer._id)).to.be.null;
+
+      const log = await AuditLog.findOne({
+        action: AUDIT_ACTION.CUSTOMER_DELETE,
+        entityId: customer._id,
+      });
+      expect(log).to.exist;
+      expect(log.before.phone).to.equal('99112233');
+      expect(log.after).to.be.null;
+    });
+
+    for (const role of [ROLES.STAFF, ROLES.MANAGER]) {
+      it(`${role} эрхтэй системийн хэрэглэгч харилцагч устгаж чадахгүй`, async () => {
+        const customer = await createCustomer();
+        const { token } = await createUserWithToken({ role });
+
+        const res = await chai
+          .request(app)
+          .delete(`/api/v1/customers/${customer._id}`)
+          .set('Authorization', `Bearer ${token}`);
+
+        expect(res.status).to.equal(403);
+        expect(await Customer.findById(customer._id)).to.exist;
+      });
+    }
+
+    it('ачааны түүхтэй харилцагчийг Админ ч устгаж чадахгүй', async () => {
+      const customer = await createCustomer({ phone: '99112233' });
+      const branch = await createBranch();
+      const { token } = await createUserWithToken({ role: ROLES.ADMIN });
+      await Package.create({
+        trackingNumber: 'DELETE-CUSTOMER-TEST',
+        customerId: customer._id,
+        customerPhone: customer.phone,
+        branchId: branch._id,
+        branchCode: branch.code,
+        quantity: 1,
+        computedPrice: 0,
+        priceSource: PRICE_SOURCE.MANUAL,
+        finalPrice: 0,
+        balance: 0,
+      });
+
+      const res = await chai
+        .request(app)
+        .delete(`/api/v1/customers/${customer._id}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).to.equal(422);
+      expect(await Customer.findById(customer._id)).to.exist;
     });
   });
 

@@ -175,6 +175,45 @@ class CustomerService {
   }
 
   /**
+   * Харилцагчийг бүрмөсөн устгах нь зөвхөн Админы эрх. Ачаатай бичлэгийг
+   * устгавал төлбөр/нэхэмжлэх/хүргэлтийн түүхийн лавлагаа тасрах тул хориглоно.
+   */
+  async remove(id, actor, req) {
+    if (actor?.role !== ROLES.ADMIN) {
+      throw new APIError('Харилцагч устгах эрх зөвхөн Админд байна', httpStatus.FORBIDDEN);
+    }
+
+    const customer = await this.getById(id);
+
+    return withTransaction(async session => {
+      if (await customerRepository.hasPackages(customer._id, { session })) {
+        throw new APIError(
+          'Ачааны түүхтэй харилцагчийг устгах боломжгүй',
+          httpStatus.UNPROCESSABLE_ENTITY
+        );
+      }
+
+      // Устгасны дараа ч хэн, ямар бичлэг устгасныг audit-д бүрэн хадгална.
+      await auditService.record(
+        {
+          actor,
+          action: AUDIT_ACTION.CUSTOMER_DELETE,
+          entity: AUDIT_ENTITY.CUSTOMER,
+          entityId: customer._id,
+          entityLabel: customer.phone,
+          before: customer.toObject(),
+          after: null,
+          req,
+        },
+        { session }
+      );
+
+      await customerRepository.deleteByIdWithSession(id, { session });
+      return { deleted: true, phone: customer.phone };
+    });
+  }
+
+  /**
    * BR-33 — урамшууллыг гараар өөрчлөх. Зөвхөн Админ, шалтгаан заавал.
    */
   async adjustLoyalty(id, { loyaltyTier, loyaltyPoints, reason }, actor, req) {

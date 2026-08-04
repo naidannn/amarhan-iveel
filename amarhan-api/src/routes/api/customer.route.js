@@ -21,7 +21,9 @@ router
 router
   .route('/:customerId')
   .get(validate(validation.getOne), controller.get)
-  .put(validate(validation.update), controller.update);
+  .put(validate(validation.update), controller.update)
+  // Харилцагчийн бүрмөсөн устгах эрх зөвхөн Админд байна.
+  .delete(authorize(Constants.ROLE_GROUP.ADMIN), validate(validation.getOne), controller.remove);
 
 // §9.2 — харилцагчийн өөрчлөлтийн түүх. Ажилтан audit харахгүй (§9.1)
 router.get(

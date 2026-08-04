@@ -2,6 +2,7 @@
 
 const BaseRepository = require('./base.repository');
 const Customer = require('../models/customer.model');
+const Package = require('../models/package.model');
 
 class CustomerRepository extends BaseRepository {
   constructor() {
@@ -92,6 +93,20 @@ class CustomerRepository extends BaseRepository {
       runValidators: true,
       ...(session ? { session } : {}),
     });
+  }
+
+  /**
+   * Ачаа нь төлбөр, нэхэмжлэх, хүргэлтийн эх сурвалж болдог. Тиймээс ачаатай
+   * харилцагчийг устгавал тэдгээрийн `customerId` лавлагаа тасарна.
+   */
+  async hasPackages(customerId, { session } = {}) {
+    const query = Package.exists({ customerId });
+    if (session) query.session(session);
+    return Boolean(await query);
+  }
+
+  async deleteByIdWithSession(id, { session } = {}) {
+    return this.model.findByIdAndDelete(id, session ? { session } : {});
   }
 }
 

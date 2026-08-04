@@ -53,6 +53,15 @@ exports.update = async (req, res, next) => {
   }
 };
 
+exports.remove = async (req, res, next) => {
+  try {
+    const result = await customerService.remove(req.params.customerId, req.user, req);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.adjustLoyalty = async (req, res, next) => {
   try {
     const customer = await customerService.adjustLoyalty(

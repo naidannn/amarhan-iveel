@@ -92,6 +92,7 @@ exports.AUDIT_ACTION = {
   // Харилцагч
   CUSTOMER_CREATE: 'customer.create',
   CUSTOMER_UPDATE: 'customer.update',
+  CUSTOMER_DELETE: 'customer.delete',
   CUSTOMER_LOYALTY_ADJUST: 'customer.loyalty_adjust',
   // Phase 5 — харилцагч ӨӨРӨӨ хийсэн үйлдэл. `actor` нь ажилтан БИШ тул
   // audit-д `actorId: null`, `actorName: 'Харилцагч'` гэж бичигдэнэ.

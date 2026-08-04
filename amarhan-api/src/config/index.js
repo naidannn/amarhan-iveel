@@ -41,6 +41,20 @@ module.exports = {
     uri: process.env.MONGOURI,
     testURI: process.env.MONGOTESTURI,
   },
+  /**
+   * Resend — нууц үг сэргээх имэйл илгээхэд ашиглана.
+   *
+   * `RESEND_API_KEY` тохируулаагүй орчинд (жишээ: тест) `enabled` false
+   * болж, `email.service.js` илгээхийн оронд зөвхөн лог бичнэ —
+   * `google.enabled`-тэй адил "тохируулаагүй бол чимээгүй унтарна" зарчим.
+   */
+  email: {
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.EMAIL_FROM || 'Ивээл Карго <info@amarhan.mn>',
+    get enabled() {
+      return Boolean(this.apiKey);
+    },
+  },
   jwt: {
     // Ажилтны токен — ажлын нэг ээлжийн урт
     staffAudience: 'staff',

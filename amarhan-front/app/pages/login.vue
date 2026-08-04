@@ -78,6 +78,12 @@ useHead({
         />
       </UiField>
 
+      <p class="text-right text-body-sm">
+        <NuxtLink to="/forgot-password" class="font-semibold text-primary-600 hover:underline">
+          Нууц үг мартсан?
+        </NuxtLink>
+      </p>
+
       <UiBtn
         type="submit"
         block

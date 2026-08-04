@@ -25,6 +25,16 @@ class CustomerRepository extends BaseRepository {
   }
 
   /**
+   * `resetPasswordTokenHash`/`resetPasswordExpires` нь `select: false` тул
+   * шинэчлэхийн тулд тэдгээрийг ЭНД тодорхой сонгоно.
+   */
+  async findByResetTokenHash(hash) {
+    return this.model
+      .findOne({ resetPasswordTokenHash: hash, resetPasswordExpires: { $gt: new Date() } })
+      .select('+resetPasswordTokenHash +resetPasswordExpires');
+  }
+
+  /**
    * BR-29 — ачаа бүртгэхэд харилцагч байхгүй бол автоматаар үүсгэнэ.
    *
    * Atomic upsert ашиглаж байгаа шалтгаан: ажилтнууд зэрэг ачаа бүртгэхэд

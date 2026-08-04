@@ -14,6 +14,21 @@ const { authLimiter } = require('../../middlewares/rate-limit');
 // хамгийн эхний админыг `npm run seed:admin`-аар үүсгэнэ.
 router.post('/login', authLimiter, validate(authValidation.login), authController.login);
 
+// Нууц үг сэргээх — танилтгүй, имэйлээр (Resend). `authLimiter`-ийн адил
+// хамгаалалт: сэргээх хүсэлт нэвтрэх оролдлогын нэг хэлбэр.
+router.post(
+  '/forgot-password',
+  authLimiter,
+  validate(authValidation.forgotPassword),
+  authController.forgotPassword
+);
+router.post(
+  '/reset-password',
+  authLimiter,
+  validate(authValidation.resetPassword),
+  authController.resetPassword
+);
+
 // Protected routes
 router.get('/me', authorize(), authController.me);
 router.post('/logout', authorize(), authController.logout);

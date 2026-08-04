@@ -103,6 +103,18 @@ const customerSchema = new Schema(
       maxlength: 1000,
       default: null,
     },
+
+    // Нууц үг сэргээх — raw токены sha256 хэш ХАДГАЛАГДАНА, raw утга ХЭЗЭЭ Ч биш
+    resetPasswordTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   { timestamps: true }
 );

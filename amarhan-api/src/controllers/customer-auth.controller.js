@@ -64,6 +64,26 @@ exports.changePassword = async (req, res, next) => {
   }
 };
 
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    await customerAuthService.selfForgotPassword(req.body.email, req);
+    return success(res, {
+      message: 'Хэрэв энэ имэйл бүртгэлтэй бол сэргээх холбоос илгээгдлээ',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    await customerAuthService.selfResetPassword(req.body, req);
+    return success(res, { message: 'Нууц үг амжилттай солигдлоо' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Токеныг сервер талд хадгалдаггүй (JWT) тул гарах нь клиент талын үйлдэл.
  * Endpoint нь клиент нэг л замаар гардаг байхын тулд үлдэнэ.

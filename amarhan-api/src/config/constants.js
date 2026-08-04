@@ -98,12 +98,17 @@ exports.AUDIT_ACTION = {
   // audit-д `actorId: null`, `actorName: 'Харилцагч'` гэж бичигдэнэ.
   CUSTOMER_REGISTER: 'customer.register',
   CUSTOMER_PHONE_LINK: 'customer.phone_link',
+  // Имэйлээр нууц үг сэргээх — `actorId: null`, `actorName: 'Харилцагч'`
+  CUSTOMER_PASSWORD_RESET_REQUEST: 'customer.password_reset_request',
+  CUSTOMER_PASSWORD_RESET: 'customer.password_reset',
 
   // Ажилтан
   USER_CREATE: 'user.create',
   USER_UPDATE: 'user.update',
   USER_ROLE_CHANGE: 'user.role_change',
   USER_DISABLE: 'user.disable',
+  USER_PASSWORD_RESET_REQUEST: 'user.password_reset_request',
+  USER_PASSWORD_RESET: 'user.password_reset',
 
   // Лавлах өгөгдөл
   BRANCH_CREATE: 'branch.create',
@@ -340,6 +345,8 @@ exports.ERROR_CODE = {
   PHONE_TAKEN: 'PHONE_TAKEN',
   PHONE_REQUIRED: 'PHONE_REQUIRED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  // Нууц үг сэргээх — токен олдсонгүй/хугацаа дууссан
+  INVALID_RESET_TOKEN: 'INVALID_RESET_TOKEN',
   // BR-47 — зарлага
   EXPENSE_ALREADY_VOIDED: 'EXPENSE_ALREADY_VOIDED',
 };

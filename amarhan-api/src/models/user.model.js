@@ -72,6 +72,17 @@ const userSchema = new Schema(
       enum: ['active', 'deactive'],
       default: 'active',
     },
+    // Нууц үг сэргээх — raw токены sha256 хэш ХАДГАЛАГДАНА, raw утга ХЭЗЭЭ Ч биш
+    resetPasswordTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,

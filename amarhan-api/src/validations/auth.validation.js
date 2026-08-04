@@ -16,4 +16,17 @@ module.exports = {
       newPassword: Joi.string().min(8).max(128).required(),
     }),
   },
+
+  forgotPassword: {
+    body: Joi.object({
+      email: Joi.string().email().required(),
+    }),
+  },
+
+  resetPassword: {
+    body: Joi.object({
+      token: Joi.string().required(),
+      newPassword: Joi.string().min(8).max(128).required(),
+    }),
+  },
 };

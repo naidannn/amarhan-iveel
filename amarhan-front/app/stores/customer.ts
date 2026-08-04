@@ -183,6 +183,21 @@ export const useCustomerStore = defineStore('customer', {
       }
     },
 
+    async forgotPassword(email: string) {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/auth/forgot-password', { email })
+      return data.data
+    },
+
+    async resetPassword(token: string, newPassword: string) {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/auth/reset-password', {
+        token,
+        newPassword,
+      })
+      return data.data
+    },
+
     async refresh() {
       const { $axios } = useNuxtApp()
       const { data } = await $axios.get('/api/v1/customer/auth/me')

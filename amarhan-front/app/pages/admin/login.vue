@@ -72,6 +72,11 @@
                 {{ errors.password }}
               </p>
             </div>
+            <p class="mt-2 text-right text-sm">
+              <NuxtLink to="/admin/forgot-password" class="font-medium text-primary-600 hover:text-primary-700">
+                Нууц үг мартсан?
+              </NuxtLink>
+            </p>
           </div>
 
           <div v-if="errorMessage" class="rounded-lg bg-red-50 p-4">

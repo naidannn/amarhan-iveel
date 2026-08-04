@@ -12,6 +12,16 @@ class UserRepository extends BaseRepository {
     return this.model.findOne({ email });
   }
 
+  /**
+   * `resetPasswordTokenHash`/`resetPasswordExpires` нь `select: false` тул
+   * шинэчлэхийн тулд тэдгээрийг ЭНД тодорхой сонгоно.
+   */
+  async findByResetTokenHash(hash) {
+    return this.model
+      .findOne({ resetPasswordTokenHash: hash, resetPasswordExpires: { $gt: new Date() } })
+      .select('+resetPasswordTokenHash +resetPasswordExpires');
+  }
+
   async search(query = {}, options = {}) {
     const { page = 1, limit = 10, search, role, status } = options;
     const filter = { ...query };

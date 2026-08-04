@@ -72,4 +72,17 @@ module.exports = {
       newPassword: password.required(),
     }),
   },
+
+  forgotPassword: {
+    body: Joi.object({
+      email: Joi.string().email().required(),
+    }),
+  },
+
+  resetPassword: {
+    body: Joi.object({
+      token: Joi.string().required(),
+      newPassword: password.required(),
+    }),
+  },
 };

@@ -34,6 +34,21 @@ router.post(
 );
 router.post('/auth/login', authLimiter, validate(authValidation.login), authController.login);
 
+// Нууц үг сэргээх — танилтгүй, имэйлээр (Resend). Утсаар БИШ: SMS суваг
+// хараахан хэрэгжээгүй (roadmap 6.5).
+router.post(
+  '/auth/forgot-password',
+  authLimiter,
+  validate(authValidation.forgotPassword),
+  authController.forgotPassword
+);
+router.post(
+  '/auth/reset-password',
+  authLimiter,
+  validate(authValidation.resetPassword),
+  authController.resetPassword
+);
+
 // §3 — Google OAuth. `/google` нь браузераар нээгддэг тул JSON биш redirect.
 router.get('/auth/google', authController.googleStart);
 router.get('/auth/google/callback', authController.googleCallback);

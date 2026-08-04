@@ -5,7 +5,10 @@ const httpStatus = require('http-status');
 const config = require('../config');
 const customerRepository = require('../repositories/customer.repository');
 const auditService = require('./audit.service');
+const emailService = require('./email.service');
 const APIError = require('../utils/APIError');
+const resetToken = require('../utils/reset-token');
+const { passwordResetEmail } = require('../utils/email-templates');
 const { withTransaction } = require('../utils/transaction');
 const { normalizePhone, maskPhone } = require('../domain/phone');
 const { AUDIT_ACTION, AUDIT_ENTITY, ERROR_CODE } = require('../config/constants');
@@ -317,6 +320,65 @@ class CustomerAuthService {
 
     customer.password = newPassword;
     await customer.save();
+    return true;
+  }
+
+  /**
+   * Нууц үг сэргээх холбоос имэйлээр илгээнэ.
+   *
+   * Утсаар БИШ, зөвхөн имэйлээр — SMS суваг хараахан хэрэгжээгүй (roadmap
+   * 6.5). Бүртгэл олдсон эсэхээс үл хамааран ЯГ АДИЛ хариу буцаана (user
+   * enumeration-оос сэргийлнэ, `login()`-ийн адил зарчим).
+   */
+  async selfForgotPassword(email, req) {
+    const normalizedEmail = String(email ?? '')
+      .toLowerCase()
+      .trim();
+    const customer = normalizedEmail ? await customerRepository.findByEmail(normalizedEmail) : null;
+
+    if (customer && customer.hasAccount && customer.status === 'active') {
+      const { token, hash, expires } = resetToken.generate();
+      customer.resetPasswordTokenHash = hash;
+      customer.resetPasswordExpires = expires;
+      await customer.save({ validateBeforeSave: false });
+
+      const resetUrl = `${config.server.frontendURL}/reset-password?token=${token}`;
+      await emailService.send({
+        to: customer.email,
+        subject: 'Нууц үг сэргээх — Ивээл Карго',
+        html: passwordResetEmail({ resetUrl, expiresInMinutes: resetToken.TTL_MS / 60000 }),
+      });
+
+      await this.recordSelfAction({
+        customer,
+        action: AUDIT_ACTION.CUSTOMER_PASSWORD_RESET_REQUEST,
+        after: { email: customer.email },
+        req,
+      });
+    }
+
+    return true;
+  }
+
+  async selfResetPassword({ token, newPassword }, req) {
+    const customer = await customerRepository.findByResetTokenHash(resetToken.hash(token));
+    if (!customer) {
+      throw new APIError('Холбоосны хугацаа дууссан эсвэл буруу байна', httpStatus.BAD_REQUEST, {
+        code: ERROR_CODE.INVALID_RESET_TOKEN,
+      });
+    }
+
+    customer.password = newPassword;
+    customer.resetPasswordTokenHash = null;
+    customer.resetPasswordExpires = null;
+    await customer.save();
+
+    await this.recordSelfAction({
+      customer,
+      action: AUDIT_ACTION.CUSTOMER_PASSWORD_RESET,
+      req,
+    });
+
     return true;
   }
 

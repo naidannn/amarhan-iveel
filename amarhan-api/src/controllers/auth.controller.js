@@ -37,3 +37,23 @@ exports.changePassword = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    await authService.forgotPassword(req.body.email);
+    return success(res, {
+      message: 'Хэрэв энэ имэйл бүртгэлтэй бол сэргээх холбоос илгээгдлээ',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  try {
+    await authService.resetPassword(req.body);
+    return success(res, { message: 'Нууц үг амжилттай солигдлоо' });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -86,9 +86,10 @@ class QPayService {
     const data = await this.request('/invoice', {
       invoice_code: config.qpay.invoiceCode,
       sender_invoice_no: invoiceNo,
-      invoice_receiver_code: 'terminal',
+      invoice_receiver_code: 'totalmarketingagency',
       invoice_description: description,
-      amount,
+      amount: parseInt(amount, 10),
+      allow_exceed: false,
       callback_url: callbackURL,
     });
 

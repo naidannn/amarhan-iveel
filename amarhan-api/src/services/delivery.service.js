@@ -291,7 +291,7 @@ class DeliveryService {
         const invoice = await qpayService.createInvoice({
           invoiceNo: String(payment._id),
           amount,
-          description: `Ивээл Карго хүргэлт ${deliveryNumber}`,
+          description: `Iveel Cargo hurgelt ${deliveryNumber}`,
           callbackURL: `${config.qpay.callbackURL}?paymentId=${payment._id}`,
         });
 

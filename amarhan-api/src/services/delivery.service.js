@@ -10,8 +10,10 @@ const branchResolver = require('./branch-resolver.service');
 const customerService = require('./customer.service');
 const packageService = require('./package.service');
 const paymentService = require('./payment.service');
+const qpayService = require('./qpay.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
+const config = require('../config');
 const { withTransaction } = require('../utils/transaction');
 const deliveryState = require('../domain/delivery-state');
 const packageState = require('../domain/package-state');
@@ -188,11 +190,13 @@ class DeliveryService {
    *      ачаа заавал `404` (дүрэм 14).
    *   2. Сонгосон ачааны ҮЛДЭГДЭЛ + `DELIVERY_FEE_AMOUNT`-ыг НЭГ `pending`
    *      төлбөр болгож ЯГ ТЭР транзакцад үүсгэнэ (`buildFullSettlement`) —
-   *      ажилтан баталгаажуулмагц (`payment.service.js` `confirmPending`)
+   *      Данс сонговол ажилтан баталгаажуулмагц (`confirmPending`), QPay
+   *      сонговол webhook ирмэгц (`confirmByProvider`, roadmap 5.6/5.7)
    *      ачааны үлдэгдэл БА хүргэлтийн хураамж хамт барагдана.
    */
   async selfCreate(customer, data, req) {
-    const { packageIds, address, phone, note } = data;
+    const { packageIds, address, phone, note, method } = data;
+    const paymentMethod = method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
 
     if (!Array.isArray(packageIds) || packageIds.length === 0) {
       throw new APIError('Ачаа сонгоно уу', httpStatus.BAD_REQUEST);
@@ -264,19 +268,41 @@ class DeliveryService {
         DELIVERY_FEE_AMOUNT
       );
 
-      const payment = await paymentService.createPendingSettlement(
+      let payment = await paymentService.createPendingSettlement(
         {
           allocations,
           amount,
-          // QPay merchant эрх сонгогдоогүй тул одоохондоо ЗӨВХӨН Данс (roadmap 5.6/5.7 ⛔)
-          method: PAYMENT_METHOD.BANK,
+          method: paymentMethod,
           customerId: customer._id,
           customerPhone: customer.phone,
           branchId: branch._id,
           actorName,
+          // `providerInvoiceId` эхлээд `null` — QPay нэхэмжлэх амжилттай
+          // үүссэний ДАРАА л доор залгагдана (орфан бичлэгээс сэргийлнэ).
+          provider: paymentMethod === PAYMENT_METHOD.QPAY ? 'qpay' : null,
+          trigger: AUDIT_ACTION.DELIVERY_SELF_CREATE,
+          req,
         },
         { session }
       );
+
+      let qpay = null;
+      if (paymentMethod === PAYMENT_METHOD.QPAY) {
+        const invoice = await qpayService.createInvoice({
+          invoiceNo: String(payment._id),
+          amount,
+          description: `Ивээл Карго хүргэлт ${deliveryNumber}`,
+          callbackURL: `${config.qpay.callbackURL}?paymentId=${payment._id}`,
+        });
+
+        payment = await paymentRepository.updateByIdWithSession(
+          payment._id,
+          { providerInvoiceId: invoice.invoiceId },
+          { session }
+        );
+
+        qpay = { qrImage: invoice.qrImage, qrText: invoice.qrText, urls: invoice.urls };
+      }
 
       await auditService.record(
         {
@@ -295,7 +321,7 @@ class DeliveryService {
         { session }
       );
 
-      return { delivery, payment };
+      return { delivery, payment, qpay };
     });
   }
 

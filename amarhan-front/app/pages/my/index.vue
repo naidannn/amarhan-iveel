@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { Package, Wallet, PackageCheck, Truck, ArrowRight, Plus, Banknote, Link2 } from 'lucide-vue-next'
+import {
+  Package,
+  Wallet,
+  PackageCheck,
+  Truck,
+  ArrowRight,
+  Plus,
+  Banknote,
+  Link2,
+} from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /** Харилцагчийн хяналтын самбар — introduction.md §3 */
@@ -93,9 +102,12 @@ useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
           {{ formatCurrency(summary.balance) }}
         </p>
       </div>
-      <UiBtn to="/my/packages" size="sm" variant="secondary" :icon-right="ArrowRight">
-        Ачаагаа харах
-      </UiBtn>
+      <div class="flex gap-2">
+        <UiBtn to="/my/packages" size="sm" variant="secondary" :icon-right="ArrowRight">
+          Ачаагаа харах
+        </UiBtn>
+        <UiBtn to="/my/pay" size="sm" :icon="Wallet">Одоо төлөх</UiBtn>
+      </div>
     </div>
 
     <!-- Тоонууд -->

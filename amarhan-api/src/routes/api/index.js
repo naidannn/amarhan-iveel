@@ -15,6 +15,7 @@ const deliveryRouter = require('./delivery.route');
 const settingRouter = require('./setting.route');
 const customerWebRouter = require('./customer-web.route');
 const publicRouter = require('./public.route');
+const qpayRouter = require('./qpay.route');
 const dashboardRouter = require('./dashboard.route');
 const reportRouter = require('./report.route');
 const expenseRouter = require('./expense.route');
@@ -80,5 +81,9 @@ router.use('/v1/customer', customerWebRouter);
 
 // Phase 5 — нэвтрэхгүйгээр: ачаа хайх, статик агуулга (§3).
 router.use('/v1/public', publicRouter);
+
+// Roadmap 5.6/5.7 — QPay webhook. Танилтгүй, `payment.route.js`-аас
+// ЗОРИУДААР тусдаа (тэр нь бүхэлдээ ажилтны `authorize()`-д хаагдсан).
+router.use('/v1/qpay', qpayRouter);
 
 module.exports = router;

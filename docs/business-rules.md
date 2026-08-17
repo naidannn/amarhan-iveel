@@ -485,13 +485,18 @@ cancelled
 
 - Захиалахдаа сонгосон ачааныхаа **үлдэгдлийг БҮРЭН** + 7000₮ хураамжийг НЭГ
   `pending` төлбөр болгож үүсгэнэ (`domain/allocation.js buildFullSettlement`,
-  `payment.service.js createPendingSettlement`) — банкны шилжүүлэг систем
-  дээр автоматаар баталгаажихгүй тул (QPay интеграцгүй, 5.6/5.7 ⛔) `completed`
-  БИШ.
-- Ажилтан бодит гүйлгээ ирснийг харж `PUT /payments/:id/confirm`-оор
-  баталгаажуулна (`payment.service.js confirmPending`) — `packages.balance`
-  БА `deliveries.feePaidAmount` хоёулаа ЭХ СУРВАЛЖААС (payments.allocations)
-  дахин бодогдоно (BR-14-ийн ижил зарчим).
+  `payment.service.js createPendingSettlement`) — `completed` БИШ, аль эх
+  сурвалжаас баталгаажихаас хамаарч ХОЁР зам:
+  - **Данс:** банкны шилжүүлэг систем дээр автоматаар баталгаажихгүй тул
+    ажилтан бодит гүйлгээ ирснийг харж `PUT /payments/:id/confirm`-оор
+    баталгаажуулна (`payment.service.js confirmPending`).
+  - **QPay (roadmap 5.6/5.7, 2026-08-17):** QPay-ийн webhook ирэхэд
+    `payment.service.js handleQpayCallback` → `qpayService.checkInvoice`-аар
+    ӨӨРИЙН эрхээр дахин баталгаажуулж, `confirmByProvider`-аар автоматаар
+    `completed` болгоно — ажилтны оролцоогүй.
+  Хоёр замын аль алинд `packages.balance` БА `deliveries.feePaidAmount`
+  хоёулаа ЭХ СУРВАЛЖААС (payments.allocations) дахин бодогдоно (BR-14-ийн
+  ижил зарчим).
 - `payments.allocations`-ийн элемент бүр ЯГ НЭГ зорилттой: `packageId`
   (ачаа) ЭСВЭЛ `deliveryId` (хүргэлтийн хураамж) — `Σ allocations === amount`
   тогтмол (BR-17) хэвээр хүчинтэй, зөвхөн зорилтын төрөл нэмэгдсэн.

@@ -23,6 +23,27 @@ class PaymentRepository extends BaseRepository {
   }
 
   /**
+   * Roadmap 5.6/5.7 — QPay webhook-оор `pending` төлбөрийг атомикоор
+   * `completed` болгоно (архитектур §4.4).
+   *
+   * `status: PENDING` нөхцөл нь давхардсан webhook-ийг ЧИМЭЭГҮЙ `null`
+   * болгоно (`reserveBalance`-ийн ижил "нэг баримт бичгийн атомик" зарчим,
+   * `payment.service.js`-ийг үзнэ үү) — хоёр дахь удаагийн дуудлага мөрийг
+   * ОЛОХГҮЙ (аль хэдийн `completed` тул нөхцөлд таарахгүй), race үүсэхгүй.
+   */
+  async completeByProviderInvoice(provider, providerInvoiceId, providerPaymentId, { session } = {}) {
+    return this.model.findOneAndUpdate(
+      { provider, providerInvoiceId, status: PAYMENT_RECORD_STATUS.PENDING },
+      { status: PAYMENT_RECORD_STATUS.COMPLETED, providerPaymentId },
+      { new: true, ...(session ? { session } : {}) }
+    );
+  }
+
+  async findByProviderInvoice(provider, providerInvoiceId) {
+    return this.model.findOne({ provider, providerInvoiceId });
+  }
+
+  /**
    * §2.2 — төлбөрийн жагсаалт. §9.3-ийн дагуу server талд, индекслэгдсэн,
    * хуудаслагдсан.
    */

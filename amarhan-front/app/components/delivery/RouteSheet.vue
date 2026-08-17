@@ -9,9 +9,14 @@ import type { Delivery } from '~/composables/useDeliveries'
  * ХЭРЭГГҮЙ болсон тул хассан — зөвхөн бараа таних, хүлээлгэн өгөхөд
  * хэрэгтэй мэдээлэл). Жолооч БОЛОН харилцагч хоёуланд нь хэрэгтэй бүх
  * мэдээлэл (хугацаа, хаяг, холбогдох дугаар, ачааны төлөв, авах дүн) нэг
- * хуудсанд, ТОМООР бичигдэнэ — бараан дээр наахад холоос ч уншигдахуйц.
+ * хуудсанд, ТОМООР бичигдэнэ — бараан дээр наахад холоос ч уншигдахуйц
+ * (дэлгэцэн дээрх урьдчилсан харагдац). ХЭВЛЭХ үед л `print:` классуудаар
+ * 58мм наалтын принтерийн өргөнд багтдаг хэмжээ рүү шилждэг — доор
+ * `.print-area-thermal` (`main.css`-ийн `@page thermal`). Хүснэгт (4
+ * баганатай) 58мм-т багтахгүй тул хэвлэхэд ачаа тус бүрийг ЖАГСААЛТ
+ * (мөр бүр өөрийн мөрөнд) болгож эвхдэг.
  *
- * ХЭВЛЭХ ТЕХНИК: `InvoiceSheet.vue`-ийн ижил — `window.print()` дуудахад
+ * ХЭВЛЭХ ТЕХНИК: `PrintSheet.vue`-ийн ижил — `window.print()` дуудахад
  * зөвхөн `.print-area` харагдана (`@media print`). ГАРААР ДАРЖ ХЭВЛЭНЭ:
  * модал нээгдмэгц автоматаар хэвлэх хувилбарыг туршсан ч Vue-ийн
  * Teleport/Transition-той зэрэгцэн гарах race condition-оос болж заримдаа
@@ -81,24 +86,34 @@ function print() {
       </div>
     </template>
 
+    <!-- `print-area-thermal` — 58мм наалтын принтерийн `@page thermal`-д
+         холбогдоно (`main.css`). `print:` классууд ЗӨВХӨН хэвлэхэд идэвхжинэ. -->
     <div
-      class="print-area overflow-hidden rounded-card border-2 border-content bg-white text-content"
+      class="print-area print-area-thermal overflow-hidden rounded-card border-2 border-content bg-white text-content print:rounded-none print:border-0"
     >
-      <header class="flex items-start justify-between gap-6 border-b-4 border-content px-8 py-6">
+      <header
+        class="flex items-start justify-between gap-6 border-b-4 border-content px-8 py-6 print:flex-col print:gap-1 print:border-b print:border-black print:px-1 print:py-1.5"
+      >
         <div>
-          <p class="text-[40px] font-extrabold leading-none tracking-tight text-black">
+          <p
+            class="text-[40px] font-extrabold leading-none tracking-tight text-black print:text-[15px]"
+          >
             Ивээлт Карго
           </p>
-          <p class="mt-2 text-h4 text-content-secondary">Хүргэлтийн баримт</p>
+          <p class="mt-2 text-h4 text-content-secondary print:mt-0.5 print:text-[9px]">
+            Хүргэлтийн баримт
+          </p>
         </div>
-        <div class="text-right">
-          <p class="text-body text-content-secondary">Хүргэлтийн дугаар</p>
-          <p class="tabular text-h1 font-bold text-black">{{ delivery.deliveryNumber }}</p>
-          <p class="tabular mt-1 text-h4 text-content-secondary">
+        <div class="text-right print:w-full print:text-left">
+          <p class="text-body text-content-secondary print:text-[8px]">Хүргэлтийн дугаар</p>
+          <p class="tabular text-h1 font-bold text-black print:text-[13px]">
+            {{ delivery.deliveryNumber }}
+          </p>
+          <p class="tabular mt-1 text-h4 text-content-secondary print:mt-0 print:text-[8px]">
             {{ formatDate(delivery.scheduledDate ?? delivery.createdAt) }}
           </p>
           <p
-            class="print-force-bg mt-2 inline-block rounded-full px-3 py-1 text-h4 font-bold"
+            class="print-force-bg mt-2 inline-block rounded-full px-3 py-1 text-h4 font-bold print:mt-0.5 print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[9px]"
             :style="{
               color: deliveryStatus.style(delivery.status).color,
               backgroundColor: deliveryStatus.style(delivery.status).bg,
@@ -109,33 +124,47 @@ function print() {
         </div>
       </header>
 
-      <section class="grid gap-6 border-b border-surface-border px-8 py-6 sm:grid-cols-2">
+      <section
+        class="grid gap-6 border-b border-surface-border px-8 py-6 sm:grid-cols-2 print:grid-cols-1 print:gap-1 print:border-black print:px-1 print:py-1.5"
+      >
         <div>
-          <p class="text-h4 text-content-secondary">Хүлээн авагч</p>
-          <p class="tabular text-h1 font-bold text-black">{{ delivery.phone }}</p>
-          <p v-if="customer?.name" class="text-h4 text-content">{{ customer.name }}</p>
+          <p class="text-h4 text-content-secondary print:text-[8px]">Хүлээн авагч</p>
+          <p class="tabular text-h1 font-bold text-black print:text-[13px]">{{ delivery.phone }}</p>
+          <p v-if="customer?.name" class="text-h4 text-content print:text-[9px]">
+            {{ customer.name }}
+          </p>
         </div>
-        <div class="sm:text-right">
-          <p class="text-h4 text-content-secondary">Жолооч</p>
-          <p class="text-h3 font-semibold text-black">{{ delivery.driverName ?? '—' }}</p>
-          <p v-if="delivery.driverPhone" class="tabular text-h4 text-content-secondary">
+        <div class="sm:text-right print:text-left">
+          <p class="text-h4 text-content-secondary print:text-[8px]">Жолооч</p>
+          <p class="text-h3 font-semibold text-black print:text-[9px]">
+            {{ delivery.driverName ?? '—' }}
+          </p>
+          <p v-if="delivery.driverPhone" class="tabular text-h4 text-content-secondary print:text-[8px]">
             {{ delivery.driverPhone }}
           </p>
         </div>
       </section>
 
-      <section class="border-b border-surface-border px-8 py-6">
-        <p class="text-h4 text-content-secondary">Хүргэх хаяг</p>
-        <p class="text-h1 font-bold text-black">{{ delivery.address }}</p>
-        <p v-if="delivery.note" class="mt-1 text-h4 text-content-secondary">
+      <section
+        class="border-b border-surface-border px-8 py-6 print:border-black print:px-1 print:py-1.5"
+      >
+        <p class="text-h4 text-content-secondary print:text-[8px]">Хүргэх хаяг</p>
+        <p class="text-h1 font-bold text-black print:text-[13px] print:leading-tight">
+          {{ delivery.address }}
+        </p>
+        <p v-if="delivery.note" class="mt-1 text-h4 text-content-secondary print:mt-0.5 print:text-[8px]">
           Тэмдэглэл: {{ delivery.note }}
         </p>
       </section>
 
-      <!-- Ачааны жагсаалт — жолооч тоолж авах -->
-      <section class="px-8 py-6">
-        <p class="mb-3 text-h3 font-semibold text-black">Ачаа ({{ packages.length }})</p>
-        <table class="w-full border-collapse text-left">
+      <!-- Ачааны жагсаалт — жолооч тоолж авах. 58мм-д хүснэгт багтахгүй тул
+           хэвлэхэд мөр бүрийг өөрийн блок болгож эвхнэ. -->
+      <section class="px-8 py-6 print:px-1 print:py-1.5">
+        <p class="mb-3 text-h3 font-semibold text-black print:mb-1 print:text-[10px]">
+          Ачаа ({{ packages.length }})
+        </p>
+
+        <table class="w-full border-collapse text-left print:hidden">
           <thead>
             <tr class="border-b border-surface-border">
               <th class="py-2 pr-3 text-h4 font-medium text-content-secondary">№</th>
@@ -145,14 +174,8 @@ function print() {
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="(p, index) in packages"
-              :key="p.id"
-              class="border-b border-surface-border"
-            >
-              <td class="tabular py-3 pr-3 text-h4 text-content-secondary">
-                {{ index + 1 }}
-              </td>
+            <tr v-for="(p, index) in packages" :key="p.id" class="border-b border-surface-border">
+              <td class="tabular py-3 pr-3 text-h4 text-content-secondary">{{ index + 1 }}</td>
               <td class="tabular py-3 pr-3 text-h3 font-bold text-black">{{ p.trackingNumber }}</td>
               <td
                 class="py-3 pr-3 text-h4 font-semibold"
@@ -160,32 +183,57 @@ function print() {
               >
                 {{ packageStatus.label(p.status) }}
               </td>
-              <td
-                class="tabular py-3 text-right text-h3 font-bold text-black"
-              >
+              <td class="tabular py-3 text-right text-h3 font-bold text-black">
                 {{ p.balance > 0 ? formatCurrency(p.balance) : '—' }}
               </td>
             </tr>
           </tbody>
         </table>
+
+        <!-- Зөвхөн хэвлэхэд харагдах, наалтын өргөнд эвхэгддэг жагсаалт -->
+        <ul class="hidden print:block">
+          <li
+            v-for="(p, index) in packages"
+            :key="p.id"
+            class="border-b border-dashed border-black py-1 last:border-b-0"
+          >
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="tabular text-[12px] font-bold text-black print:break-all">
+                {{ index + 1 }}. {{ p.trackingNumber }}
+              </span>
+              <span v-if="p.balance > 0" class="tabular text-[11px] font-bold text-black">
+                {{ formatCurrency(p.balance) }}
+              </span>
+            </div>
+            <span
+              class="text-[9px] font-semibold"
+              :style="{ color: packageStatus.style(p.status).color }"
+            >
+              {{ packageStatus.label(p.status) }}
+            </span>
+          </li>
+        </ul>
       </section>
 
       <!-- §5.2 — жолооч хэдэн төгрөг авахаа мэдэх ёстой -->
       <section
         v-if="unpaidTotal > 0"
-        class="mx-8 mb-6 border-2 border-content px-6 py-4"
+        class="mx-8 mb-6 border-2 border-content px-6 py-4 print:mx-1 print:mb-2 print:border print:border-black print:px-2 print:py-1.5"
       >
-        <div class="flex items-center justify-between gap-4">
-          <span class="text-h3 font-extrabold text-black">ТӨЛБӨР ДУТУУ — авах дүн</span>
-          <span class="tabular text-[40px] font-extrabold leading-none text-black">
+        <div class="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-0.5">
+          <span class="text-h3 font-extrabold text-black print:text-[10px]">ТӨЛБӨР ДУТУУ — авах дүн</span>
+          <span class="tabular text-[40px] font-extrabold leading-none text-black print:text-[16px]">
             {{ formatCurrency(unpaidTotal) }}
           </span>
         </div>
       </section>
 
-      <section v-if="delivery.fee > 0" class="mx-8 mb-6 flex items-center justify-between">
-        <span class="text-h4 text-content-secondary">Хүргэлтийн төлбөр</span>
-        <span class="tabular text-h3 font-semibold text-black">{{ formatCurrency(delivery.fee) }}</span>
+      <section
+        v-if="delivery.fee > 0"
+        class="mx-8 mb-6 flex items-center justify-between print:mx-1 print:mb-2"
+      >
+        <span class="text-h4 text-content-secondary print:text-[8px]">Хүргэлтийн төлбөр</span>
+        <span class="tabular text-h3 font-semibold text-black print:text-[9px]">{{ formatCurrency(delivery.fee) }}</span>
       </section>
     </div>
 

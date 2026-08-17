@@ -27,7 +27,8 @@ import { ERROR_CODE, type CargoPackage } from '~/composables/usePackages'
  *
  *   • Хуудас ДАХИН АЧААЛАГДАХГҮЙ — `navigateTo` хийхгүй, форм л цэвэрлэгдэнэ
  *   • Фокус автоматаар ачааны дугаар руу ЭРГЭНЭ
- *   • Enter дарахад бүртгэгдэнэ — хулгана хүрэх шаардлагагүй
+ *   • Enter дараагийн талбар руу шилжинэ (Tab шиг), сүүлчийнх дээр
+ *     бүртгэнэ — хулгана хүрэх шаардлагагүй (`handleFormEnter`)
  *   • Байршил, үнийн горим, ачааны төрөл ЗАЛГАМЖИЛНА (sticky)
  *   • Мэдэгдэл нь toast — `alert()` хуудсыг блоклож урсгалыг таслах болно
  *
@@ -185,6 +186,22 @@ const overrideDelta = computed(() => {
  */
 const preArrivalMatch = ref<{ phone: string; customerName: string | null } | null>(null)
 
+/**
+ * `sticky.phone` өмнөх бүртгэлээс ЗАЛГАМЖИЛСАН байж болно (дээрх тайлбар) —
+ * тэр нь энэ ачаанд хамааралгүй хуучин утас байж магадгүй тул урьдчилсан
+ * бүртгэл олдоход утсыг ДАРЖ бичих ёстой. Харин ажилтан энэ бүртгэлд
+ * зориулж ӨӨРӨӨ утсыг оруулсан бол (жишээ: буруу мэдүүлсэн дугаарыг засах)
+ * автомат хайлтаар дарагдаж болохгүй.
+ */
+const phoneEditedManually = ref(false)
+
+function onPhoneInput(value: string | number | null) {
+  sticky.phone = value == null ? '' : String(value)
+  phoneEditedManually.value = true
+}
+
+const phoneAutoFilled = computed(() => Boolean(preArrivalMatch.value) && !phoneEditedManually.value)
+
 const lookupPreArrival = useDebounceFn(async () => {
   const tracking = form.trackingNumber.trim()
   if (tracking.length < 4) return
@@ -198,7 +215,9 @@ const lookupPreArrival = useDebounceFn(async () => {
     const customer = typeof pkg.customerId === 'object' ? pkg.customerId : null
     if (pkg.customerPhone) {
       preArrivalMatch.value = { phone: pkg.customerPhone, customerName: customer?.name ?? null }
-      if (!sticky.phone.trim()) sticky.phone = pkg.customerPhone
+      // Ажилтан энэ бүртгэлд зориулж утсыг гараар засаагүй л бол урьдчилсан
+      // бүртгэлийн утсаар ДАРНА — залгамжилсан хуучин утас үлдэхгүй (§ дээрх)
+      if (!phoneEditedManually.value) sticky.phone = pkg.customerPhone
     }
     if (!form.customerName.trim() && customer?.name) form.customerName = customer.name
   } catch {
@@ -458,6 +477,7 @@ function resetForNext() {
   quote.value = null
   quoteError.value = null
   preArrivalMatch.value = null
+  phoneEditedManually.value = false
 
   nextTick(() => {
     trackingInput.value?.focus()
@@ -471,6 +491,7 @@ function clearLocation() {
 
 function clearPhone() {
   sticky.phone = ''
+  phoneEditedManually.value = false
   nextTick(() => {
     trackingInput.value?.focus()
   })
@@ -479,6 +500,40 @@ function clearPhone() {
 onKeyStroke('Escape', () => {
   if (duplicate.value) duplicate.value = null
 })
+
+/**
+ * §1.4 — Enter дараагийн харагдаж буй талбар руу шилжинэ, сүүлчийнх дээр
+ * бүртгэнэ. Товч дээр (type=button) хөндөхгүй — өөрийн Enter/Space
+ * үйлдлээ хийнэ. Textarea-д Shift+Enter — мөр шинээр эхэлнэ.
+ */
+function handleFormEnter(event: KeyboardEvent) {
+  const target = event.target as HTMLElement
+  if (target.tagName === 'BUTTON') return
+  if (target.tagName === 'TEXTAREA' && event.shiftKey) return
+
+  const form = event.currentTarget as HTMLFormElement
+  const fields = Array.from(form.elements).filter(
+    (el): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
+      (el instanceof HTMLInputElement ||
+        el instanceof HTMLSelectElement ||
+        el instanceof HTMLTextAreaElement) &&
+      !el.disabled &&
+      el.offsetParent !== null
+  )
+
+  const index = fields.indexOf(target as any)
+  if (index === -1) return
+
+  event.preventDefault()
+
+  const next = fields[index + 1]
+  if (next) {
+    next.focus()
+    if ('select' in next && typeof next.select === 'function') next.select()
+  } else {
+    submit()
+  }
+}
 </script>
 
 <template>
@@ -495,6 +550,7 @@ onKeyStroke('Escape', () => {
       <form
         class="flex flex-col gap-3 rounded-card bg-surface-card p-4 shadow-card"
         @submit.prevent="submit()"
+        @keydown.enter="handleFormEnter"
       >
         <div class="grid gap-3 sm:grid-cols-3">
           <UiField label="Ачааны дугаар" required for="tracking" class="sm:col-span-2">
@@ -517,7 +573,8 @@ onKeyStroke('Escape', () => {
             <div class="flex gap-2">
               <UiTextInput
                 id="phone"
-                v-model="sticky.phone"
+                :model-value="sticky.phone"
+                @update:model-value="onPhoneInput"
                 type="tel"
                 :icon="Phone"
                 placeholder="99112233"
@@ -541,8 +598,13 @@ onKeyStroke('Escape', () => {
 
         <p v-if="preArrivalMatch" class="flex items-center gap-1.5 text-body-sm text-primary">
           <Check :size="13" class="shrink-0" />
-          Урьдчилсан бүртгэлтэй харилцагч олдож, утас{{ preArrivalMatch.customerName ? '/нэр' : '' }}
-          автоматаар бөглөгдлөө
+          <template v-if="phoneAutoFilled">
+            Урьдчилсан бүртгэлтэй харилцагч олдож, утас{{ preArrivalMatch.customerName ? '/нэр' : '' }}
+            автоматаар бөглөгдлөө
+          </template>
+          <template v-else>
+            Урьдчилсан бүртгэлтэй харилцагч олдлоо ({{ preArrivalMatch.phone }}) — таны бичсэн утас хадгалагдана
+          </template>
         </p>
 
         <!-- ── АЧААНЫ ТӨЛӨВ (BR-45) ──────────────────────────────────────── -->
@@ -774,7 +836,7 @@ onKeyStroke('Escape', () => {
           <p class="ml-auto flex items-center gap-1.5 text-body-sm text-content-secondary">
             <Keyboard :size="15" />
             <kbd class="rounded border border-surface-border px-1.5 py-0.5 font-mono">Enter</kbd>
-            дарж бүртгэнэ
+            дараагийн талбар руу, сүүлчийнх дээр бүртгэнэ
           </p>
         </div>
       </form>

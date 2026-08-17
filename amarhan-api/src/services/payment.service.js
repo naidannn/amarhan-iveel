@@ -1,6 +1,7 @@
 'use strict';
 
 const httpStatus = require('http-status');
+const config = require('../config');
 const paymentRepository = require('../repositories/payment.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
 const packageRepository = require('../repositories/package.repository');
@@ -10,20 +11,25 @@ const customerService = require('./customer.service');
 const invoiceService = require('./invoice.service');
 const packageService = require('./package.service');
 const auditService = require('./audit.service');
+const qpayService = require('./qpay.service');
 const APIError = require('../utils/APIError');
+const logger = require('../utils/logger');
 const { withTransaction } = require('../utils/transaction');
 const {
   allocateProportionally,
   validateManualAllocations,
+  buildBalanceSettlement,
   AllocationError,
 } = require('../domain/allocation');
 const packageState = require('../domain/package-state');
+const { maskPhone } = require('../domain/phone');
 const {
   AUDIT_ACTION,
   AUDIT_ENTITY,
   ERROR_CODE,
   INVOICE_STATUS,
   PACKAGE_STATUS,
+  PAYMENT_METHOD,
   PAYMENT_RECORD_STATUS,
   ROLES,
 } = require('../config/constants');
@@ -265,7 +271,24 @@ class PaymentService {
    * дуудагч транзакцаа удирдана).
    */
   async createPendingSettlement(
-    { allocations, amount, method, customerId, customerPhone, branchId, actorName },
+    {
+      allocations,
+      amount,
+      method,
+      customerId,
+      customerPhone,
+      branchId,
+      actorName,
+      provider = null,
+      providerInvoiceId = null,
+      // Audit-ийн шалтгаанд бичигдэх ТЭМДЭГ (жинхэнэ `action` талбар БИШ,
+      // үргэлж `PAYMENT_CREATE`) — дуудагч тал (`delivery.service.js`,
+      // `selfPay`) ямар урсгалаас дуудсанаа заана. Өмнө нь `DELIVERY_SELF_CREATE`
+      // хатуу бичигдсэн байсан тул бусад дуудагчийн шалтгаан буруу харагдаж
+      // байсныг засав.
+      trigger = AUDIT_ACTION.DELIVERY_SELF_CREATE,
+      req = null,
+    },
     { session }
   ) {
     const payment = await paymentRepository.createWithSession(
@@ -282,6 +305,13 @@ class PaymentService {
         receivedBy: null,
         receivedByName: null,
         note: null,
+        // Roadmap 5.6/5.7 — QPay. `providerInvoiceId` эхлээд `null`-ээр
+        // үүсэж, QPay-ийн нэхэмжлэх амжилттай үүссэний ДАРАА л залгагдана
+        // (`delivery.service.js`-ийн `selfCreate`) — QPay дуудлага
+        // амжилтгүй болоход орфан бичлэг биш, нийцүүлэх боломжтой `pending`
+        // мөр үлддэг байхын тулд.
+        provider,
+        providerInvoiceId,
       },
       { session }
     );
@@ -297,12 +327,121 @@ class PaymentService {
         field: 'amount',
         before: null,
         after: amount,
-        reason: `${method} · хүлээгдэж буй (${AUDIT_ACTION.DELIVERY_SELF_CREATE})`,
+        reason: `${method} · хүлээгдэж буй (${trigger})`,
+        req,
       },
       { session }
     );
 
     return payment;
+  }
+
+  // ── Харилцагч өөрөө ачааныхаа үлдэгдлийг төлөх ──────────────────────────
+
+  /**
+   * Харилцагч ӨӨРӨӨ сонгосон ачааны(нхаа) ҮЛДЭГДЛИЙГ БҮРЭН, хүргэлт
+   * захиалахгүйгээр төлнө (пакет дэлгэрэнгүй хуудаснаас нэгээр нь, эсвэл
+   * жагсаалт/хяналтын самбараас олноор). `deliveryService.selfCreate`-ийн
+   * ижил хэв маяг:
+   *   1. ЭЗЭМШЛИЙГ шалгана — бусдын ачаа ЗААВАЛ `404` (дүрэм 14).
+   *   2. Урьдчилсан (`PRE_ARRIVAL`) болон хүчингүй ачаанд төлбөр авахгүй —
+   *      нэг нь үнэ хараахан тодорхойгүй, нөгөө нь идэвхгүй бичлэг.
+   *   3. Данс сонговол ажилтан баталгаажуулмагц (`confirmPending`), QPay
+   *      сонговол webhook ирмэгц (`confirmByProvider`) үлдэгдэл барагдана.
+   */
+  async selfPay(customer, data, req) {
+    const { packageIds, method } = data;
+    const paymentMethod = method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
+
+    if (!Array.isArray(packageIds) || packageIds.length === 0) {
+      throw new APIError('Ачаа сонгоно уу', httpStatus.BAD_REQUEST);
+    }
+
+    const unique = [...new Set(packageIds.map(String))];
+    if (unique.length !== packageIds.length) {
+      throw new APIError('Нэг ачаа хоёр удаа сонгогдсон байна', httpStatus.BAD_REQUEST);
+    }
+
+    return withTransaction(async session => {
+      const packages = await packageRepository.model
+        .find({ _id: { $in: unique } })
+        .session(session);
+
+      if (packages.length !== unique.length) {
+        throw new APIError('Ачаа олдсонгүй', httpStatus.NOT_FOUND);
+      }
+
+      for (const pkg of packages) {
+        if (String(pkg.customerId) !== String(customer._id)) {
+          throw new APIError('Ачаа олдсонгүй', httpStatus.NOT_FOUND);
+        }
+        if (packageState.isPreArrival(pkg.status) || pkg.status === PACKAGE_STATUS.CANCELLED) {
+          throw new APIError(
+            'Энэ ачаанд одоогоор төлбөр төлөх боломжгүй',
+            httpStatus.UNPROCESSABLE_ENTITY
+          );
+        }
+      }
+
+      const branch = await branchResolver.resolveBranch(packages[0].branchId);
+      const actorName = this.describeCustomer(customer);
+
+      let allocations;
+      let amount;
+      try {
+        ({ allocations, amount } = buildBalanceSettlement(
+          packages.map(p => ({ packageId: p._id, balance: p.balance }))
+        ));
+      } catch (error) {
+        if (error instanceof AllocationError) {
+          throw new APIError(error.message, httpStatus.UNPROCESSABLE_ENTITY);
+        }
+        throw error;
+      }
+
+      let payment = await this.createPendingSettlement(
+        {
+          allocations,
+          amount,
+          method: paymentMethod,
+          customerId: customer._id,
+          customerPhone: customer.phone,
+          branchId: branch._id,
+          actorName,
+          // `providerInvoiceId` эхлээд `null` — QPay нэхэмжлэх амжилттай
+          // үүссэний ДАРАА л доор залгагдана (орфан бичлэгээс сэргийлнэ).
+          provider: paymentMethod === PAYMENT_METHOD.QPAY ? 'qpay' : null,
+          trigger: AUDIT_ACTION.PAYMENT_SELF_PAY,
+          req,
+        },
+        { session }
+      );
+
+      let qpay = null;
+      if (paymentMethod === PAYMENT_METHOD.QPAY) {
+        const invoice = await qpayService.createInvoice({
+          invoiceNo: String(payment._id),
+          amount,
+          description: `Ивээл Карго төлбөр (${packages.length} ачаа)`,
+          callbackURL: `${config.qpay.callbackURL}?paymentId=${payment._id}`,
+        });
+
+        payment = await paymentRepository.updateByIdWithSession(
+          payment._id,
+          { providerInvoiceId: invoice.invoiceId },
+          { session }
+        );
+
+        qpay = { qrImage: invoice.qrImage, qrText: invoice.qrText, urls: invoice.urls };
+      }
+
+      return { payment, qpay, packages };
+    });
+  }
+
+  /** `delivery.service.js`/`package.service.js`-ийн `describeCustomer`-ийн ижил зарчим */
+  describeCustomer(customer) {
+    return `Харилцагч ${maskPhone(customer.phone)}`;
   }
 
   /**
@@ -361,6 +500,131 @@ class PaymentService {
       );
 
       return { payment: updated, packages: touchedPackages, delivery: touchedDelivery };
+    });
+  }
+
+  /**
+   * Roadmap 5.6/5.7 — QPay webhook `pending` төлбөрийг ажилтангүйгээр
+   * баталгаажуулна. `confirmPending`-тэй ижил бие даалттай, ГЭХДЭЭ:
+   *   1. Staff `id`-гээр биш, `(provider, providerInvoiceId)`-аар олно, БА
+   *      `paymentRepository.completeByProviderInvoice`-ийн атомик
+   *      `status: PENDING` нөхцөлөөр давхардсан webhook-ийг ЧИМЭЭГҮЙ
+   *      боловсруулна (архитектур §4.4).
+   *   2. `actor: null, req: null` — `selfConfirmReceived`-ийн батлагдсан
+   *      загвар (`packageService.changeStatus` `actor?._id ?? null`-ээр
+   *      найдвартай тэвчинэ).
+   *
+   * `findOneAndUpdate` `null` буцаах ХОЁР шалтгааныг ЯЛГАНА: аль хэдийн
+   * боловсруулагдсан (давхардсан webhook — чимээгүй) эсвэл ийм
+   * `(provider, providerInvoiceId)`-тай мөр ОГТ байхгүй (QPay мөнгө ирсэн
+   * гэж хэлж байгаа ч манай системд бичлэг алга — staff гараар нийцүүлэх
+   * ёстой тохиолдол, ERROR төвшинд логдоно).
+   */
+  async confirmByProvider(provider, providerInvoiceId, { providerPaymentId, reportedAmount }) {
+    return withTransaction(async session => {
+      const updated = await paymentRepository.completeByProviderInvoice(
+        provider,
+        providerInvoiceId,
+        providerPaymentId,
+        { session }
+      );
+
+      if (!updated) {
+        const existing = await paymentRepository.findByProviderInvoice(provider, providerInvoiceId);
+        if (!existing) {
+          logger.error('QPay webhook: тохирох pending төлбөр олдсонгүй', {
+            provider,
+            providerInvoiceId,
+            providerPaymentId,
+          });
+        }
+        // мөр байгаа ч `pending` биш — давхардсан webhook, чимээгүй
+        return { payment: existing ?? null, packages: [], delivery: null, alreadyProcessed: true };
+      }
+
+      const overpaid = reportedAmount != null && reportedAmount > updated.amount;
+
+      const touchedPackages = [];
+      let touchedDelivery = null;
+      for (const allocation of updated.allocations) {
+        if (allocation.packageId) {
+          touchedPackages.push(
+            await this.recalculatePackage(allocation.packageId, {
+              actor: null,
+              req: null,
+              session,
+            })
+          );
+        } else if (allocation.deliveryId) {
+          touchedDelivery = await this.recalculateDelivery(allocation.deliveryId, { session });
+        }
+      }
+
+      await auditService.record(
+        {
+          action: AUDIT_ACTION.PAYMENT_CONFIRM,
+          entity: AUDIT_ENTITY.PAYMENT,
+          entityId: updated._id,
+          entityLabel: updated.customerPhone,
+          branchId: updated.branchId,
+          actorName: 'QPay webhook',
+          field: 'status',
+          before: PAYMENT_RECORD_STATUS.PENDING,
+          after: PAYMENT_RECORD_STATUS.COMPLETED,
+          reason: overpaid
+            ? `QPay-ээс илүү дүн ирсэн (${reportedAmount}₮ > ${updated.amount}₮), ledger дүнгээр баталгаажуулсан`
+            : null,
+        },
+        { session }
+      );
+
+      return {
+        payment: updated,
+        packages: touchedPackages,
+        delivery: touchedDelivery,
+        alreadyProcessed: false,
+      };
+    });
+  }
+
+  /**
+   * Roadmap 5.6/5.7 — QPay webhook-ийн орох цэг. `qpay.route.js`-ийн
+   * `POST /v1/qpay/callback` (танилтгүй) ЭНД дуудна — мөнгө бичих ЭСЭХ шийдвэрийг
+   * бүгдийг ЭНД, `payment.service.js` дотор л гаргана (CLAUDE.md §5 дүрэм 10).
+   *
+   * `paymentId` бол QPay-д ӨӨРСДӨӨ өгсөн callback URL-ийн query параметр
+   * (`delivery.service.js`-ийн `selfCreate`) — МАНАЙ Payment баримтын `_id`,
+   * QPay-ийн буцаах payload-ын хэлбэрээс ХАМААРАЛГҮЙ найдвартай холбоос.
+   * Webhook-ийн payload-д ХЭЗЭЭ Ч итгэхгүй — зөвхөн `qpayService.checkInvoice`-
+   * аар өөрийн эрхээр дахин баталгаажуулсан үр дүнд итгэнэ (архитектур §4.4).
+   */
+  async handleQpayCallback(paymentId) {
+    const payment = await paymentRepository.findById(paymentId);
+    if (!payment) {
+      logger.warn('QPay webhook: тохирох Payment олдсонгүй', { paymentId });
+      return;
+    }
+
+    if (payment.status !== PAYMENT_RECORD_STATUS.PENDING) {
+      return; // давхардсан webhook эсвэл аль хэдийн боловсруулагдсан
+    }
+
+    if (!payment.providerInvoiceId) {
+      // Нэхэмжлэх ID хараахан залгагдаагүй байж болзошгүй маш нарийн цонх
+      // (`selfCreate`-ийн createInvoice ↔ providerInvoiceId бичих хооронд) —
+      // QPay webhook-ээ дахин илгээх тул дараагийн оролдлогод шийдэгдэнэ.
+      logger.warn('QPay webhook: providerInvoiceId хараахан залгагдаагүй', { paymentId });
+      return;
+    }
+
+    const result = await qpayService.checkInvoice(payment.providerInvoiceId);
+    if (!result.paid) {
+      return;
+    }
+
+    await this.confirmByProvider('qpay', payment.providerInvoiceId, {
+      providerPaymentId: result.providerPaymentId,
+      reportedAmount: result.paidAmount,
     });
   }
 

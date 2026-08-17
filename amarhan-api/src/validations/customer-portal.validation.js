@@ -6,6 +6,7 @@ const {
   PAYMENT_STATUS_LIST,
   INVOICE_STATUS_LIST,
   DELIVERY_STATUS_LIST,
+  PAYMENT_METHOD,
 } = require('../config/constants');
 const { TRACKING_PATTERN, normalizeTrackingNumber } = require('../domain/tracking-number');
 
@@ -97,6 +98,20 @@ module.exports = {
     }),
   },
 
+  /**
+   * Сонгосон ачааны(нхаа) үлдэгдлийг шууд төлөх (хүргэлт захиалахгүйгээр).
+   * `createDelivery`-ийн ижил зарчим: `customerId`/`branchId` энд БАЙХГҮЙ,
+   * `method` зөвхөн Данс/QPay.
+   */
+  payPackages: {
+    body: Joi.object({
+      packageIds: Joi.array().items(objectId).min(1).max(50).required(),
+      method: Joi.string()
+        .valid(PAYMENT_METHOD.BANK, PAYMENT_METHOD.QPAY)
+        .default(PAYMENT_METHOD.BANK),
+    }),
+  },
+
   listPayments: {
     query: Joi.object({ ...pagination }),
   },
@@ -122,10 +137,10 @@ module.exports = {
   /**
    * Roadmap 5.8 — харилцагч өөрөө хүргэлт захиалах.
    *
-   * ⚠ `customerId`, `fee`, `method`, `branchId`, `driverId` зэрэг талбар
-   * БАЙХГҮЙ (дүрэм 14): хамрах хүрээ токеноос гарна, хураамж
-   * `DELIVERY_FEE_AMOUNT`-аар тогтмол, төлбөрийн хэлбэр одоохондоо зөвхөн
-   * Данс (QPay ⛔ тул сонголт өгөхгүй, backend дангаараа шийднэ).
+   * ⚠ `customerId`, `fee`, `branchId`, `driverId` зэрэг талбар БАЙХГҮЙ
+   * (дүрэм 14): хамрах хүрээ токеноос гарна, хураамж `DELIVERY_FEE_AMOUNT`-аар
+   * тогтмол. `method` (roadmap 5.6/5.7) ЗӨВХӨН Данс/QPay хоёрын аль нэгийг
+   * зөвшөөрнө — бэлэн/карт зэрэг ажилтны төлбөрийн хэлбэр энд огт хамааралгүй.
    */
   createDelivery: {
     body: Joi.object({
@@ -136,6 +151,16 @@ module.exports = {
         .pattern(/^\d{8}$/)
         .optional(),
       note: Joi.string().trim().max(500).allow('', null).optional(),
+      method: Joi.string()
+        .valid(PAYMENT_METHOD.BANK, PAYMENT_METHOD.QPAY)
+        .default(PAYMENT_METHOD.BANK),
+    }),
+  },
+
+  /** Roadmap 5.6/5.7 — QPay QR харуулсны дараах polling */
+  getPayment: {
+    params: Joi.object({
+      paymentId: objectId.required(),
     }),
   },
 

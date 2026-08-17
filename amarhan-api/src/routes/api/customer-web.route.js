@@ -82,6 +82,13 @@ router.put(
 // §3 — өөрийн ачаа, төлбөр, хүргэлт
 router.get('/summary', portalController.summary);
 router.get('/packages', validate(portalValidation.listPackages), portalController.listPackages);
+/**
+ * Төлбөр төлж болох ачаа. ⚠ `/packages/:packageId`-ААС ӨМНӨ ЗААВАЛ бичигдэнэ:
+ * Express чиглэлийг БҮРТГЭСЭН дарааллаар нь тааруулдаг тул доор байвал
+ * `payable` гэдэг үгийг `:packageId`-д барьж, ObjectId шалгалт дээр 400
+ * болж унана.
+ */
+router.get('/packages/payable', portalController.payablePackages);
 router.get(
   '/packages/:packageId',
   validate(portalValidation.getPackage),
@@ -106,7 +113,24 @@ router.post(
   validate(portalValidation.cancelPackage),
   portalController.cancelPackage
 );
+/**
+ * Ачааны үлдэгдлийг хүргэлт захиалахгүйгээр шууд төлөх (нэгээр нь эсвэл
+ * олноор нь). `createDelivery`-ийн ижил хамгаалалт: `pending` төлбөр
+ * үүсгэдэг тул `selfRegisterLimiter`.
+ */
+router.post(
+  '/packages/pay',
+  selfRegisterLimiter,
+  validate(portalValidation.payPackages),
+  portalController.payPackages
+);
 router.get('/payments', validate(portalValidation.listPayments), portalController.listPayments);
+/** Roadmap 5.6/5.7 — QPay QR харуулсны дараах polling (`pending`→`completed`) */
+router.get(
+  '/payments/:paymentId',
+  validate(portalValidation.getPayment),
+  portalController.getPayment
+);
 router.get('/invoices', validate(portalValidation.listInvoices), portalController.listInvoices);
 router.get(
   '/deliveries',

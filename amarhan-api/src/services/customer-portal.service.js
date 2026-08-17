@@ -7,6 +7,7 @@ const deliveryRepository = require('../repositories/delivery.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
 const packageService = require('./package.service');
 const deliveryService = require('./delivery.service');
+const paymentService = require('./payment.service');
 const settingService = require('./setting.service');
 const APIError = require('../utils/APIError');
 const packageState = require('../domain/package-state');
@@ -147,6 +148,47 @@ class CustomerPortalService {
     return this.toPublicPackage(pkg);
   }
 
+  /**
+   * Төлбөр төлж болох ачаа (үлдэгдэлтэй, ирсэн, хүчингүй биш) —
+   * `deliverableForCustomer`-ийн ижил зарчим: харилцагчийн бичлэгийн тоо
+   * бага тул JS-д шүүх аюулгүй (§9.3). Дансны мэдээллийг `deliverableForDelivery`-
+   * ийн адил хамт буцаана — Данс сонговол frontend шууд харуулна.
+   */
+  async payablePackages(customer) {
+    const [packages, bankAccount] = await Promise.all([
+      packageRepository.listByCustomer(customer._id),
+      settingService.get(SETTING_KEY.PAYMENT_BANK_ACCOUNT),
+    ]);
+
+    const payable = packages.filter(
+      pkg =>
+        pkg.balance > 0 &&
+        !packageState.isPreArrival(pkg.status) &&
+        pkg.status !== PACKAGE_STATUS.CANCELLED
+    );
+
+    return {
+      packages: payable.map(pkg => this.toPublicPackage(pkg)),
+      bankAccount,
+    };
+  }
+
+  /**
+   * Харилцагч өөрөө сонгосон ачааны(нхаа) үлдэгдлийг хүргэлт захиалахгүйгээр
+   * шууд төлнө. Бичих логик `payment.service.js#selfPay`-д (BR-08-ийн ижил
+   * зарчим) — энд ЗӨВХӨН цагаан жагсаалт.
+   */
+  async payPackages(customer, data, req) {
+    const { payment, qpay } = await paymentService.selfPay(customer, data, req);
+    return {
+      id: payment._id,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
+      qpay: qpay ?? null,
+    };
+  }
+
   async listPayments(customerId, { page, limit }) {
     const result = await paymentRepository.search(
       { customerId },
@@ -232,7 +274,7 @@ class CustomerPortalService {
   }
 
   async createDelivery(customer, data, req) {
-    const { delivery, payment } = await deliveryService.selfCreate(customer, data, req);
+    const { delivery, payment, qpay } = await deliveryService.selfCreate(customer, data, req);
 
     return {
       id: delivery._id,
@@ -247,7 +289,29 @@ class CustomerPortalService {
         amount: payment.amount,
         method: payment.method,
         status: payment.status,
+        // Roadmap 5.6/5.7 — зөвхөн QPay сонговол QR/deeplink ирнэ, Данс
+        // сонговол `null` (frontend одоо байгаа дансны блокоо харуулсаар байна)
+        qpay: qpay ?? null,
       },
+    };
+  }
+
+  /**
+   * Roadmap 5.6/5.7 — QPay QR харуулсны дараа frontend `pending`→`completed`
+   * шилжилтийг polling хийхэд ашиглана. Цагаан жагсаалттай хариу (дүрэм 14):
+   * `providerInvoiceId`, `allocations` зэрэг дотоод талбар гарахгүй.
+   */
+  async getPayment(customerId, paymentId) {
+    const payment = await paymentRepository.findById(paymentId);
+    if (!payment || String(payment.customerId) !== String(customerId)) {
+      throw new APIError('Төлбөр олдсонгүй', httpStatus.NOT_FOUND);
+    }
+
+    return {
+      id: payment._id,
+      amount: payment.amount,
+      method: payment.method,
+      status: payment.status,
     };
   }
 

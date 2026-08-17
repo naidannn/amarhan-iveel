@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Package, Plus, Truck } from 'lucide-vue-next'
+import { Package, Plus, Truck, Wallet } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /**
@@ -138,6 +138,7 @@ useHead({ title: 'Миний ачаа — Ивээлт Карго' })
 
       <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
         <UiSelectInput v-model="status" :options="statusOptions" class="flex-1 sm:w-52" />
+        <UiBtn variant="secondary" :icon="Wallet" class="shrink-0" to="/my/pay">Төлбөр төлөх</UiBtn>
         <UiBtn variant="secondary" :icon="Truck" class="shrink-0" to="/my/deliveries/new">
           Хүргэлт үүсгэх
         </UiBtn>

@@ -77,6 +77,10 @@ exports.AUDIT_ACTION = {
   // Roadmap 5.8 — хүлээгдэж буй (pending) төлбөрийг ажилтан баталгаажуулсан
   // (харилцагчийн банкны шилжүүлэг бодитоор ирснийг шалгасны дараа).
   PAYMENT_CONFIRM: 'payment.confirm',
+  // Харилцагч ӨӨРӨӨ вэбээс ачаандаа (хүргэлт захиалахгүйгээр) шууд төлбөр
+  // үүсгэсэн (Данс/QPay) — `createPendingSettlement`-ийн audit шалтгаанд
+  // зөвхөн ТЭМДЭГ болгон ашиглагдана (`DELIVERY_SELF_CREATE`-ийн ижил зарчим).
+  PAYMENT_SELF_PAY: 'payment.self_pay',
   INVOICE_CREATE: 'invoice.create',
   INVOICE_CANCEL: 'invoice.cancel',
 

@@ -14,7 +14,10 @@ import type { CargoPackage } from '~/composables/usePackages'
  * Тиймээс хайрцгийг ХҮЛЭЭЛГЭН ӨГӨХ, ТАНИХАД шаардлагатай хамгийн цөөн
  * талбарыг (нэр, утас, үнэ, огноо, код) л мөр бүрээр, саарал дэвсгэртэй
  * нэрлэсэн key-value байдлаар хэвлэнэ. Жин, Төлөв нь доод жижиг мөрөнд
- * туслах мэдээлэл болгон үлдсэн. Бичиг том, тод — хуудсыг дүүргэнэ.
+ * туслах мэдээлэл болгон үлдсэн. Дэлгэцэн дээрх урьдчилсан харагдац ТОМ,
+ * ТОД хэвээр (уншихад тохиромжтой) — зөвхөн ХЭВЛЭХ үед л `print:`
+ * классуудаар 58мм наалтын принтерийн өргөнд багтдаг жижиг хэмжээ рүү
+ * шилждэг (доор `.print-area-thermal` — `main.css`-ийн `@page thermal`).
  *
  * ХЭВЛЭХ ТЕХНИК: `window.print()` дуудахад ЗӨВХӨН `.print-area` харагдана
  * (`@media print` дотор бусад бүхнийг `display: none`). Шинэ цонх/iframe
@@ -28,9 +31,10 @@ import type { CargoPackage } from '~/composables/usePackages'
  * байрлана (доош гүйлгэх шаардлагагүй, шууд харагдана).
  *
  * Зураасан кодыг SVG-ээр зурна — ямар ч DPI-д хурц (`utils/barcode.ts`).
- * Саарал дэвсгэртэй нэрлэсэн талбар (`.print-force-bg`) хэвлэхэд арилахгүй
- * байхын тулд `main.css`-ийн `@media print` дүрмээр `print-color-adjust`-ыг
- * зорин заасан.
+ * `height`/`module-width`-ыг 58мм өргөнд тааруулж багасгасан (100/3 →
+ * 50/1.5) — SVG өөрөө `max-w-full`-ээр контейнерийн өргөнд шахагддаг тул
+ * хэвлэх үед автоматаар 54мм дотор багтана (дэлгэцэн дээр модал өргөн тул
+ * шахагдахгүй, ялгаа гарахгүй).
  */
 const props = defineProps<{
   modelValue: boolean
@@ -99,88 +103,126 @@ function print() {
     </template>
 
     <!-- ── ХЭВЛЭГДЭХ ХЭСЭГ ──────────────────────────────────────────── -->
-    <div class="print-area rounded-card border border-surface-border bg-white p-4">
+    <!-- `print-area-thermal` — 58мм наалтын принтерийн `@page thermal`-д
+         холбогдоно (`main.css`). `print:` классууд ЗӨВХӨН хэвлэхэд идэвхжинэ. -->
+    <div
+      class="print-area print-area-thermal rounded-card border border-surface-border bg-white p-4 print:p-0"
+    >
       <div
         v-for="pkg in packages"
         :key="pkg.id"
-        class="print-item mb-6 overflow-hidden rounded-card border-2 border-content last:mb-0"
+        class="print-item mb-6 overflow-hidden rounded-card border-2 border-content last:mb-0 print:mb-2 print:overflow-visible print:rounded-none print:border-0 print:border-b print:border-dashed print:border-black print:pb-2 print:last:border-b-0"
       >
-        <header class="border-b-4 border-content px-8 py-6 text-center">
-          <p class="text-[44px] font-extrabold leading-none tracking-tight text-black">
+        <header
+          class="border-b-4 border-content px-8 py-6 text-center print:border-b print:border-black print:px-1 print:py-1.5"
+        >
+          <p
+            class="text-[44px] font-extrabold leading-none tracking-tight text-black print:text-[15px] print:tracking-normal"
+          >
             Ивээлт Карго
           </p>
           <p
             v-if="contactPhone"
-            class="tabular mt-3 text-h3 font-bold tracking-widest text-content-secondary"
+            class="tabular mt-3 text-h3 font-bold tracking-widest text-content-secondary print:mt-0.5 print:text-[9px] print:tracking-normal print:text-black"
           >
             УТАС: {{ contactPhone }}
           </p>
         </header>
 
-        <dl class="divide-y divide-surface-border">
-          <div class="flex items-center justify-between gap-6 px-8 py-6">
+        <dl class="divide-y divide-surface-border print:divide-black">
+          <div
+            class="flex items-center justify-between gap-6 px-8 py-6 print:flex-col print:items-start print:gap-0 print:px-1 print:py-1"
+          >
             <dt
-              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black"
+              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[8px] print:font-normal print:uppercase print:tracking-wide print:text-content-secondary"
             >
               Нэр:
             </dt>
-            <dd class="tabular text-h1 font-bold text-black">{{ customerName(pkg) || '—' }}</dd>
+            <dd
+              class="tabular text-h1 font-bold text-black print:text-[13px] print:leading-tight"
+            >
+              {{ customerName(pkg) || '—' }}
+            </dd>
           </div>
-          <div class="flex items-center justify-between gap-6 px-8 py-6">
+          <div
+            class="flex items-center justify-between gap-6 px-8 py-6 print:flex-col print:items-start print:gap-0 print:px-1 print:py-1"
+          >
             <dt
-              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black"
+              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[8px] print:font-normal print:uppercase print:tracking-wide print:text-content-secondary"
             >
               Утас:
             </dt>
-            <dd class="tabular text-h1 font-bold text-black">{{ pkg.customerPhone || '—' }}</dd>
+            <dd
+              class="tabular text-h1 font-bold text-black print:text-[13px] print:leading-tight"
+            >
+              {{ pkg.customerPhone || '—' }}
+            </dd>
           </div>
-          <div class="flex items-center justify-between gap-6 px-8 py-6">
+          <div
+            class="flex items-center justify-between gap-6 px-8 py-6 print:flex-col print:items-start print:gap-0 print:px-1 print:py-1"
+          >
             <dt
-              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black"
+              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[8px] print:font-normal print:uppercase print:tracking-wide print:text-content-secondary"
             >
               Үнэ:
             </dt>
-            <dd class="tabular text-[48px] font-bold leading-none text-black">
+            <dd
+              class="tabular text-[48px] font-bold leading-none text-black print:text-[16px] print:leading-tight"
+            >
               {{ formatCurrency(pkg.finalPrice) }}
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-6 px-8 py-6">
+          <div
+            class="flex items-center justify-between gap-6 px-8 py-6 print:flex-col print:items-start print:gap-0 print:px-1 print:py-1"
+          >
             <dt
-              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black"
+              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[8px] print:font-normal print:uppercase print:tracking-wide print:text-content-secondary"
             >
               Огноо:
             </dt>
-            <dd class="tabular text-h1 font-bold text-black">
+            <dd
+              class="tabular text-h1 font-bold text-black print:text-[13px] print:leading-tight"
+            >
               {{ formatDate(pkg.arrivedAt || pkg.createdAt) }}
             </dd>
           </div>
-          <div class="flex items-center justify-between gap-6 px-8 py-6">
+          <div
+            class="flex items-center justify-between gap-6 px-8 py-6 print:flex-col print:items-start print:gap-0 print:px-1 print:py-1"
+          >
             <dt
-              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black"
+              class="print-force-bg rounded bg-surface-hover px-3 py-1.5 text-h4 font-semibold text-black print:rounded-none print:bg-transparent print:px-0 print:py-0 print:text-[8px] print:font-normal print:uppercase print:tracking-wide print:text-content-secondary"
             >
               Код:
             </dt>
-            <dd class="tabular text-h1 font-bold text-black">{{ pkg.trackingNumber }}</dd>
+            <dd
+              class="tabular text-h1 font-bold text-black print:text-[13px] print:leading-tight print:break-all"
+            >
+              {{ pkg.trackingNumber }}
+            </dd>
           </div>
         </dl>
 
         <!-- Скайнерт уншигдах зураасан код — Код мөрийн доор -->
-        <div class="flex justify-center border-t border-dashed border-surface-border py-8">
-          <UiBarcode :value="pkg.trackingNumber" :height="100" :module-width="3" :show-text="false" />
+        <div
+          class="flex justify-center border-t border-dashed border-surface-border py-8 print:border-t-0 print:py-1"
+        >
+          <UiBarcode :value="pkg.trackingNumber" :height="50" :module-width="1.5" :show-text="false" />
         </div>
 
         <!-- Жин, төлөв — тусламж болгож жижгээр, шаардлагатай бол -->
-        <footer class="flex flex-col gap-3 border-t border-surface-border px-8 py-6">
-          <div class="flex items-center justify-between gap-6">
-            <span class="text-h4 text-content-secondary">Жин:</span>
-            <span class="tabular text-h3 font-semibold text-black">
+        <footer
+          class="flex flex-col gap-3 border-t border-surface-border px-8 py-6 print:gap-0.5 print:border-t-0 print:px-1 print:py-0"
+        >
+          <div class="flex items-center justify-between gap-6 print:justify-start print:gap-2">
+            <span class="text-h4 text-content-secondary print:text-[8px]">Жин:</span>
+            <span class="tabular text-h3 font-semibold text-black print:text-[9px]">
               {{ pkg.weightKg ? `${pkg.weightKg} кг` : '—' }}
             </span>
           </div>
-          <div class="flex items-center justify-between gap-6">
-            <span class="text-h4 text-content-secondary">Төлөв:</span>
+          <div class="flex items-center justify-between gap-6 print:justify-start print:gap-2">
+            <span class="text-h4 text-content-secondary print:text-[8px]">Төлөв:</span>
             <span
-              class="text-h3 font-semibold"
+              class="text-h3 font-semibold print:text-[9px]"
               :style="{ color: packageStatus.style(pkg.status).color }"
             >
               {{ packageStatus.label(pkg.status) }}

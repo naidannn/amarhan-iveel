@@ -91,4 +91,31 @@ const selfRegisterLimiter = rateLimit({
   skip: () => config.env === 'test',
 });
 
-module.exports = { globalLimiter, authLimiter, publicLimiter, selfRegisterLimiter };
+/**
+ * QPay webhook (`/v1/qpay/callback`) — Phase 5, roadmap 5.6/5.7.
+ *
+ * Танилтгүй, гадаад дуудлага (QPay-ийн сервер) тул `publicLimiter`-ийн ижил
+ * шалтгаанаар тусдаа, чанга хязгаартай: чөлөөтэй дуудагдах боломжтой уг
+ * route бүрийн дотор `qpayService.checkInvoice`-аар QPay руу нэмэлт гадаад
+ * дуудлага хийдэг тул хэн нэгэн энэ URL руу спам илгээвэл манай сервер QPay
+ * руу давхар спамлах эрсдэлтэй (`docs/architecture.md §4.4`).
+ */
+const qpayLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: {
+    success: false,
+    message: 'Хүсэлт хэт олон',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => config.env === 'test',
+});
+
+module.exports = {
+  globalLimiter,
+  authLimiter,
+  publicLimiter,
+  selfRegisterLimiter,
+  qpayLimiter,
+};

@@ -273,4 +273,27 @@
   @page {
     margin: 12mm;
   }
+
+  /*
+   * Ачааны шошго (`package/PrintSheet.vue`) болон хүргэлтийн баримт
+   * (`delivery/RouteSheet.vue`) 58мм наалтын принтер (roll) дээр хэвлэгддэг —
+   * A4/A5 биш. CSS Paged Media-ийн named page ашиглана: `.print-area-thermal`
+   * зөвхөн ЭНЭ хоёр компонентод байгаа тул бусад хэвлэх баримт
+   * (`payment/InvoiceSheet.vue`) дээрх энгийн `@page`-д (дээрх, margin 12mm)
+   * нөлөөлөхгүй.
+   *
+   * `size: 58mm auto` — өндөр ТОГТМОЛ БИШ (гүйдэг цаас), зөвхөн өргөнийг
+   * заана. Агуулгыг яг энэ өргөнд эвхэхийн тулд `width` мөн тохируулсан —
+   * зөвхөн `@page`-ийн хэмжээ өөрчлөх нь агуулгыг ХАСАХГҮЙ (clip хийнэ),
+   * дахин урсгахгүй.
+   */
+  .print-area-thermal {
+    page: thermal;
+    width: 54mm;
+  }
+}
+
+@page thermal {
+  size: 58mm auto;
+  margin: 2mm;
 }

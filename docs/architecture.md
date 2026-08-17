@@ -220,11 +220,25 @@ async overridePrice(packageId, newPrice, reason, actor) {
 > дэд бүтцээс хассаны үнэ. Функцийн гарын үсэг хуучин хэвээрээ үлдсэн нь дуудагч
 > талын кодыг (172+ дуудлага) өөрчлөхгүйн тулд.
 
-### 4.4 Идемпотент вебхүүк (QPay callback)
+### 4.4 Идемпотент вебхүүк (QPay callback, roadmap 5.6/5.7)
 
-QPay нэг төлбөрийн мэдэгдлийг олон удаа илгээж болно. `payments` коллекцод
-`(provider, providerInvoiceId)` дээр unique index тавьж, давхардсан callback-ийг
-`200 OK` буцаан чимээгүй алгасана.
+QPay нэг төлбөрийн мэдэгдлийг олон удаа илгээж болно. QPay v2-д HMAC гарын
+үсэг байхгүй тул callback-ийн payload-д ХЭЗЭЭ Ч итгэхгүй — зөвхөн "поок" гэж
+үзнэ, дараа нь `qpayService.checkInvoice`-аар ӨӨРИЙН эрхээр (merchant token)
+дахин баталгаажуулсан үр дүнд л мөнгө бичигдэнэ (`payment.service.js`
+`handleQpayCallback`).
+
+Давхардсан callback-ийн ГОЛ хамгаалалт: `paymentRepository.completeByProviderInvoice`
+— MongoDB-ийн нэг баримт бичгийн атомик `findOneAndUpdate`
+(`{ provider, providerInvoiceId, status: PENDING }` нөхцөлтэй, `reserveAllocations`-
+ийн ижил зарчим, §4.3). Давхардсан webhook хоёр дахь удаа ирэхэд мөр аль хэдийн
+`completed` тул нөхцөлд ТААРАХГҮЙ — `200 OK` буцаан чимээгүй алгасана.
+
+`payments` коллекц дээр `(provider, providerPaymentId)` unique партиал index
+НЭМЭЛТ хамгаалалт (`payment.model.js`) — QPay-ийн бодит `payment_id`-г хоёр
+өөр Payment бичлэгт давхар оноохоос сэргийлнэ (жишээ: маш нарийн race
+condition). Гол логик дээрх атомик `findOneAndUpdate`-д тулгуурладаг, энэ
+index бэлтгэлийн хоёр дахь давхарга.
 
 ### 4.5 Тохиргооны хувилбаржилт (Versioned config)
 
@@ -326,7 +340,7 @@ app/
 
 | Сервис | Зориулалт | Phase | Тэмдэглэл |
 |---|---|---|---|
-| **QPay** | Онлайн төлбөр, callback | 5.6 | ⛔ `qpay.js` Phase 0-д устсан — цэвэрээр дахин бичнэ |
+| **QPay** | Онлайн төлбөр, callback | 5.6/5.7 | ✅ `qpay.service.js` (2026-08-17, `email.service.js`-ийн ижил "чимээгүй унтарна" загвар — `config.qpay.enabled`) |
 | **SMS gateway** | OTP (5.2), ачаа ирсэн/төлбөрийн мэдэгдэл | 6 | ⛔ Үйлчилгээ үзүүлэгч сонгоогүй |
 | **Google OAuth** | **Зөвхөн харилцагчийн** нэвтрэлт | 5 | ✅ `passport-setup.js` — `google-customer` strategy |
 | **OneSignal** | Push мэдэгдэл | 6 | Сонголтоор |

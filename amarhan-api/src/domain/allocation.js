@@ -221,6 +221,39 @@ function buildFullSettlement(packages, deliveryId, feeAmount) {
   return { allocations, amount };
 }
 
+/**
+ * Roadmap — харилцагч өөрөө сонгосон ачааны(нхаа) ҮЛДЭГДЛИЙГ БҮРЭН төлнө
+ * (хүргэлт захиалахгүйгээр, `buildFullSettlement`-ийн хураамжгүй хувилбар).
+ *
+ * @param {Array<{ packageId: any, balance: number }>} packages
+ * @returns {{ allocations: Array<{packageId: any, amount: number}>, amount: number }}
+ * @throws {AllocationError}
+ */
+function buildBalanceSettlement(packages) {
+  if (!Array.isArray(packages) || packages.length === 0) {
+    throw new AllocationError('Ачааны жагсаалт заавал байх ёстой');
+  }
+
+  const allocations = [];
+  for (const pkg of packages) {
+    if (!Number.isInteger(pkg?.balance) || pkg.balance < 0) {
+      throw new AllocationError(`Ачааны үлдэгдэл бүхэл тоо (₮) байх ёстой: "${pkg?.balance}"`);
+    }
+    if (pkg.balance > 0) {
+      allocations.push({ packageId: pkg.packageId, amount: pkg.balance });
+    }
+  }
+
+  if (allocations.length === 0) {
+    throw new AllocationError('Сонгосон ачаанууд бүрэн төлөгдсөн байна');
+  }
+
+  const amount = allocations.reduce((sum, a) => sum + a.amount, 0);
+  assertSumMatches(allocations, amount);
+
+  return { allocations, amount };
+}
+
 function assertMoney(value, label) {
   if (!Number.isInteger(value)) {
     throw new AllocationError(`${label} бүхэл тоо (₮) байх ёстой: "${value}"`);
@@ -235,5 +268,6 @@ module.exports = {
   allocateProportionally,
   validateManualAllocations,
   buildFullSettlement,
+  buildBalanceSettlement,
   assertSumMatches,
 };

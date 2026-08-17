@@ -57,10 +57,40 @@ exports.cancelPackage = async (req, res, next) => {
   }
 };
 
+/** Төлбөр төлж болох ачаа (нэгээр нь/олноор нь төлөх маягтад ашиглана) */
+exports.payablePackages = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.payablePackages(req.customer);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Сонгосон ачааны(нхаа) үлдэгдлийг Данс/QPay-ээр шууд төлөх */
+exports.payPackages = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.payPackages(req.customer, req.body, req);
+    return created(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.listPayments = async (req, res, next) => {
   try {
     const result = await customerPortalService.listPayments(req.customer._id, req.query);
     return res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Roadmap 5.6/5.7 — QPay QR-ийн дараах polling */
+exports.getPayment = async (req, res, next) => {
+  try {
+    const payment = await customerPortalService.getPayment(req.customer._id, req.params.paymentId);
+    return success(res, payment);
   } catch (error) {
     next(error);
   }

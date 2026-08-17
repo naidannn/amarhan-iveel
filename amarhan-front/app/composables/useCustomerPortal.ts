@@ -101,6 +101,23 @@ export interface CustomerNotification {
   createdAt: string
 }
 
+/** Roadmap 5.6/5.7 — QPay нэхэмжлэхийн QR/апп-руу шилжих холбоосууд */
+export interface QpayInvoice {
+  qrImage: string
+  qrText: string
+  urls: { name: string; description: string; logo: string; link: string }[]
+}
+
+/** Ачааны дэлгэрэнгүй/жагсаалт/самбараас шууд төлбөр төлөх (хүргэлт захиалахгүйгээр) */
+export interface CreatedPackagePayment {
+  id: string
+  amount: number
+  method: string
+  status: string
+  /** ЗӨВХӨН `method: 'qpay'` үед ирнэ, Данс сонговол `null` */
+  qpay: QpayInvoice | null
+}
+
 export interface CreatedDelivery {
   id: string
   deliveryNumber: string
@@ -114,6 +131,8 @@ export interface CreatedDelivery {
     amount: number
     method: string
     status: string
+    /** ЗӨВХӨН `method: 'qpay'` үед ирнэ, Данс сонговол `null` */
+    qpay: QpayInvoice | null
   }
 }
 
@@ -168,6 +187,28 @@ export function useCustomerPortal() {
     return list<any>('payments', params)
   }
 
+  /** Төлбөр төлж болох ачаа + дансны мэдээлэл (үлдэгдэлтэй, ирсэн, хүчингүй биш) */
+  async function payablePackages(): Promise<{
+    packages: CustomerPackage[]
+    bankAccount: DeliverableForDelivery['bankAccount']
+  }> {
+    const res = await $axios.get('/api/v1/customer/packages/payable')
+    return res.data.data
+  }
+
+  /**
+   * Сонгосон ачааны(нхаа) үлдэгдлийг Данс/QPay-ээр шууд төлнө — хүргэлт
+   * захиалахгүйгээр. Ачааны дэлгэрэнгүй хуудаснаас нэгээр нь, эсвэл
+   * жагсаалт/хяналтын самбараас олноор дуудна.
+   */
+  async function payPackages(payload: {
+    packageIds: string[]
+    method?: 'bank' | 'qpay'
+  }): Promise<CreatedPackagePayment> {
+    const res = await $axios.post('/api/v1/customer/packages/pay', payload)
+    return res.data.data
+  }
+
   function deliveries(params: { page?: number; limit?: number; status?: string } = {}) {
     return list<CustomerDelivery>('deliveries', params)
   }
@@ -179,16 +220,27 @@ export function useCustomerPortal() {
   }
 
   /**
-   * Хүргэлт захиална. `fee`/`method`/`customerId` илгээхгүй (дүрэм 14) —
-   * backend `DELIVERY_FEE_AMOUNT`, "Данс"-аар дангаараа шийднэ (QPay ⛔).
+   * Хүргэлт захиална. `fee`/`customerId` илгээхгүй (дүрэм 14) — backend
+   * `DELIVERY_FEE_AMOUNT`-аар дангаараа шийднэ. `method` нь Данс/QPay
+   * (roadmap 5.6/5.7) — заагаагүй бол backend Данс гэж үзнэ.
    */
   async function createDelivery(payload: {
     packageIds: string[]
     address: string
     phone?: string
     note?: string
+    method?: 'bank' | 'qpay'
   }): Promise<CreatedDelivery> {
     const res = await $axios.post('/api/v1/customer/deliveries', clean(payload))
+    return res.data.data
+  }
+
+  /**
+   * Roadmap 5.6/5.7 — QPay QR харуулсны дараа `pending`→`completed`
+   * шилжилтийг polling хийхэд ашиглана.
+   */
+  async function getPayment(id: string): Promise<{ id: string; amount: number; method: string; status: string }> {
+    const res = await $axios.get(`/api/v1/customer/payments/${id}`)
     return res.data.data
   }
 
@@ -228,9 +280,12 @@ export function useCustomerPortal() {
     registerPackage,
     cancelPackage,
     payments,
+    payablePackages,
+    payPackages,
     deliveries,
     deliverableForDelivery,
     createDelivery,
+    getPayment,
     confirmDeliveryReceived,
     notifications,
     unreadNotificationCount,

@@ -5,6 +5,7 @@ const {
   allocateProportionally,
   validateManualAllocations,
   buildFullSettlement,
+  buildBalanceSettlement,
   assertSumMatches,
   AllocationError,
 } = require('../../src/domain/allocation');
@@ -318,6 +319,56 @@ describe('Roadmap 5.8 — buildFullSettlement (харилцагчийн хүрг
       /бүхэл тоо/
     );
     expect(() => buildFullSettlement([pkg('a', -100)], 'dlv-1', 7000)).to.throw(AllocationError);
+  });
+});
+
+describe('buildBalanceSettlement — харилцагч өөрөө үлдэгдлээ шууд төлөх', () => {
+  const pkg = (id, balance) => ({ packageId: id, balance });
+
+  it('сонгосон ачаа бүрийн үлдэгдлийг БҮТНЭЭР авна', () => {
+    const { allocations, amount } = buildBalanceSettlement([pkg('a', 5000), pkg('b', 3000)]);
+
+    expect(allocations).to.deep.equal([
+      { packageId: 'a', amount: 5000 },
+      { packageId: 'b', amount: 3000 },
+    ]);
+    expect(amount).to.equal(8000);
+  });
+
+  it('үлдэгдэл 0 ачааг хуваарилалтаас алгасна', () => {
+    const { allocations, amount } = buildBalanceSettlement([pkg('a', 0), pkg('b', 3000)]);
+
+    expect(allocations).to.deep.equal([{ packageId: 'b', amount: 3000 }]);
+    expect(amount).to.equal(3000);
+  });
+
+  it('нийт үлдэгдэл 0 бол алдаа', () => {
+    expect(() => buildBalanceSettlement([pkg('a', 0), pkg('b', 0)])).to.throw(
+      AllocationError,
+      /бүрэн төлөгдсөн/
+    );
+  });
+
+  it('ачааны жагсаалт хоосон бол алдаа', () => {
+    expect(() => buildBalanceSettlement([])).to.throw(AllocationError, /заавал байх/);
+  });
+
+  it('массив биш бол алдаа', () => {
+    expect(() => buildBalanceSettlement(null)).to.throw(AllocationError, /заавал байх/);
+  });
+
+  it('нийлбэр (Σ allocations === amount) ЯГ таарна', () => {
+    const { allocations, amount } = buildBalanceSettlement([pkg('a', 12345), pkg('b', 6789)]);
+
+    expect(allocations.reduce((s, a) => s + a.amount, 0)).to.equal(amount);
+  });
+
+  it('ачааны үлдэгдэл бутархай/сөрөг бол алдаа', () => {
+    expect(() => buildBalanceSettlement([pkg('a', 100.5)])).to.throw(
+      AllocationError,
+      /бүхэл тоо/
+    );
+    expect(() => buildBalanceSettlement([pkg('a', -100)])).to.throw(AllocationError);
   });
 });
 

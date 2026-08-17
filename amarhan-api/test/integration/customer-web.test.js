@@ -3,6 +3,7 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
 const jwt = require('jsonwebtoken');
+const sinon = require('sinon');
 const { expect } = chai;
 
 const { app } = require('../../src/services/express');
@@ -10,6 +11,8 @@ const config = require('../../src/config');
 const Customer = require('../../src/models/customer.model');
 const AuditLog = require('../../src/models/audit-log.model');
 const customerAuthService = require('../../src/services/customer-auth.service');
+const qpayService = require('../../src/services/qpay.service');
+const Payment = require('../../src/models/payment.model');
 const { createUserWithToken } = require('../factories/user.factory');
 const {
   createBranch,
@@ -620,7 +623,7 @@ describe('Харилцагчийн вэб (§3)', () => {
       expect(res.status).to.equal(401);
     });
 
-    it('customerId/fee/method зэрэг талбар дамжуулж болохгүй (дүрэм 14)', async () => {
+    it('customerId/fee зэрэг талбар дамжуулж болохгүй (дүрэм 14)', async () => {
       const pkg = await registerPackage({ phone: '99112233' });
       const { token } = await signUp({ phone: '99112233' });
 
@@ -628,7 +631,18 @@ describe('Харилцагчийн вэб (§3)', () => {
         packageIds: [pkg.id],
         address: 'ХУД',
         fee: 1,
-        method: 'qpay',
+      });
+      expect(res.status).to.equal(400);
+    });
+
+    it('method буруу утгатай бол 400 (роадмап 5.6/5.7 — зөвхөн bank/qpay)', async () => {
+      const pkg = await registerPackage({ phone: '99112233' });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await bookDelivery(token, {
+        packageIds: [pkg.id],
+        address: 'ХУД',
+        method: 'cash',
       });
       expect(res.status).to.equal(400);
     });
@@ -772,6 +786,347 @@ describe('Харилцагчийн вэб (§3)', () => {
 
         expect(res.status).to.equal(422);
       });
+    });
+
+    describe('Roadmap 5.6/5.7 — QPay', () => {
+      let sandbox;
+
+      beforeEach(() => {
+        sandbox = sinon.createSandbox();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      function stubCreateInvoice(overrides = {}) {
+        return sandbox.stub(qpayService, 'createInvoice').resolves({
+          invoiceId: 'inv-123',
+          qrText: 'qr-text-data',
+          qrImage: 'base64-image-data',
+          urls: [{ name: 'khanbank', description: 'Хаан банк', logo: '', link: 'khanbank://q?id=1' }],
+          ...overrides,
+        });
+      }
+
+      it('QPay сонговол QR/deeplink буцаана, payment provider/providerInvoiceId бичигдэнэ', async () => {
+        const createInvoice = stubCreateInvoice();
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+
+        const res = await bookDelivery(token, {
+          packageIds: [pkg.id],
+          address: 'ХУД',
+          method: 'qpay',
+        });
+
+        expect(res.status, JSON.stringify(res.body)).to.equal(201);
+        expect(res.body.data.payment.method).to.equal('qpay');
+        expect(res.body.data.payment.status).to.equal('pending');
+        expect(res.body.data.payment.qpay.qrImage).to.equal('base64-image-data');
+        expect(res.body.data.payment.qpay.urls).to.have.lengthOf(1);
+        expect(createInvoice.calledOnce).to.equal(true);
+
+        const payment = await Payment.findById(res.body.data.payment.id);
+        expect(payment.provider).to.equal('qpay');
+        expect(payment.providerInvoiceId).to.equal('inv-123');
+      });
+
+      it('Данс сонговол qpay талбар null байна (frontend одоо байгаа дансны блокоо харуулна)', async () => {
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+
+        const res = await bookDelivery(token, {
+          packageIds: [pkg.id],
+          address: 'ХУД',
+          method: 'bank',
+        });
+
+        expect(res.status, JSON.stringify(res.body)).to.equal(201);
+        expect(res.body.data.payment.qpay).to.equal(null);
+      });
+
+      it('GET /customer/payments/:id — эзэмшигч харна, бусад харилцагч 404 авна', async () => {
+        stubCreateInvoice();
+        const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+        const { token } = await signUp({ phone: '99112233' });
+        const booked = await bookDelivery(token, {
+          packageIds: [pkg.id],
+          address: 'ХУД',
+          method: 'qpay',
+        });
+
+        const own = await chai
+          .request(app)
+          .get(`${CUSTOMER}/payments/${booked.body.data.payment.id}`)
+          .set(asCustomer(token));
+        expect(own.status, JSON.stringify(own.body)).to.equal(200);
+        expect(own.body.data.status).to.equal('pending');
+
+        const { token: otherToken } = await signUp({ phone: '88001122' });
+        const other = await chai
+          .request(app)
+          .get(`${CUSTOMER}/payments/${booked.body.data.payment.id}`)
+          .set(asCustomer(otherToken));
+        expect(other.status).to.equal(404);
+      });
+
+      describe('Webhook (POST /v1/qpay/callback)', () => {
+        const QPAY = '/api/v1/qpay';
+
+        async function createQpayDelivery() {
+          stubCreateInvoice();
+          const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+          const { token } = await signUp({ phone: '99112233' });
+          const booked = await bookDelivery(token, {
+            packageIds: [pkg.id],
+            address: 'ХУД',
+            method: 'qpay',
+          });
+          return { pkg, booked };
+        }
+
+        it('баталгаажсан төлбөрийг completed болгож, ачаа/хүргэлтийн үлдэгдлийг барагдуулна', async () => {
+          const { pkg, booked } = await createQpayDelivery();
+          sandbox.stub(qpayService, 'checkInvoice').resolves({
+            paid: true,
+            paidAmount: booked.body.data.payment.amount,
+            providerPaymentId: 'qpay-payment-1',
+          });
+
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(res.status).to.equal(200);
+
+          const payment = await Payment.findById(booked.body.data.payment.id);
+          expect(payment.status).to.equal('completed');
+          expect(payment.providerPaymentId).to.equal('qpay-payment-1');
+
+          const Package = require('../../src/models/package.model');
+          const Delivery = require('../../src/models/delivery.model');
+          expect((await Package.findById(pkg.id)).balance).to.equal(0);
+          expect((await Delivery.findById(booked.body.data.id)).feePaidAmount).to.equal(7000);
+        });
+
+        it('давхардсан webhook нэг л удаа боловсруулна', async () => {
+          const { booked } = await createQpayDelivery();
+          const checkInvoice = sandbox.stub(qpayService, 'checkInvoice').resolves({
+            paid: true,
+            paidAmount: booked.body.data.payment.amount,
+            providerPaymentId: 'qpay-payment-1',
+          });
+
+          await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+          const second = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(second.status).to.equal(200);
+          // Хоёр дахь webhook `status !== pending`-ыг АНХ шалгаад ЗОГСДОГ тул
+          // QPay руу дахин гадаад дуудлага хийхгүй (checkInvoice дахин дуудагдахгүй)
+          expect(checkInvoice.calledOnce).to.equal(true);
+
+          const Delivery = require('../../src/models/delivery.model');
+          // Хоёр дахь удаа дахин нэмэгдээгүй — эх сурвалжаас дахин бодогдсон хэвээр
+          expect((await Delivery.findById(booked.body.data.id)).feePaidAmount).to.equal(7000);
+        });
+
+        it('тохирох paymentId ирэхгүй/олдохгүй үед 200 буцаах ч юу ч бичихгүй', async () => {
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: '000000000000000000000000' });
+          expect(res.status).to.equal(200);
+        });
+
+        it('хараахан төлөгдөөгүй (checkInvoice paid:false) бол pending хэвээр үлдэнэ', async () => {
+          const { booked } = await createQpayDelivery();
+          sandbox
+            .stub(qpayService, 'checkInvoice')
+            .resolves({ paid: false, paidAmount: 0, providerPaymentId: null });
+
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(res.status).to.equal(200);
+          const payment = await Payment.findById(booked.body.data.payment.id);
+          expect(payment.status).to.equal('pending');
+        });
+
+        it('QPay-ээс илүү дүн ирвэл ledger дүнгээр л completed болно (Σ allocations хэвээр)', async () => {
+          const { booked } = await createQpayDelivery();
+          sandbox.stub(qpayService, 'checkInvoice').resolves({
+            paid: true,
+            paidAmount: booked.body.data.payment.amount + 5000,
+            providerPaymentId: 'qpay-payment-overpaid',
+          });
+
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(res.status).to.equal(200);
+          const payment = await Payment.findById(booked.body.data.payment.id);
+          expect(payment.status).to.equal('completed');
+          expect(payment.amount).to.equal(booked.body.data.payment.amount);
+        });
+      });
+    });
+  });
+
+  describe('Roadmap — харилцагч ачааны үлдэгдлээ шууд төлөх (хүргэлт захиалахгүйгээр)', () => {
+    const PAYABLE = `${CUSTOMER}/packages/payable`;
+    const PAY = `${CUSTOMER}/packages/pay`;
+    const PAYMENTS = '/api/v1/payments';
+
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    function stubCreateInvoice(overrides = {}) {
+      return sandbox.stub(qpayService, 'createInvoice').resolves({
+        invoiceId: 'inv-pkg-1',
+        qrText: 'qr-text-data',
+        qrImage: 'base64-image-data',
+        urls: [{ name: 'khanbank', description: 'Хаан банк', logo: '', link: 'khanbank://q?id=1' }],
+        ...overrides,
+      });
+    }
+
+    function pay(token, body) {
+      return chai.request(app).post(PAY).set(asCustomer(token)).send(body);
+    }
+
+    it('GET /packages/payable — үлдэгдэлтэй, ирсэн ачааг л буцаана', async () => {
+      const paid = await registerPackage({ phone: '99112233', price: 20000 });
+      await chai
+        .request(app)
+        .post(PAYMENTS)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ amount: 20000, method: 'cash', packageIds: [paid.id] });
+      const owed = await registerPackage({ phone: '99112233', price: 15000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await chai.request(app).get(PAYABLE).set(asCustomer(token));
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+      expect(res.body.data.packages).to.have.lengthOf(1);
+      expect(res.body.data.packages[0].id).to.equal(owed.id);
+      expect(res.body.data.bankAccount).to.be.an('object');
+    });
+
+    it('Данс сонговол pending төлбөр үүсгэж, дүн нь сонгосон ачааны үлдэгдэлтэй тэнцүү', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await pay(token, { packageIds: [pkg.id], method: 'bank' });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.amount).to.equal(20000);
+      expect(res.body.data.method).to.equal('bank');
+      expect(res.body.data.status).to.equal('pending');
+      expect(res.body.data.qpay).to.equal(null);
+
+      const payment = await Payment.findById(res.body.data.id);
+      expect(payment.allocations).to.have.lengthOf(1);
+      expect(String(payment.allocations[0].packageId)).to.equal(pkg.id);
+      expect(payment.allocations[0].deliveryId).to.equal(null);
+    });
+
+    it('QPay сонговол QR/deeplink буцаана, provider/providerInvoiceId бичигдэнэ', async () => {
+      const createInvoice = stubCreateInvoice();
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await pay(token, { packageIds: [pkg.id], method: 'qpay' });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.method).to.equal('qpay');
+      expect(res.body.data.qpay.qrImage).to.equal('base64-image-data');
+      expect(createInvoice.calledOnce).to.equal(true);
+
+      const payment = await Payment.findById(res.body.data.id);
+      expect(payment.provider).to.equal('qpay');
+      expect(payment.providerInvoiceId).to.equal('inv-pkg-1');
+    });
+
+    it('олон ачааг зэрэг сонговол Σ allocations нийт дүнтэй яг таарна', async () => {
+      const a = await registerPackage({ phone: '99112233', price: 12000 });
+      const b = await registerPackage({ phone: '99112233', price: 8000 });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await pay(token, { packageIds: [a.id, b.id], method: 'bank' });
+
+      expect(res.status, JSON.stringify(res.body)).to.equal(201);
+      expect(res.body.data.amount).to.equal(20000);
+
+      const payment = await Payment.findById(res.body.data.id);
+      const sum = payment.allocations.reduce((s, alloc) => s + alloc.amount, 0);
+      expect(sum).to.equal(payment.amount);
+    });
+
+    it('бусдын ачааг сонговол 404 (403 БИШ, дүрэм 14)', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      const { token } = await signUp({ phone: '88001122' });
+
+      const res = await pay(token, { packageIds: [pkg.id], method: 'bank' });
+      expect(res.status).to.equal(404);
+    });
+
+    it('бүрэн төлөгдсөн ачааг дахин төлүүлэхгүй', async () => {
+      const pkg = await registerPackage({ phone: '99112233', price: 20000 });
+      await chai
+        .request(app)
+        .post(PAYMENTS)
+        .set('Authorization', `Bearer ${staff.token}`)
+        .send({ amount: 20000, method: 'cash', packageIds: [pkg.id] });
+      const { token } = await signUp({ phone: '99112233' });
+
+      const res = await pay(token, { packageIds: [pkg.id], method: 'bank' });
+      expect(res.status).to.equal(422);
+    });
+
+    it('урьдчилсан (PRE_ARRIVAL) ачаанд төлбөр авахгүй (BR-46 — үнэ хараахан тодорхойгүй)', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      const registered = await chai
+        .request(app)
+        .post(`${CUSTOMER}/packages`)
+        .set(asCustomer(token))
+        .send({ trackingNumber: `PRE${Math.floor(Math.random() * 1e12)}` });
+      expect(registered.status, JSON.stringify(registered.body)).to.equal(201);
+
+      const res = await pay(token, { packageIds: [registered.body.data.id], method: 'bank' });
+      expect(res.status).to.equal(422);
+    });
+
+    it('ачаа сонгоогүй бол 400', async () => {
+      const { token } = await signUp({ phone: '99112233' });
+      const res = await pay(token, { packageIds: [], method: 'bank' });
+      expect(res.status).to.equal(400);
+    });
+
+    it('нэвтрэхгүйгээр төлөхгүй', async () => {
+      const res = await chai
+        .request(app)
+        .post(PAY)
+        .send({ packageIds: ['000000000000000000000000'], method: 'bank' });
+      expect(res.status).to.equal(401);
     });
   });
 

@@ -42,6 +42,23 @@ module.exports = {
     testURI: process.env.MONGOTESTURI,
   },
   /**
+   * QPay — харилцагчийн хүргэлтийн хураамжийн онлайн төлбөр (roadmap 5.6/5.7).
+   *
+   * `QPAY_*` тохируулаагүй орчинд `enabled` false болж, `qpay.service.js`
+   * харилцагчид QPay сонголтыг санал болгохгүй — `google.enabled`-тэй адил
+   * "тохируулаагүй бол чимээгүй унтарна" зарчим.
+   */
+  qpay: {
+    username: process.env.QPAY_USERNAME,
+    password: process.env.QPAY_PASSWORD,
+    invoiceCode: process.env.QPAY_INVOICE_CODE,
+    callbackURL: process.env.QPAY_CALLBACK_URL,
+    baseURL: process.env.QPAY_BASE_URL || 'https://merchant.qpay.mn/v2',
+    get enabled() {
+      return Boolean(this.username && this.password && this.invoiceCode);
+    },
+  },
+  /**
    * Resend — нууц үг сэргээх имэйл илгээхэд ашиглана.
    *
    * `RESEND_API_KEY` тохируулаагүй орчинд (жишээ: тест) `enabled` false

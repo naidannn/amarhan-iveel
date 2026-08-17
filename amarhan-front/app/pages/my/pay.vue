@@ -1,45 +1,34 @@
 <script setup lang="ts">
-import { Truck, Landmark, Smartphone, AlertTriangle, ArrowLeft, Copy, Check } from 'lucide-vue-next'
+import { Landmark, Smartphone, Copy, Check, ArrowLeft, Wallet } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
-import type { DeliverableForDelivery, CreatedDelivery } from '~/composables/useCustomerPortal'
+import type { CreatedPackagePayment } from '~/composables/useCustomerPortal'
 
 /**
- * Харилцагч өөрөө хүргэлт захиалах — introduction.md §5, roadmap 5.8
+ * Ачааны үлдэгдлийг шууд төлөх — хүргэлт захиалахгүйгээр.
  *
- * Нийт төлөх дүн = сонгосон ачааны ҮЛДЭГДЭЛ (бүрэн) + `feeAmount` (7000₮,
- * `DELIVERY_FEE_AMOUNT`, backend бодно — client талд ХЭЗЭЭ Ч дахин
- * тооцоолохгүй, зөвхөн ХАРУУЛНА).
- *
- * Төлбөрийн хэлбэр — Данс эсвэл QPay (roadmap 5.6/5.7). Илгээхэд backend
- * `pending` төлбөр үүсгэнэ: Данс сонговол ажилтан бодит гүйлгээг харж
- * баталгаажуулна (BR-21c), QPay сонговол QPay-ийн webhook автоматаар
- * баталгаажуулна (доорх polling).
+ * Ачааны дэлгэрэнгүй хуудаснаас `?packageId=`-аар ирвэл ЗӨВХӨН тэр ачааг
+ * сонгоно (нэгээр нь төлөх), эс тэгвээс бүх төлбөртэй ачаа автоматаар
+ * сонгогдоно (олноор нь төлөх) — `deliveries/new.vue`-ийн ижил хэв маяг.
  */
 definePageMeta({ middleware: 'customer' })
-useHead({ title: 'Хүргэлт захиалах — Ивээлт Карго' })
+useHead({ title: 'Төлбөр төлөх — Ивээлт Карго' })
 
 const route = useRoute()
 const portal = useCustomerPortal()
-const customerStore = useCustomerStore()
 const toast = useToast()
 const { style, label } = usePackageStatus()
 
 const loading = ref(true)
 const submitting = ref(false)
-const data = ref<DeliverableForDelivery | null>(null)
+const packages = ref<Awaited<ReturnType<typeof portal.payablePackages>>['packages']>([])
+const bankAccount = ref<Awaited<ReturnType<typeof portal.payablePackages>>['bankAccount']>(null)
 const selected = ref<string[]>([])
 const copied = ref(false)
 const method = ref<'bank' | 'qpay'>('bank')
 
-const form = reactive({
-  address: '',
-  phone: '',
-  note: '',
-})
+const result = ref<CreatedPackagePayment | null>(null)
 
-const result = ref<CreatedDelivery | null>(null)
-
-// ── Roadmap 5.6/5.7 — QPay төлбөрийн байдлыг polling хийх ─────────────────
+// ── QPay төлбөрийн байдлыг polling хийх (deliveries/new.vue-тэй ижил) ─────
 const qpayStatus = ref<'pending' | 'completed' | 'timeout'>('pending')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pollStartedAt = 0
@@ -79,20 +68,13 @@ onBeforeUnmount(stopPolling)
 async function load() {
   loading.value = true
   try {
-    data.value = await portal.deliverableForDelivery()
+    const data = await portal.payablePackages()
+    packages.value = data.packages
+    bankAccount.value = data.bankAccount
 
-    /**
-     * Ачааны дэлгэрэнгүй хуудаснаас `?packageId=`-аар ирвэл ЗӨВХӨН тэр ачааг
-     * сонгоно — хэрэглэгчийн тодорхой хүсэл. Заагаагүй бол хамгийн түгээмэл
-     * тохиолдол (бүгдийг захиалах). Query-д заасан ID жагсаалтад байхгүй бол
-     * (аль хэдийн өөр хүргэлтэд орсон гэх мэт) энгийн "бүгдийг сонгох" руу
-     * чимээгүй буцна.
-     */
     const preselect = String(route.query.packageId ?? '')
-    const hasPreselect = preselect && data.value.packages.some(p => p.id === preselect)
-    selected.value = hasPreselect
-      ? [preselect]
-      : data.value.packages.map(p => p.id)
+    const hasPreselect = preselect && data.packages.some(p => p.id === preselect)
+    selected.value = hasPreselect ? [preselect] : data.packages.map(p => p.id)
   } catch (e: any) {
     toast.error('Ачаа ачаалагдсангүй', {
       description: e?.response?.data?.message ?? e.message,
@@ -110,18 +92,9 @@ function toggle(id: string) {
     : [...selected.value, id]
 }
 
-const selectedPackages = computed(
-  () => data.value?.packages.filter(p => selected.value.includes(p.id)) ?? []
-)
+const selectedPackages = computed(() => packages.value.filter(p => selected.value.includes(p.id)))
+const total = computed(() => selectedPackages.value.reduce((sum, p) => sum + Math.max(p.balance, 0), 0))
 
-const packagesTotal = computed(() =>
-  selectedPackages.value.reduce((sum, p) => sum + Math.max(p.balance, 0), 0)
-)
-
-const feeAmount = computed(() => data.value?.feeAmount ?? 0)
-const grandTotal = computed(() => packagesTotal.value + feeAmount.value)
-
-const bankAccount = computed(() => data.value?.bankAccount ?? null)
 const bankAccountText = computed(() => {
   const b = bankAccount.value
   if (!b) return ''
@@ -135,32 +108,27 @@ async function copyBankAccount() {
     copied.value = true
     setTimeout(() => (copied.value = false), 2000)
   } catch {
-    // Clipboard эрх өгөөгүй ч захиалгад саад болохгүй
+    // Clipboard эрх өгөөгүй ч төлбөрт саад болохгүй
   }
 }
 
-const canSubmit = computed(
-  () => !submitting.value && selected.value.length > 0 && form.address.trim().length >= 3
-)
+const canSubmit = computed(() => !submitting.value && selected.value.length > 0)
 
 async function submit() {
   if (!canSubmit.value) return
 
   submitting.value = true
   try {
-    const delivery = await portal.createDelivery({
+    const payment = await portal.payPackages({
       packageIds: selected.value,
-      address: form.address.trim(),
-      phone: form.phone.trim() || undefined,
-      note: form.note.trim() || undefined,
       method: method.value,
     })
-    result.value = delivery
-    if (delivery.payment.method === 'qpay') {
-      startPolling(delivery.payment.id)
+    result.value = payment
+    if (payment.method === 'qpay') {
+      startPolling(payment.id)
     }
   } catch (e: any) {
-    toast.error('Хүргэлт захиалагдсангүй', {
+    toast.error('Төлбөр үүсгэж чадсангүй', {
       description: e?.response?.data?.message ?? e.message,
       duration: 9000,
     })
@@ -174,55 +142,49 @@ async function submit() {
   <div class="mx-auto max-w-2xl space-y-5">
     <div class="flex items-center gap-3">
       <NuxtLink
-        to="/my/deliveries"
+        to="/my/packages"
         class="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn border border-surface-border text-content-secondary hover:bg-surface-hover"
       >
         <ArrowLeft :size="18" />
       </NuxtLink>
       <div>
-        <h1 class="text-h1 font-bold text-content">Хүргэлт захиалах</h1>
+        <h1 class="text-h1 font-bold text-content">Төлбөр төлөх</h1>
         <p class="mt-0.5 text-body text-content-secondary">
-          Бэлэн ачаагаа сонгож, хаягаа бичээд захиална
+          Үлдэгдэлтэй ачаагаа сонгоод Данс эсвэл QPay-ээр төлнө
         </p>
       </div>
     </div>
 
-    <!-- ── Амжилттай захиалсны дараах баталгаажуулах дэлгэц ─────────────── -->
+    <!-- ── Үүсгэсний дараах баталгаажуулах дэлгэц ────────────────────────── -->
     <div v-if="result" class="card space-y-4 text-center">
-      <Truck
-        v-if="result.payment.method === 'bank' || qpayStatus === 'completed'"
+      <Wallet
+        v-if="result.method === 'bank' || qpayStatus === 'completed'"
         :size="40"
         class="mx-auto text-success"
         :stroke-width="1.6"
       />
       <Smartphone v-else :size="40" class="mx-auto text-primary" :stroke-width="1.6" />
       <div>
-        <p class="text-h3 font-semibold text-content">
-          Хүсэлт {{ result.deliveryNumber }} бүртгэгдлээ
-        </p>
-        <p v-if="result.payment.method === 'bank'" class="mx-auto mt-2 max-w-md text-body text-content-secondary">
-          Доорх дансанд <strong class="tabular text-content">{{
-            formatCurrency(result.payment.amount)
-          }}</strong>
-          шилжүүлнэ үү. Ажилтан гүйлгээг баталгаажуулмагц хүргэлтэнд гарна.
+        <p v-if="result.method === 'bank'" class="mx-auto max-w-md text-body text-content-secondary">
+          Доорх дансанд <strong class="tabular text-content">{{ formatCurrency(result.amount) }}</strong>
+          шилжүүлнэ үү. Ажилтан гүйлгээг баталгаажуулмагц үлдэгдэл барагдана.
         </p>
         <template v-else>
-          <p v-if="qpayStatus === 'completed'" class="mx-auto mt-2 max-w-md text-body font-medium text-success">
-            Төлбөр амжилттай хийгдлээ! Хүргэлт баталгаажлаа.
+          <p v-if="qpayStatus === 'completed'" class="mx-auto max-w-md text-body font-medium text-success">
+            Төлбөр амжилттай хийгдлээ!
           </p>
-          <p v-else-if="qpayStatus === 'timeout'" class="mx-auto mt-2 max-w-md text-body text-content-secondary">
+          <p v-else-if="qpayStatus === 'timeout'" class="mx-auto max-w-md text-body text-content-secondary">
             Төлбөр хараахан батлагдаагүй байна. «Миний төлбөр» хуудаснаас дараа дахин шалгана уу.
           </p>
-          <p v-else class="mx-auto mt-2 max-w-md text-body text-content-secondary">
-            <strong class="tabular text-content">{{ formatCurrency(result.payment.amount) }}</strong>
+          <p v-else class="mx-auto max-w-md text-body text-content-secondary">
+            <strong class="tabular text-content">{{ formatCurrency(result.amount) }}</strong>
             дүнгээр доорх QR кодыг банкны апп-аараа уншуулж төлнө үү.
           </p>
         </template>
       </div>
 
-      <!-- Данс — дансны мэдээлэл -->
       <div
-        v-if="result.payment.method === 'bank' && bankAccount"
+        v-if="result.method === 'bank' && bankAccount"
         class="mx-auto max-w-sm rounded-card border border-surface-border bg-surface-hover px-4 py-3.5 text-left"
       >
         <div class="flex items-center justify-between gap-3">
@@ -257,17 +219,16 @@ async function submit() {
         </dl>
       </div>
 
-      <!-- QPay — QR + апп-руу шилжих холбоос, батлагдтал polling -->
-      <template v-if="result.payment.method === 'qpay' && qpayStatus === 'pending' && result.payment.qpay">
+      <template v-if="result.method === 'qpay' && qpayStatus === 'pending' && result.qpay">
         <img
-          v-if="result.payment.qpay.qrImage"
-          :src="`data:image/png;base64,${result.payment.qpay.qrImage}`"
+          v-if="result.qpay.qrImage"
+          :src="`data:image/png;base64,${result.qpay.qrImage}`"
           alt="QPay QR код"
           class="mx-auto h-48 w-48 rounded-card border border-surface-border bg-white p-2"
         />
-        <div v-if="result.payment.qpay.urls?.length" class="flex flex-wrap justify-center gap-2">
+        <div v-if="result.qpay.urls?.length" class="flex flex-wrap justify-center gap-2">
           <a
-            v-for="u in result.payment.qpay.urls"
+            v-for="u in result.qpay.urls"
             :key="u.name"
             :href="u.link"
             class="rounded-full border border-surface-border px-3 py-1.5 text-body-sm text-content hover:bg-surface-hover"
@@ -278,34 +239,31 @@ async function submit() {
         <p class="text-body-sm text-content-secondary">Хүлээгдэж байна…</p>
       </template>
 
-      <UiBtn to="/my/deliveries">Хүргэлтийн жагсаалт руу очих</UiBtn>
+      <UiBtn to="/my/packages">Ачааны жагсаалт руу очих</UiBtn>
     </div>
 
-    <!-- ── Захиалгын маягт ───────────────────────────────────────────────── -->
+    <!-- ── Төлбөрийн маягт ────────────────────────────────────────────────── -->
     <template v-else>
       <p v-if="loading" class="py-10 text-center text-body text-content-secondary">
         Ачаалж байна…
       </p>
 
       <div
-        v-else-if="!data?.packages.length"
+        v-else-if="!packages.length"
         class="rounded-card border border-surface-border bg-surface-card px-5 py-14 text-center"
       >
-        <Truck :size="34" class="mx-auto text-content-disabled" :stroke-width="1.6" />
-        <p class="mt-3 text-body text-content">Хүргэх боломжтой ачаа алга байна</p>
-        <p class="mx-auto mt-1 max-w-sm text-body-sm text-content-secondary">
-          Ачаа Улаанбаатарт ирж, бүртгэгдсэний дараа энд харагдана.
-        </p>
+        <Wallet :size="34" class="mx-auto text-content-disabled" :stroke-width="1.6" />
+        <p class="mt-3 text-body text-content">Төлөх үлдэгдэлтэй ачаа алга байна</p>
       </div>
 
       <template v-else>
         <div class="card space-y-3">
           <p class="text-body-sm font-medium text-content-secondary">
-            Хүргэх ачаа ({{ selected.length }}/{{ data.packages.length }})
+            Төлөх ачаа ({{ selected.length }}/{{ packages.length }})
           </p>
           <ul class="space-y-2">
             <li
-              v-for="p in data.packages"
+              v-for="p in packages"
               :key="p.id"
               class="flex cursor-pointer items-center gap-3 rounded-card border border-surface-border px-3 py-2.5 transition-colors hover:bg-surface-hover"
               :class="selected.includes(p.id) ? 'border-primary-300 bg-primary-50/40' : ''"
@@ -321,45 +279,18 @@ async function submit() {
               />
               <div class="min-w-0 flex-1">
                 <p class="truncate font-semibold tabular text-content">{{ p.trackingNumber }}</p>
-                <span
-                  class="text-body-sm"
-                  :style="{ color: style(p.status).color }"
-                >
+                <span class="text-body-sm" :style="{ color: style(p.status).color }">
                   {{ label(p.status) }}
                 </span>
               </div>
-              <p
-                class="tabular shrink-0 text-body font-semibold"
-                :class="p.balance > 0 ? 'text-warning' : 'text-success'"
-              >
-                {{ p.balance > 0 ? formatCurrency(p.balance) : 'Төлөгдсөн' }}
+              <p class="tabular shrink-0 text-body font-semibold text-warning">
+                {{ formatCurrency(p.balance) }}
               </p>
             </li>
           </ul>
         </div>
 
-        <div class="card space-y-4">
-          <UiField label="Хүргэх хаяг" required>
-            <UiTextArea
-              v-model="form.address"
-              :rows="2"
-              placeholder="ХУД, 3-р хороо, 12-р байр, 34 тоот"
-            />
-          </UiField>
-
-          <UiField
-            label="Хүлээн авагчийн утас"
-            :hint="`Хоосон орхивол таны утас (${customerStore.customer?.phone ?? ''}) ашиглагдана`"
-          >
-            <UiTextInput v-model="form.phone" type="tel" placeholder="99112233" tabular />
-          </UiField>
-
-          <UiField label="Тэмдэглэл" hint="Заавал биш">
-            <UiTextArea v-model="form.note" :rows="2" placeholder="Оройн 6-аас хойш" />
-          </UiField>
-        </div>
-
-        <!-- Төлбөрийн хэлбэр — Данс эсвэл QPay (roadmap 5.6/5.7) -->
+        <!-- Төлбөрийн хэлбэр -->
         <div class="card space-y-3">
           <p class="text-body-sm font-medium text-content-secondary">Төлбөрийн хэлбэр</p>
           <div class="grid grid-cols-2 gap-2">
@@ -414,56 +345,25 @@ async function submit() {
                 {{ bankAccount.note }}
               </p>
             </div>
-
-            <div
-              class="flex items-start gap-2.5 rounded-card border border-warning/30 bg-warning/5 px-3.5 py-3"
-            >
-              <AlertTriangle :size="17" class="mt-0.5 shrink-0 text-warning" />
-              <p class="text-body-sm text-content-secondary">
-                Захиалгын дараа дансанд шилжүүлнэ үү. Ажилтан гүйлгээг баталгаажуулмагц хүргэлтэнд
-                гарна.
-              </p>
-            </div>
+            <p class="text-body-sm text-content-secondary">
+              Захиалгын дараа дансанд шилжүүлнэ үү. Ажилтан гүйлгээг баталгаажуулмагц үлдэгдэл
+              барагдана.
+            </p>
           </template>
 
-          <div
-            v-else
-            class="flex items-start gap-2.5 rounded-card border border-surface-border bg-surface-hover px-3.5 py-3"
-          >
-            <Smartphone :size="17" class="mt-0.5 shrink-0 text-content-secondary" />
-            <p class="text-body-sm text-content-secondary">
-              Захиалгын дараа QR код гарч ирнэ — банкны апп-аараа уншуулж төлмөгц хүргэлт
-              автоматаар баталгаажина.
-            </p>
-          </div>
+          <p v-else class="text-body-sm text-content-secondary">
+            Төлбөр үүсгэсний дараа QR код гарч ирнэ — банкны апп-аараа уншуулж төлмөгц үлдэгдэл
+            автоматаар барагдана.
+          </p>
         </div>
 
-        <!-- ── Нийт дүн ────────────────────────────────────────────────── -->
-        <div class="card space-y-2">
-          <div class="flex items-center justify-between text-body">
-            <span class="text-content-secondary">Сонгосон ачааны үлдэгдэл</span>
-            <span class="tabular font-medium text-content">{{ formatCurrency(packagesTotal) }}</span>
-          </div>
-          <div class="flex items-center justify-between text-body">
-            <span class="text-content-secondary">Хүргэлтийн хураамж</span>
-            <span class="tabular font-medium text-content">{{ formatCurrency(feeAmount) }}</span>
-          </div>
-          <div
-            class="flex items-center justify-between border-t border-surface-border pt-2 text-h4 font-bold"
-          >
-            <span class="text-content">Нийт төлөх</span>
-            <span class="tabular text-content">{{ formatCurrency(grandTotal) }}</span>
-          </div>
+        <div class="card flex items-center justify-between text-h4 font-bold">
+          <span class="text-content">Нийт төлөх</span>
+          <span class="tabular text-content">{{ formatCurrency(total) }}</span>
         </div>
 
-        <UiBtn
-          class="w-full"
-          :loading="submitting"
-          :disabled="!canSubmit"
-          :icon="Truck"
-          @click="submit"
-        >
-          Хүргэлт захиалах
+        <UiBtn class="w-full" :loading="submitting" :disabled="!canSubmit" :icon="Wallet" @click="submit">
+          Төлбөр төлөх
         </UiBtn>
       </template>
     </template>

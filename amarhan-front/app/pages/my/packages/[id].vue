@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Truck } from 'lucide-vue-next'
+import { ArrowLeft, Truck, Wallet } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
 
 /**
@@ -53,6 +53,11 @@ const canRequestDelivery = computed(
     !!pkg.value &&
     DELIVERABLE_STATUSES.includes(pkg.value.status) &&
     !isInActiveDelivery.value
+)
+
+/** Backend `paymentService.selfPay`-ийн ижил хаалт: цуцлагдсан ачаанд төлбөр авахгүй */
+const canPayBalance = computed(
+  () => !!pkg.value && pkg.value.balance > 0 && pkg.value.status !== 'cancelled'
 )
 
 async function cancel() {
@@ -246,12 +251,17 @@ useHead({ title: 'Ачааны мэдээлэл — Ивээлт Карго' })
           §5.2 — төлбөр дуусаагүй ачаа хүргэлтэнд ГАРАХГҮЙ. Хэрэглэгч
           яагаад хүргэлт захиалж чадахгүйгээ ойлгох ёстой.
         -->
-        <p
+        <div
           v-if="pkg.balance > 0"
-          class="mt-4 rounded-btn bg-warning/10 px-3.5 py-2.5 text-body-sm text-content"
+          class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-btn bg-warning/10 px-3.5 py-2.5"
         >
-          Үлдэгдэл төлөгдсөний дараа ачаагаа авах эсвэл хүргэлт захиалах боломжтой.
-        </p>
+          <p class="text-body-sm text-content">
+            Үлдэгдэл төлөгдсөний дараа ачаагаа авах эсвэл хүргэлт захиалах боломжтой.
+          </p>
+          <UiBtn v-if="canPayBalance" size="sm" :icon="Wallet" :to="`/my/pay?packageId=${pkg.id}`">
+            Төлбөр төлөх
+          </UiBtn>
+        </div>
       </div>
 
       <!--

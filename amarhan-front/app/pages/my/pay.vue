@@ -24,7 +24,7 @@ const packages = ref<Awaited<ReturnType<typeof portal.payablePackages>>['package
 const bankAccount = ref<Awaited<ReturnType<typeof portal.payablePackages>>['bankAccount']>(null)
 const selected = ref<string[]>([])
 const copied = ref(false)
-const method = ref<'bank' | 'qpay'>('bank')
+const method = ref<'bank' | 'qpay'>('qpay')
 
 const result = ref<CreatedPackagePayment | null>(null)
 
@@ -226,14 +226,15 @@ async function submit() {
           alt="QPay QR код"
           class="mx-auto h-48 w-48 rounded-card border border-surface-border bg-white p-2"
         />
-        <div v-if="result.qpay.urls?.length" class="flex flex-wrap justify-center gap-2">
+        <div v-if="result.qpay.urls?.length" class="flex flex-wrap justify-center gap-3">
           <a
             v-for="u in result.qpay.urls"
             :key="u.name"
             :href="u.link"
-            class="rounded-full border border-surface-border px-3 py-1.5 text-body-sm text-content hover:bg-surface-hover"
+            class="flex flex-col items-center gap-1 rounded-card border border-surface-border px-3 py-2 text-content hover:bg-surface-hover"
           >
-            {{ u.description }}
+            <img v-if="u.logo" :src="u.logo" :alt="u.description" class="h-9 w-9 rounded-full object-contain" />
+            <span class="text-body-sm">{{ u.description }}</span>
           </a>
         </div>
         <p class="text-body-sm text-content-secondary">Хүлээгдэж байна…</p>
@@ -298,19 +299,6 @@ async function submit() {
               type="button"
               class="flex items-center justify-center gap-2 rounded-btn border px-3 py-2.5 text-body font-medium transition-colors"
               :class="
-                method === 'bank'
-                  ? 'border-primary-300 bg-primary-50 text-primary-700'
-                  : 'border-surface-border text-content-secondary hover:bg-surface-hover'
-              "
-              @click="method = 'bank'"
-            >
-              <Landmark :size="18" />
-              Дансаар шилжүүлэх
-            </button>
-            <button
-              type="button"
-              class="flex items-center justify-center gap-2 rounded-btn border px-3 py-2.5 text-body font-medium transition-colors"
-              :class="
                 method === 'qpay'
                   ? 'border-primary-300 bg-primary-50 text-primary-700'
                   : 'border-surface-border text-content-secondary hover:bg-surface-hover'
@@ -319,6 +307,19 @@ async function submit() {
             >
               <Smartphone :size="18" />
               QPay
+            </button>
+            <button
+              type="button"
+              class="flex items-center justify-center gap-2 rounded-btn border px-3 py-2.5 text-body font-medium transition-colors"
+              :class="
+                method === 'bank'
+                  ? 'border-primary-300 bg-primary-50 text-primary-700'
+                  : 'border-surface-border text-content-secondary hover:bg-surface-hover'
+              "
+              @click="method = 'bank'"
+            >
+              <Landmark :size="18" />
+              Дансаар шилжүүлэх
             </button>
           </div>
 

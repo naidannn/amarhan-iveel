@@ -42,31 +42,28 @@ const navLinks = [
         </NuxtLink>
       </nav>
 
-      <!-- Ханш нь нэвтрэх хуудаснаас ч үргэлж шууд харагдана. -->
-      <ServicesExchangeRateBadge class="ml-auto" :data="yuanTransfer" />
+      <!--
+        ml-auto нь энэ тогтмол wrapper дээр байх ёстой, ServicesExchangeRateBadge
+        дээр биш — ханш тохируулаагүй үед (`hasRate` false) badge бүхэлдээ юу ч
+        render хийхгүй тул ml-auto-той элемент алга болж, дараагийн товчнууд лого
+        руу шахагдаж зай алдагддаг байсан.
+      -->
+      <div class="ml-auto flex shrink-0 items-center">
+        <ServicesExchangeRateBadge :data="yuanTransfer" />
+      </div>
 
       <div class="flex shrink-0 items-center gap-2">
         <ClientOnly>
-          <UiBtn v-if="customer.isAuthenticated" size="sm" to="/my" :icon="LayoutDashboard" class="hidden sm:inline-flex">
+          <UiBtn v-if="customer.isAuthenticated" size="sm" to="/my" :icon="LayoutDashboard" class="inline-flex">
             Хэрэглэгчийн вэб
           </UiBtn>
           <template v-else>
-            <NuxtLink
-              to="/login"
-              class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white sm:inline-flex"
-            >
-              Нэвтрэх
-            </NuxtLink>
+            <UiBtn variant="secondary" size="sm" to="/login" class="inline-flex">Нэвтрэх</UiBtn>
             <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
           </template>
 
           <template #fallback>
-            <NuxtLink
-              to="/login"
-              class="hidden rounded-full px-4 py-2 text-body-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white sm:inline-flex"
-            >
-              Нэвтрэх
-            </NuxtLink>
+            <UiBtn variant="secondary" size="sm" to="/login" class="inline-flex">Нэвтрэх</UiBtn>
             <UiBtn size="sm" to="/register" class="hidden sm:inline-flex">Бүртгүүлэх</UiBtn>
           </template>
         </ClientOnly>

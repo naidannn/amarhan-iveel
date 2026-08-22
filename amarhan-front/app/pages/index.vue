@@ -12,6 +12,15 @@
  */
 definePageMeta({ layout: 'landing' })
 
+// Нэвтэрсэн харилцагч нүүр (маркетингийн) хуудсыг харах шаардлагагүй —
+// шууд өөрийн порталруу үсэрнэ. Зөвхөн клиент талд (login.vue-ийн адил
+// загвар): зочин/crawler (cookie/token байхгүй) landing-ыг хэвээр SEO-д
+// зориулж хардаг хэвээр үлдэнэ.
+const customer = useCustomerStore()
+onMounted(async () => {
+  if (await customer.checkAuth()) await navigateTo('/my')
+})
+
 const { content, pricing, notifications } = usePublicContent()
 
 const { data: site } = await useAsyncData('public-content', () => content(), {

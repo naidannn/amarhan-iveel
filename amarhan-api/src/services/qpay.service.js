@@ -46,7 +46,19 @@ class QPayService {
 
     const data = await res.json();
     this.accessToken = data.access_token;
-    this.tokenExpiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
+
+    /**
+     * QPay-ийн production /auth/token заримдаа `expires_in`-д OAuth-ийн
+     * стандарт ёсоор ХАРЬЦАНГУЙ секунд БИШ, шууд epoch секундээр илэрхийлсэн
+     * ABSOLUTE дуусах цаг буцаадаг (2026-08-23-нд production дээр батлагдсан
+     * — `expires_in: 1787511999` нь яг тэр өдрийн бодит цаг байсан). Үүнийг
+     * харьцангуй гэж үзвэл кэш бараг мөнхөд "хүчинтэй" болж, токен бодитоор
+     * дууссаны дараа ч дахин ашиглагдаж `401 NO_CREDENTIALS`-д хүргэдэг байсан.
+     * Одоогийн Unix цагаас том утга ирвэл absolute гэж үзнэ.
+     */
+    const expiresIn = data.expires_in ?? 3600;
+    this.tokenExpiresAt =
+      expiresIn > Date.now() / 1000 ? expiresIn * 1000 : Date.now() + expiresIn * 1000;
     return this.accessToken;
   }
 

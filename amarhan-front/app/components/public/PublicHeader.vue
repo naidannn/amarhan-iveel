@@ -54,7 +54,7 @@ const navLinks = [
 
       <div class="flex shrink-0 items-center gap-2">
         <ClientOnly>
-          <UiBtn v-if="customer.isAuthenticated" size="sm" to="/my" :icon="LayoutDashboard" class="inline-flex">
+          <UiBtn v-if="customer.isAuthenticated" size="sm" to="/my" :icon="LayoutDashboard" class="hidden sm:inline-flex">
             Хэрэглэгчийн вэб
           </UiBtn>
           <template v-else>

@@ -2,7 +2,7 @@
 
 const mongoose = require('mongoose');
 const {
-  PAYMENT_METHOD_LIST,
+  PAYMENT_RECORD_METHOD_LIST,
   PAYMENT_RECORD_STATUS,
   PAYMENT_RECORD_STATUS_LIST,
 } = require('../config/constants');
@@ -30,9 +30,10 @@ const paymentSchema = new Schema(
       validate: { validator: Number.isInteger, message: 'Дүн бүхэл тоо (₮) байх ёстой' },
     },
 
+    // `credit` (BR-48) зөвхөн `payment.service.js#redeemCredit`-ээр бичигдэнэ
     method: {
       type: String,
-      enum: PAYMENT_METHOD_LIST,
+      enum: PAYMENT_RECORD_METHOD_LIST,
       required: true,
     },
 
@@ -170,6 +171,8 @@ paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ method: 1, createdAt: -1 });
 paymentSchema.index({ status: 1, createdAt: -1 });
 paymentSchema.index({ invoiceId: 1 });
+// §2.2 — утсаар хайх (`^prefix` regex индекс ашиглана)
+paymentSchema.index({ customerPhone: 1, createdAt: -1 });
 paymentSchema.index({ branchId: 1, createdAt: -1 });
 // Dashboard-ын completed төлбөрийн 30 хоногийн орлогын график.
 paymentSchema.index({ branchId: 1, status: 1, createdAt: -1 });
@@ -189,6 +192,16 @@ paymentSchema.index({ status: 1, voidedAt: -1 });
 paymentSchema.index(
   { provider: 1, providerPaymentId: 1 },
   { unique: true, partialFilterExpression: { providerPaymentId: { $type: 'string' } } }
+);
+
+/**
+ * QPay webhook бүрд `(provider, providerInvoiceId, status)`-аар хайдаг
+ * (`completeByProviderInvoice`) — индексгүй бол callback бүр төлбөрийн бүх
+ * коллекцыг уншина.
+ */
+paymentSchema.index(
+  { provider: 1, providerInvoiceId: 1 },
+  { partialFilterExpression: { providerInvoiceId: { $type: 'string' } } }
 );
 
 paymentSchema.set('toJSON', {

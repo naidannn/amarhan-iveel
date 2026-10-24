@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Wallet, Landmark, CreditCard, Smartphone, Copy, Check, Plus, Trash2 } from 'lucide-vue-next'
+import { Wallet, Landmark, CreditCard, Smartphone, Copy, Check, Plus, Trash2, Coins } from 'lucide-vue-next'
+import type { StaffLoyalty } from '~/composables/useCustomers'
 import { usePayments, type PaymentMethodValue } from '~/composables/usePayments'
 import type { CargoPackage } from '~/composables/usePackages'
 
@@ -30,8 +31,63 @@ const emit = defineEmits<{
 }>()
 
 const api = usePayments()
+const customersApi = useCustomers()
 const settings = useSettings()
 const toast = useToast()
+
+/**
+ * BR-48 — харилцагчийн кредит. Кассанд ирсэн харилцагч "кредитээ ашиглая"
+ * гэвэл ажилтан эхлээд кредитээр хасаад, ҮЛДСЭНИЙГ доорх хэлбэрээр авна.
+ * Тусдаа товч/хүсэлт: кредитийн төлбөр нь өөрийн `credit` бичлэг (BR-13).
+ */
+const loyalty = ref<StaffLoyalty | null>(null)
+const creditInput = ref<number | null>(null)
+const creditBusy = ref(false)
+
+const customerId = computed(() => {
+  const owner = props.packages[0]?.customerId
+  return typeof owner === 'string' ? owner : (owner?.id ?? null)
+})
+
+async function loadLoyalty() {
+  loyalty.value = null
+  if (!customerId.value) return
+  try {
+    loyalty.value = await customersApi.loyalty(customerId.value, { limit: 1 })
+    creditInput.value = maxCredit.value || null
+  } catch {
+    // Кредит харагдахгүй ч энгийн төлбөр авахад саад болохгүй
+  }
+}
+
+const maxCredit = computed(() => {
+  if (!loyalty.value?.enabled) return 0
+  const cap = Math.floor((totalBalance.value * loyalty.value.maxRedeemPercent) / 100)
+  return Math.max(0, Math.min(loyalty.value.credits, cap))
+})
+
+async function applyCredit() {
+  const value = Number(creditInput.value ?? 0)
+  if (!Number.isInteger(value) || value <= 0 || value > maxCredit.value) return
+  creditBusy.value = true
+  try {
+    const res = await api.createCredit({
+      amount: value,
+      ...(props.invoiceId
+        ? { invoiceId: props.invoiceId }
+        : { packageIds: props.packages.map(p => p.id) }),
+    })
+    toast.success(`${formatCurrency(value, { showSymbol: false })} кредит хэрэглэгдлээ`, {
+      description: `Харилцагчид ${formatCurrency(res.creditsLeft, { showSymbol: false })} кредит үлдлээ`,
+    })
+    emit('paid')
+    close()
+  } catch (e: any) {
+    toast.error('Кредит хэрэглэгдсэнгүй', { description: e.message, duration: 9000 })
+  } finally {
+    creditBusy.value = false
+  }
+}
 
 /**
  * "Данс" хэлбэр сонгоход харилцагчид өгөх дансны мэдээлэл. Зөвхөн энэ
@@ -174,6 +230,7 @@ watch(
     splitMode.value = 'full'
     splitRows.value = []
     loadBankAccount()
+    loadLoyalty()
   }
 )
 
@@ -276,6 +333,47 @@ async function submitSplit() {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="space-y-5">
+      <!-- BR-48 — харилцагчийн кредит (байгаа үед л) -->
+      <div
+        v-if="loyalty?.enabled && maxCredit > 0"
+        class="space-y-2.5 rounded-card border border-amber-200 bg-amber-50/60 p-3.5"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <p class="flex items-center gap-2 text-body font-semibold text-content">
+            <Coins :size="17" class="text-amber-600" />
+            Харилцагчийн кредит
+          </p>
+          <LoyaltyCreditBadge
+            size="sm"
+            :credits="loyalty.credits"
+            :delta="loyalty.history.data[0]?.amount ?? null"
+          />
+        </div>
+        <div class="flex gap-2">
+          <UiTextInput
+            v-model.number="creditInput"
+            type="number"
+            suffix="кредит"
+            tabular
+            class="flex-1"
+            :invalid="(creditInput ?? 0) > maxCredit"
+          />
+          <UiBtn
+            variant="secondary"
+            :icon="Coins"
+            :loading="creditBusy"
+            :disabled="!creditInput || creditInput <= 0 || creditInput > maxCredit"
+            @click="applyCredit"
+          >
+            Кредитээр хасах
+          </UiBtn>
+        </div>
+        <p class="text-body-sm text-content-secondary">
+          Харилцагчийн хүсэлтээр л · хамгийн ихдээ {{ formatCurrency(maxCredit, { showSymbol: false }) }}
+          кредит (1 кредит = 1₮). Үлдсэн дүнг дараа нь доор бүртгэнэ.
+        </p>
+      </div>
+
       <!-- Горим — заавал биш. Анхны сонголт "Нэг хэлбэрээр" = одоогийн зан
            төлөв (бүтнээр эсвэл хэсэгчилсэн ганц хэлбэрээр). "Хуваах" сонговол
            хэлбэр бүрт ТУСДАА мөр (жишээ нь Бэлэн 3000 + Данс 3000) — BR-13 -->

@@ -3,7 +3,13 @@
 const Package = require('../models/package.model');
 const Payment = require('../models/payment.model');
 const Expense = require('../models/expense.model');
-const { PACKAGE_STATUS, PAYMENT_RECORD_STATUS, PAYMENT_STATUS, EXPENSE_STATUS } = require('../config/constants');
+const {
+  PACKAGE_STATUS,
+  PAYMENT_RECORD_STATUS,
+  PAYMENT_STATUS,
+  EXPENSE_STATUS,
+  NON_REVENUE_PAYMENT_METHODS,
+} = require('../config/constants');
 
 const MONGOLIA_TIME_ZONE = 'Asia/Ulaanbaatar';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,9 +31,11 @@ class ReportRepository {
   async summary({ branchId, range, series }) {
     const branchScope = branchId ? { branchId } : {};
     const packageScope = { ...branchScope, ...ARRIVED_PACKAGE_SCOPE };
+    // BR-48 — кредитийн төлбөр бол хөнгөлөлт, орлого БИШ
     const completedPaymentScope = {
       ...branchScope,
       status: PAYMENT_RECORD_STATUS.COMPLETED,
+      method: { $nin: NON_REVENUE_PAYMENT_METHODS },
     };
 
     const [
@@ -240,6 +248,8 @@ class ReportRepository {
         $match: {
           ...branchScope,
           status: PAYMENT_RECORD_STATUS.VOIDED,
+          // Хүчингүй болсон кредитийн төлбөр нь мөнгөний буцаалт биш
+          method: { $nin: NON_REVENUE_PAYMENT_METHODS },
           voidedAt: { $gte: start, $lt: end },
         },
       },
@@ -363,7 +373,9 @@ class ReportRepository {
       {
         $facet: {
           total: [{ $group: { _id: null, value: { $sum: '$amount' }, count: { $sum: 1 } } }],
-          categories: [{ $group: { _id: '$category', value: { $sum: '$amount' }, count: { $sum: 1 } } }],
+          categories: [
+            { $group: { _id: '$category', value: { $sum: '$amount' }, count: { $sum: 1 } } },
+          ],
         },
       },
     ]);

@@ -1,5 +1,19 @@
 <script setup lang="ts">
-import { Menu, X, User, LogOut, Package, Wallet, MapPin, LayoutDashboard, Bell, Sun, Moon } from 'lucide-vue-next'
+import {
+  Menu,
+  X,
+  User,
+  LogOut,
+  Package,
+  Wallet,
+  MapPin,
+  LayoutDashboard,
+  Bell,
+  Sun,
+  Moon,
+  Gift,
+  Coins,
+} from 'lucide-vue-next'
 
 /**
  * Харилцагчийн вэбийн layout — introduction.md §3
@@ -63,13 +77,25 @@ async function loadUnreadCount() {
   }
 }
 
+/**
+ * §4 — кредитийн үлдэгдэл + сүүлийн өөрчлөлт ("4,500 +350"). Мэдэгдлийн
+ * тоотой ижил: хуудас солигдох бүрт шинэчлэгдэнэ, амжилтгүй бол чимээгүй.
+ */
+const { balance: loyalty, refresh: loadLoyalty } = useLoyaltyBadge()
+
+const { style: tierStyle } = useLoyaltyTier()
+
 const accountNav = [
   { label: 'Хяналт', to: '/my', icon: LayoutDashboard },
   { label: 'Миний ачаа', to: '/my/packages', icon: Package },
   { label: 'Төлбөр', to: '/my/payments', icon: Wallet },
   { label: 'Хүргэлт', to: '/my/deliveries', icon: MapPin },
-  { label: 'Профайл', to: '/my/profile', icon: User },
+  { label: 'Урамшуулал', to: '/my/loyalty', icon: Gift },
+  // Утсан дээр доод 5 tab-д ОРОХГҮЙ (6 нь 360px дэлгэцэд хэт нягт) — header-ийн
+  // аватар (sm+) болон ☰ цэсээр хүрнэ. Урамшуулал түүний оронд tab-д байна.
+  { label: 'Профайл', to: '/my/profile', icon: User, desktopOnly: true },
 ]
+const bottomNav = accountNav.filter(item => !item.desktopOnly)
 
 const initials = computed(() => {
   const name = customer.customer?.name?.trim()
@@ -91,9 +117,13 @@ watch(
   () => {
     menuOpen.value = false
     loadUnreadCount()
+    loadLoyalty()
   }
 )
-onMounted(loadUnreadCount)
+onMounted(() => {
+  loadUnreadCount()
+  loadLoyalty()
+})
 </script>
 
 <template>
@@ -145,6 +175,26 @@ onMounted(loadUnreadCount)
       <div v-if="yuanTransfer" class="border-b border-surface-border px-3 py-3">
         <ServicesExchangeRateBadge class="w-full justify-center" :data="yuanTransfer" />
       </div>
+
+      <!-- §4 — кредит: үлдэгдэл + сүүлийн өөрчлөлт (Faceit маяг) -->
+      <NuxtLink
+        v-if="loyalty?.enabled"
+        to="/my/loyalty"
+        class="mx-3 mt-3 flex items-center gap-2.5 rounded-btn border border-surface-border px-3 py-2.5 transition-colors hover:bg-surface-hover"
+        aria-label="Урамшуулал, кредит"
+      >
+        <LoyaltyTierEmblem :code="loyalty.tier.code" :size="32" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-[11px] font-semibold" :style="{ color: tierStyle(loyalty.tier.code).color }">
+            {{ loyalty.tier.name }}
+          </span>
+          <LoyaltyCreditBadge
+            size="sm"
+            :credits="loyalty.credits"
+            :delta="loyalty.lastTransaction?.amount ?? null"
+          />
+        </span>
+      </NuxtLink>
 
       <nav class="flex-1 space-y-1 px-3 py-4" aria-label="Хэрэглэгчийн цэс">
         <NuxtLink
@@ -200,10 +250,11 @@ onMounted(loadUnreadCount)
             class="flex shrink-0 items-center"
             :class="authLayout ? 'lg:hidden' : ''"
           >
+            <!-- 360px утсан дээр кредитийн chip багтахын тулд лого жижгэрнэ -->
             <img
               src="/logo-full.png"
               alt="ИВЭЭЛТ КАРГО"
-              class="h-9 w-[172px] rounded-md object-contain object-left dark:bg-white dark:px-2 dark:py-1"
+              class="h-8 w-[136px] rounded-md object-contain object-left dark:bg-white dark:px-2 dark:py-1 sm:h-9 sm:w-[172px]"
               width="172"
               height="36"
             />
@@ -213,7 +264,7 @@ onMounted(loadUnreadCount)
 
           <div class="ml-auto flex items-center gap-2">
             <button
-              class="rounded-btn p-2 text-content-secondary hover:bg-surface-hover"
+              class="hidden rounded-btn p-2 text-content-secondary hover:bg-surface-hover sm:block"
               :class="authLayout ? 'lg:hidden' : ''"
               :aria-label="isDark ? 'Гэрэлт горим руу шилжих' : 'Харанхуй горим руу шилжих'"
               @click="toggleDark"
@@ -221,6 +272,21 @@ onMounted(loadUnreadCount)
               <Sun v-if="isDark" :size="20" :stroke-width="2" />
               <Moon v-else :size="20" :stroke-width="2" />
             </button>
+
+            <NuxtLink
+              v-if="loyalty?.enabled"
+              to="/my/loyalty"
+              class="flex items-center gap-1.5 rounded-full border border-surface-border px-2.5 py-1 hover:bg-surface-hover lg:hidden"
+              aria-label="Урамшуулал, кредит"
+            >
+              <Coins :size="15" class="hidden text-amber-500 min-[400px]:block" />
+              <LoyaltyCreditBadge
+                size="sm"
+                :unit="false"
+                :credits="loyalty.credits"
+                :delta="loyalty.lastTransaction?.amount ?? null"
+              />
+            </NuxtLink>
 
             <NuxtLink
               to="/my/notifications"
@@ -261,9 +327,24 @@ onMounted(loadUnreadCount)
           </div>
         </div>
 
-        <!-- Мобайл нэмэлт цэс: account-ийн 5 хуудас нь доод tab-д байна. -->
+        <!-- Мобайл нэмэлт цэс: үндсэн 5 хуудас доод tab-д, профайл/горим/гарах энд. -->
         <div v-if="menuOpen" class="border-t border-surface-border bg-surface-card lg:hidden">
           <nav class="mx-auto max-w-6xl space-y-1 px-4 py-3">
+            <NuxtLink
+              to="/my/profile"
+              class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover hover:text-content"
+            >
+              <User :size="18" :stroke-width="2" />
+              Профайл
+            </NuxtLink>
+            <button
+              class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover hover:text-content sm:hidden"
+              @click="toggleDark"
+            >
+              <Sun v-if="isDark" :size="18" :stroke-width="2" />
+              <Moon v-else :size="18" :stroke-width="2" />
+              {{ isDark ? 'Гэрэлт горим' : 'Харанхуй горим' }}
+            </button>
             <button
               class="flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-body font-medium text-content-secondary hover:bg-surface-hover hover:text-error"
               @click="logout"
@@ -307,7 +388,7 @@ onMounted(loadUnreadCount)
       aria-label="Хэрэглэгчийн үндсэн цэс"
     >
       <NuxtLink
-        v-for="item in accountNav"
+        v-for="item in bottomNav"
         :key="item.to"
         :to="item.to"
         class="flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-center text-[10px] font-medium leading-3"

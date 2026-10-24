@@ -164,6 +164,19 @@ router.post(
 );
 
 /**
+ * §4 — урамшуулал: түвшин, кредит, дараагийн шат, түүх. Кредит ЗАРЦУУЛАХ нь
+ * тусдаа endpoint БИШ — `/packages/pay` ба `/deliveries`-ийн `creditAmount`
+ * талбараар (BR-48), тэгснээр "кредит + үлдсэнийг QPay" нэг алхам болно.
+ */
+router.get('/loyalty', portalController.loyalty);
+router.get('/loyalty/balance', portalController.loyaltyBalance);
+router.get(
+  '/loyalty/transactions',
+  validate(portalValidation.listLoyaltyTransactions),
+  portalController.loyaltyTransactions
+);
+
+/**
  * §7 (Phase 6) — хувийн (ачааны эвент) + идэвхтэй нийтийн зарлал (BR-35, BR-36).
  * Илгээх/удирдах нь `notification.route.js`-д (`/v1/notifications`, зөвхөн
  * Админ/Менежер) — энд ЗӨВХӨН уншиж, өөрийн уншсан төлвөө тэмдэглэнэ.

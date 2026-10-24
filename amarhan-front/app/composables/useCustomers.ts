@@ -10,7 +10,7 @@ export interface AdminCustomer extends CustomerSummary {
   phoneVerified: boolean
   email: string | null
   hasAccount: boolean
-  loyaltyTier: 'bronze' | 'silver' | 'gold'
+  loyaltyTier: 'bronze' | 'silver' | 'gold' | 'platinum'
   loyaltyPoints: number
   lifetimeSpent: number
   status: 'active' | 'blocked'
@@ -41,6 +41,41 @@ export interface CustomerFilters {
   hasAccount?: boolean | 'true' | 'false' | null
   page: number
   limit: number
+}
+
+/** §4 — ажилтны харах кредит/түвшин (`GET /customers/:id/loyalty`) */
+export interface StaffLoyaltyTier {
+  code: 'bronze' | 'silver' | 'gold' | 'platinum'
+  name: string
+  minSpent: number
+  rateBps: number
+}
+
+export interface StaffLoyaltyTransaction {
+  id: string
+  type: 'earn' | 'earn_reversal' | 'redeem' | 'redeem_refund' | 'adjust'
+  amount: number
+  balanceAfter: number | null
+  label: string | null
+  tier: string | null
+  baseAmount: number | null
+  createdAt: string
+  reason: string | null
+  actorName: string | null
+  paymentId: string | null
+}
+
+export interface StaffLoyalty {
+  enabled: boolean
+  credits: number
+  tier: StaffLoyaltyTier
+  nextTier: StaffLoyaltyTier | null
+  /** Админы гараар тавьсан доод түвшин, `null` = автомат */
+  manualTier: StaffLoyaltyTier['code'] | null
+  spent: number
+  remainingToNext: number
+  maxRedeemPercent: number
+  history: { data: StaffLoyaltyTransaction[]; pagination: CustomerPagination }
 }
 
 const API = '/api/v1/customers'
@@ -107,5 +142,17 @@ export function useCustomers() {
   const remove = (id: string) =>
     call<{ deleted: boolean; phone: string }>(() => $axios.delete(`${API}/${id}`))
 
-  return { search, list, get, create, update, remove }
+  const loyalty = (id: string, params: { page?: number; limit?: number } = {}) =>
+    call<StaffLoyalty>(() => $axios.get(`${API}/${id}/loyalty`, { params }))
+
+  /**
+   * BR-33 — Админ. `loyaltyPoints` нь ЗОРИЛТОТ үлдэгдэл (зөрүү нь ledger-т
+   * `adjust`), `loyaltyTier: null` нь гараар тавьсныг цуцална. Шалтгаан заавал.
+   */
+  const adjustLoyalty = (
+    id: string,
+    payload: { loyaltyPoints?: number; loyaltyTier?: StaffLoyaltyTier['code'] | null; reason: string }
+  ) => call<AdminCustomer>(() => $axios.post(`${API}/${id}/loyalty`, payload))
+
+  return { search, list, get, create, update, remove, loyalty, adjustLoyalty }
 }

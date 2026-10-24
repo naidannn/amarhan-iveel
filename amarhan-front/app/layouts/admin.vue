@@ -17,6 +17,7 @@ import {
   LogOut,
   Banknote,
   Receipt,
+  Gift,
 } from 'lucide-vue-next'
 
 /**
@@ -49,6 +50,7 @@ const navigation: NavItem[] = [
   { label: 'Хүргэлт', to: '/admin/deliveries', icon: Truck },
   { label: 'Агуулах', to: '/admin/warehouse', icon: Warehouse },
   { label: 'Харилцагч', to: '/admin/customers', icon: Users },
+  { label: 'Урамшуулал', to: '/admin/loyalty', icon: Gift, roles: ['admin', 'manager'] },
   { label: 'Системийн хэрэглэгч', to: '/admin/users', icon: UserCog, roles: ['admin'] },
   { label: 'Зарлага', to: '/admin/expenses', icon: Receipt, roles: ['admin', 'manager'] },
   { label: 'Тайлан', to: '/admin/reports', icon: BarChart3, roles: ['admin', 'manager'] },

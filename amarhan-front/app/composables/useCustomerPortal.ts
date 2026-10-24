@@ -1,4 +1,4 @@
-import type { PackageStatus, DeliveryStatus } from './useStatus'
+import type { PackageStatus, DeliveryStatus, LoyaltyTierCode } from './useStatus'
 // `Pagination` нь ажилтны талд аль хэдийн тодорхойлогдсон, бүтэц нь ижил —
 // дахин экспортлобол Nuxt-ийн авто-импорт хоёр эх сурвалжийн аль нэгийг
 // чимээгүй сонгож, засварлахад аль нь хүчинтэйг ойлгоход төвөгтэй болно.
@@ -108,14 +108,76 @@ export interface QpayInvoice {
   urls: { name: string; description: string; logo: string; link: string }[]
 }
 
+/** BR-48 — төлбөрт хэрэглэгдсэн кредит */
+export interface AppliedCredit {
+  amount: number
+  creditsLeft: number
+}
+
 /** Ачааны дэлгэрэнгүй/жагсаалт/самбараас шууд төлбөр төлөх (хүргэлт захиалахгүйгээр) */
 export interface CreatedPackagePayment {
-  id: string
+  /** Кредит үлдэгдлийг БҮТЭН хаасан бол `null` — Данс/QPay төлбөр үүсээгүй */
+  id: string | null
   amount: number
-  method: string
-  status: string
+  method: string | null
+  status: string | null
   /** ЗӨВХӨН `method: 'qpay'` үед ирнэ, Данс сонговол `null` */
   qpay: QpayInvoice | null
+  credit: AppliedCredit | null
+}
+
+// ── Урамшуулал (§4) ─────────────────────────────────────────────────────────
+
+export interface LoyaltyTier {
+  code: LoyaltyTierCode
+  name: string
+  /** Сүүлийн 12 сарын зарцуулалтын босго (₮) */
+  minSpent: number
+  /** Кредит буцаан олголтын хувь, 1/10000 (100 = 1%) */
+  rateBps: number
+}
+
+export type LoyaltyTxType = 'earn' | 'earn_reversal' | 'redeem' | 'redeem_refund' | 'adjust'
+
+export interface LoyaltyTransaction {
+  id: string
+  type: LoyaltyTxType
+  /** Тэмдэгтэй: олголт +, зарцуулалт − */
+  amount: number
+  balanceAfter: number | null
+  /** Ачааны дугаар(ууд) */
+  label: string | null
+  tier: LoyaltyTierCode | null
+  /** Кредит бодогдсон бодит мөнгөн дүн (зөвхөн `earn`) */
+  baseAmount: number | null
+  createdAt: string
+}
+
+export interface LoyaltyOverview {
+  enabled: boolean
+  credits: number
+  lastTransaction: LoyaltyTransaction | null
+  tier: LoyaltyTier
+  nextTier: LoyaltyTier | null
+  manualTier: boolean
+  /** Сүүлийн `windowDays` хоногт бодит мөнгөөр төлсөн дүн */
+  spent: number
+  remainingToNext: number
+  /** Одоогийн шатнаас дараагийн шат хүртэлх прогресс, 0–10000 */
+  progressBps: number
+  averagePackageValue: number | null
+  windowDays: number
+  maxRedeemPercent: number
+  tiers: LoyaltyTier[]
+  totals: { earned: number; redeemed: number }
+}
+
+export interface LoyaltyBalance {
+  enabled: boolean
+  credits: number
+  tier: LoyaltyTier
+  lastTransaction: LoyaltyTransaction | null
+  maxRedeemPercent: number
 }
 
 export interface CreatedDelivery {
@@ -126,6 +188,7 @@ export interface CreatedDelivery {
   phone: string
   fee: number
   createdAt: string
+  credit: AppliedCredit | null
   payment: {
     id: string
     amount: number
@@ -204,6 +267,8 @@ export function useCustomerPortal() {
   async function payPackages(payload: {
     packageIds: string[]
     method?: 'bank' | 'qpay'
+    /** BR-48 — эхлээд хэрэглэх кредит (хязгаарыг backend шалгана) */
+    creditAmount?: number
   }): Promise<CreatedPackagePayment> {
     const res = await $axios.post('/api/v1/customer/packages/pay', payload)
     return res.data.data
@@ -230,6 +295,8 @@ export function useCustomerPortal() {
     phone?: string
     note?: string
     method?: 'bank' | 'qpay'
+    /** BR-48 — ачааны үлдэгдэлд хэрэглэх кредит (хураамжид хэрэглэгдэхгүй) */
+    creditAmount?: number
   }): Promise<CreatedDelivery> {
     const res = await $axios.post('/api/v1/customer/deliveries', clean(payload))
     return res.data.data
@@ -253,6 +320,22 @@ export function useCustomerPortal() {
   ): Promise<{ id: string; deliveryNumber: string; status: DeliveryStatus; deliveredAt: string }> {
     const res = await $axios.post(`/api/v1/customer/deliveries/${id}/receive`)
     return res.data.data
+  }
+
+  /** §4 — түвшин, кредит, дараагийн шат — урамшууллын хуудасны бүх өгөгдөл */
+  async function loyalty(): Promise<LoyaltyOverview> {
+    const res = await $axios.get('/api/v1/customer/loyalty')
+    return res.data.data
+  }
+
+  /** Header-ийн жижиг "4 500 · +350" тэмдэг — хөнгөн хүсэлт */
+  async function loyaltyBalance(): Promise<LoyaltyBalance> {
+    const res = await $axios.get('/api/v1/customer/loyalty/balance')
+    return res.data.data
+  }
+
+  function loyaltyTransactions(params: { page?: number; limit?: number } = {}) {
+    return list<LoyaltyTransaction>('loyalty/transactions', params)
   }
 
   /** §7 — хувийн + идэвхтэй нийтийн мэдэгдэл, нэг хуудаслалтаар */
@@ -287,6 +370,9 @@ export function useCustomerPortal() {
     createDelivery,
     getPayment,
     confirmDeliveryReceived,
+    loyalty,
+    loyaltyBalance,
+    loyaltyTransactions,
     notifications,
     unreadNotificationCount,
     markNotificationRead,

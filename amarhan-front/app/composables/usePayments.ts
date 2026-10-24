@@ -9,6 +9,8 @@
 import { ApiError, type CargoPackage, type Pagination } from './usePackages'
 
 export type PaymentMethodValue = 'cash' | 'bank' | 'card' | 'qpay'
+/** BR-48 — бичлэгийн хэлбэр: гараар сонгох 4 + `credit` (зөвхөн `createCredit`-ээр үүснэ) */
+export type PaymentRecordMethod = PaymentMethodValue | 'credit'
 export type PaymentRecordStatus = 'pending' | 'completed' | 'voided'
 export type InvoiceStatusValue = 'open' | 'paid' | 'cancelled'
 
@@ -22,7 +24,7 @@ export interface Allocation {
 export interface Payment {
   id: string
   amount: number
-  method: PaymentMethodValue
+  method: PaymentRecordMethod
   invoiceId: string | null
   customerId: string | { id: string; phone: string; name: string | null }
   customerPhone: string
@@ -143,6 +145,15 @@ export function usePayments() {
   }) =>
     call<{ payment: Payment; packages: CargoPackage[] }>(() => $axios.post(API, payload))
 
+  /**
+   * BR-48 — харилцагчийн хүсэлтээр кредитийг нь ачааны төлбөрт хэрэглэнэ.
+   * Хуваарилалт пропорциональ (backend), хязгаар нь кредит ба үлдэгдэл.
+   */
+  const createCredit = (payload: { amount: number; invoiceId?: string; packageIds?: string[] }) =>
+    call<{ payment: Payment; packages: CargoPackage[]; creditsLeft: number }>(() =>
+      $axios.post(`${API}/credit`, payload)
+    )
+
   // BR-18 — устгахгүй, хүчингүй болгоно
   const voidPayment = (id: string, reason: string) =>
     call<{ payment: Payment; packages: CargoPackage[] }>(() =>
@@ -211,6 +222,7 @@ export function usePayments() {
     summary,
     forPackage,
     create,
+    createCredit,
     voidPayment,
     confirmPending,
     listInvoices,

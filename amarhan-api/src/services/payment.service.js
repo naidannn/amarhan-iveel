@@ -1,6 +1,7 @@
 'use strict';
 
 const httpStatus = require('http-status');
+const mongoose = require('mongoose');
 const config = require('../config');
 const paymentRepository = require('../repositories/payment.repository');
 const invoiceRepository = require('../repositories/invoice.repository');
@@ -12,6 +13,7 @@ const invoiceService = require('./invoice.service');
 const packageService = require('./package.service');
 const auditService = require('./audit.service');
 const qpayService = require('./qpay.service');
+const loyaltyService = require('./loyalty.service');
 const APIError = require('../utils/APIError');
 const logger = require('../utils/logger');
 const { withTransaction } = require('../utils/transaction');
@@ -22,6 +24,7 @@ const {
   AllocationError,
 } = require('../domain/allocation');
 const packageState = require('../domain/package-state');
+const { assertRedeemable, LoyaltyError } = require('../domain/loyalty');
 const { maskPhone } = require('../domain/phone');
 const {
   AUDIT_ACTION,
@@ -117,6 +120,14 @@ class PaymentService {
 
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new APIError('Төлбөрийн дүн 1₮-өөс их бүхэл тоо байх ёстой', httpStatus.BAD_REQUEST);
+    }
+    // BR-48 — кредитийн төлбөр ЗӨВХӨН `applyCredit`-ээр (кредит хасагдаж) үүснэ.
+    // Validation аль хэдийн хаадаг, энэ нь гүн хамгаалалт.
+    if (method === PAYMENT_METHOD.CREDIT) {
+      throw new APIError(
+        'Кредитээр төлөхдөө «Кредит ашиглах» замыг ашиглана уу',
+        httpStatus.BAD_REQUEST
+      );
     }
 
     return withTransaction(async session => {
@@ -236,6 +247,11 @@ class PaymentService {
         await this.recalculateInvoice(payment.invoiceId, { session });
       }
 
+      // BR-48 — хүчингүй болсон кредитийн төлбөрийн кредит харилцагчид буцна
+      if (payment.method === PAYMENT_METHOD.CREDIT) {
+        await loyaltyService.refundRedemption(updated, actor);
+      }
+
       await auditService.record(
         {
           actor,
@@ -336,6 +352,191 @@ class PaymentService {
     return payment;
   }
 
+  // ── Кредитээр төлөх (BR-48) ─────────────────────────────────────────────
+
+  /**
+   * Ажилтан кассанд ирсэн харилцагчийн ХҮСЭЛТЭЭР кредитийг нь ачааны
+   * төлбөрт хэрэглэнэ (эзэмшигчийн 2026-10-24-ний шийдвэр). Оролт нь
+   * `create()`-тэй ижил (`invoiceId` эсвэл `packageIds`) — хуваарилалт
+   * пропорциональ, BR-16 (нэг харилцагч) ба BR-45 (утас заавал) шалгалт
+   * `resolveTargets`-д.
+   */
+  async createCreditPayment({ amount, invoiceId, packageIds }, actor, req) {
+    return withTransaction(async session => {
+      const context = await this.resolveTargets({ invoiceId, packageIds }, { session });
+      const branch = await branchResolver.resolveBranch(
+        context.branchId ?? actor?.branchId ?? null
+      );
+
+      return this.applyCredit(
+        {
+          customerId: context.customerId,
+          customerPhone: context.customerPhone,
+          packages: context.packages,
+          invoice: context.invoice,
+          amount,
+          branchId: branch._id,
+          actor,
+          req,
+        },
+        { session }
+      );
+    });
+  }
+
+  /**
+   * BR-48 — кредитээр ачааны үлдэгдлийн ХЭСГИЙГ (100% хүртэл) хаана.
+   * `createCreditPayment` (ажилтан), `selfPay` ба `delivery.service.js#
+   * selfCreate` (харилцагч өөрөө) гурвуулаа ЭНДЭЭС дамжина.
+   *
+   * Кредит бол бодит мөнгө биш, гэхдээ ачааны үлдэгдлийг хаадаг тул
+   * `payments`-д `method: 'credit'` бичлэг болно — тэгснээр `paidAmount`/
+   * `balance`/`Σ allocations` (BR-14, BR-17) бүгд ЯГ ИЖИЛ замаар бодогдож,
+   * хүчингүй болгох (BR-18) ч ажиллана. Орлогын тайлан үүнийг хасна
+   * (`NON_REVENUE_PAYMENT_METHODS`).
+   *
+   * Дараалал (rollback байхгүй тул нөхөн арилгалттай):
+   *   1. ачааны үлдэгдлийг атомикоор нөөцлөнө (BR-15)
+   *   2. кредитийг атомикоор хасна (зэрэг хоёр хүсэлтээс хамгаална)
+   *   3. төлбөрийн бичлэг — бүтэлгүйтвэл 1, 2-ыг буцаана
+   */
+  async applyCredit(
+    {
+      customerId,
+      customerPhone,
+      packages,
+      invoice = null,
+      amount,
+      branchId,
+      actor = null,
+      actorName = null,
+      req = null,
+    },
+    { session }
+  ) {
+    const program = await loyaltyService.getProgram();
+    if (!program.enabled) {
+      throw new APIError(
+        'Урамшууллын хөтөлбөр одоогоор идэвхгүй байна',
+        httpStatus.UNPROCESSABLE_ENTITY,
+        {
+          code: ERROR_CODE.LOYALTY_DISABLED,
+        }
+      );
+    }
+
+    const customer = await customerService.getById(customerId);
+    const payable = packages.reduce((sum, p) => sum + Math.max(p.balance, 0), 0);
+
+    try {
+      assertRedeemable(amount, {
+        credits: customer.loyaltyPoints ?? 0,
+        payable,
+        maxRedeemPercent: program.maxRedeemPercent,
+      });
+    } catch (error) {
+      if (error instanceof LoyaltyError) {
+        throw new APIError(error.message, httpStatus.UNPROCESSABLE_ENTITY, {
+          code: error.code ?? ERROR_CODE.CREDIT_LIMIT_EXCEEDED,
+        });
+      }
+      throw error;
+    }
+
+    const payablePackages = packages.filter(p => p.balance > 0);
+    const resolved = this.buildAllocations(amount, { packages: payablePackages }, null);
+    await this.reserveAllocations(resolved, { session });
+
+    const paymentId = new mongoose.Types.ObjectId();
+    const label = payablePackages.map(p => p.trackingNumber).join(', ');
+
+    let debit;
+    try {
+      debit = await loyaltyService.debit({
+        customerId,
+        amount,
+        paymentId,
+        label,
+        actor,
+        actorName,
+      });
+    } catch (error) {
+      await this.releaseAllocations(resolved, { session });
+      throw error;
+    }
+
+    let payment;
+    try {
+      payment = await paymentRepository.createWithSession(
+        {
+          _id: paymentId,
+          amount,
+          method: PAYMENT_METHOD.CREDIT,
+          invoiceId: invoice?._id ?? null,
+          customerId,
+          customerPhone,
+          allocations: resolved,
+          status: PAYMENT_RECORD_STATUS.COMPLETED,
+          branchId,
+          receivedBy: actor?._id ?? null,
+          receivedByName: actor ? auditService.describeActor(actor) : null,
+          note: null,
+        },
+        { session }
+      );
+    } catch (error) {
+      await this.releaseAllocations(resolved, { session });
+      await loyaltyService.cancelDebit(debit);
+      throw error;
+    }
+
+    const touched = [];
+    for (const allocation of resolved) {
+      touched.push(await this.recalculatePackage(allocation.packageId, { actor, req, session }));
+    }
+    if (invoice) {
+      await this.recalculateInvoice(invoice._id, { session });
+    }
+
+    await auditService.record(
+      {
+        actor,
+        actorName,
+        action: AUDIT_ACTION.PAYMENT_CREATE,
+        entity: AUDIT_ENTITY.PAYMENT,
+        entityId: payment._id,
+        entityLabel: invoice?.invoiceNumber ?? customerPhone,
+        branchId,
+        field: 'amount',
+        before: null,
+        after: amount,
+        reason: `${PAYMENT_METHOD.CREDIT} · ${resolved.length} ачаа`,
+        req,
+      },
+      { session }
+    );
+
+    await auditService.record(
+      {
+        actor,
+        actorName,
+        action: AUDIT_ACTION.LOYALTY_REDEEM,
+        entity: AUDIT_ENTITY.CUSTOMER,
+        entityId: customerId,
+        entityLabel: customerPhone,
+        branchId,
+        field: 'loyaltyPoints',
+        before: debit.balanceAfter + amount,
+        after: debit.balanceAfter,
+        reason: label,
+        req,
+      },
+      { session }
+    );
+
+    return { payment, packages: touched, creditsLeft: debit.balanceAfter };
+  }
+
   // ── Харилцагч өөрөө ачааныхаа үлдэгдлийг төлөх ──────────────────────────
 
   /**
@@ -350,8 +551,9 @@ class PaymentService {
    *      сонговол webhook ирмэгц (`confirmByProvider`) үлдэгдэл барагдана.
    */
   async selfPay(customer, data, req) {
-    const { packageIds, method } = data;
-    const paymentMethod = method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
+    const { packageIds, method, creditAmount = 0 } = data;
+    const paymentMethod =
+      method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
 
     if (!Array.isArray(packageIds) || packageIds.length === 0) {
       throw new APIError('Ачаа сонгоно уу', httpStatus.BAD_REQUEST);
@@ -386,11 +588,39 @@ class PaymentService {
       const branch = await branchResolver.resolveBranch(packages[0].branchId);
       const actorName = this.describeCustomer(customer);
 
+      // BR-48 — кредитийг ЭХЛЭЭД хэрэглэж, ҮЛДСЭН дүнд л Данс/QPay төлбөр үүснэ
+      let credit = null;
+      let remaining = packages;
+      if (creditAmount > 0) {
+        const applied = await this.applyCredit(
+          {
+            customerId: customer._id,
+            customerPhone: customer.phone,
+            packages,
+            amount: creditAmount,
+            branchId: branch._id,
+            actorName,
+            req,
+          },
+          { session }
+        );
+        credit = {
+          paymentId: applied.payment._id,
+          amount: creditAmount,
+          creditsLeft: applied.creditsLeft,
+        };
+        remaining = await packageRepository.model.find({ _id: { $in: unique } }).session(session);
+
+        if (remaining.every(p => p.balance <= 0)) {
+          return { payment: null, qpay: null, packages: remaining, credit };
+        }
+      }
+
       let allocations;
       let amount;
       try {
         ({ allocations, amount } = buildBalanceSettlement(
-          packages.map(p => ({ packageId: p._id, balance: p.balance }))
+          remaining.map(p => ({ packageId: p._id, balance: p.balance }))
         ));
       } catch (error) {
         if (error instanceof AllocationError) {
@@ -435,7 +665,7 @@ class PaymentService {
         qpay = { qrImage: invoice.qrImage, qrText: invoice.qrText, urls: invoice.urls };
       }
 
-      return { payment, qpay, packages };
+      return { payment, qpay, packages: remaining, credit };
     });
   }
 
@@ -622,6 +852,18 @@ class PaymentService {
       return;
     }
 
+    // Дутуу орсон мөнгийг БҮРЭН төлбөр гэж баталгаажуулахгүй — ledger-ийн
+    // `amount` бүтнээрээ ачаанд хуваарилагдах тул үлдэгдэл худлаа 0 болно.
+    // Ажилтан гараар нийцүүлэх ёстой тохиолдол.
+    if (result.paidAmount < payment.amount) {
+      logger.error('QPay webhook: төлөгдсөн дүн нэхэмжлэхээс бага', {
+        paymentId,
+        expected: payment.amount,
+        paidAmount: result.paidAmount,
+      });
+      return;
+    }
+
     await this.confirmByProvider('qpay', payment.providerInvoiceId, {
       providerPaymentId: result.providerPaymentId,
       reportedAmount: result.paidAmount,
@@ -654,7 +896,30 @@ class PaymentService {
       { session }
     );
 
-    return this.syncPaidStatus(updated, { actor, req, session });
+    const synced = await this.syncPaidStatus(updated, { actor, req, session });
+    await this.reconcileLoyalty(synced._id);
+    return synced;
+  }
+
+  /**
+   * BR-30 — мөнгө хөдөлсөн БҮХ зам энд нийлдэг тул кредитийн reconcile-ийг
+   * энд дуудна (loyalty-readiness §2).
+   *
+   * Алдааг ДООШ НЬ ШИДЭХГҮЙ: төлбөр аль хэдийн хадгалагдсан (rollback
+   * байхгүй) — энд шидвэл клиент "амжилтгүй" гэж үзээд дахин төлөх эрсдэлтэй.
+   * Оронд нь ERROR лог үлдээж, `scripts/loyalty-reconcile.js` нөхөж олгоно —
+   * reconcile идемпотент тул дахин ажиллуулахад аюулгүй. (Notification-ийн
+   * "чимээгүй алгасах"-аас ялгаатай: энд алдаа ҮРГЭЛЖ ERROR төвшинд.)
+   */
+  async reconcileLoyalty(packageId) {
+    try {
+      await loyaltyService.reconcilePackage(packageId);
+    } catch (err) {
+      logger.error('Кредитийн reconcile амжилтгүй — loyalty-reconcile скриптээр нөхнө', {
+        packageId: String(packageId),
+        message: err.message,
+      });
+    }
   }
 
   /**
@@ -879,6 +1144,13 @@ class PaymentService {
         );
       }
       reserved.push({ packageId, amount });
+    }
+  }
+
+  /** `reserveAllocations`-ийн эсрэг — дараагийн алхам бүтэлгүйтсэн үеийн нөхөн арилгалт */
+  async releaseAllocations(resolved, { session }) {
+    for (const { packageId, amount } of resolved) {
+      await packageRepository.releaseBalance(packageId, amount, { session });
     }
   }
 

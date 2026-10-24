@@ -21,6 +21,7 @@ const reportRouter = require('./report.route');
 const expenseRouter = require('./expense.route');
 const notificationRouter = require('./notification.route');
 const uploadRouter = require('./upload.route');
+const loyaltyRouter = require('./loyalty.route');
 
 // Health check
 router.get('/status', (req, res) => {
@@ -60,6 +61,9 @@ router.use('/v1/deliveries', deliveryRouter);
 
 // Phase 5 — тохиргоо ба статик агуулга. Унших: ажилтан, засах: Админ (§9.1).
 router.use('/v1/settings', settingRouter);
+
+// §4 — урамшууллын хөтөлбөрийн самбар (Менежер/Админ)
+router.use('/v1/loyalty', loyaltyRouter);
 
 // Статик агуулгын зураг (жишээ: хаяг холбох зааврын thumbnail) upload — зөвхөн Админ.
 router.use('/v1/uploads', uploadRouter);

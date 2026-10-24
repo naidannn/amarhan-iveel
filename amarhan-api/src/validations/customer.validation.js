@@ -80,15 +80,28 @@ module.exports = {
     }).min(1),
   },
 
+  loyalty: {
+    params: Joi.object({
+      customerId: objectId.required(),
+    }),
+    query: Joi.object({
+      page: Joi.number().integer().min(1).default(1),
+      limit: Joi.number().integer().min(1).max(100).default(20),
+    }),
+  },
+
   adjustLoyalty: {
     params: Joi.object({
       customerId: objectId.required(),
     }),
     body: Joi.object({
+      // `null` — гараар тавьсан түвшнийг цуцалж автомат (12 сарын зарцуулалт) руу буцаана
       loyaltyTier: Joi.string()
         .valid(...Object.values(LOYALTY_TIER))
+        .allow(null)
         .optional(),
-      loyaltyPoints: Joi.number().integer().min(0).optional(),
+      // Зорилтот кредитийн үлдэгдэл — зөрүү нь `adjust` ledger бичлэг болно
+      loyaltyPoints: Joi.number().integer().min(0).max(100000000).optional(),
       // BR-33 — гараар өөрчлөхөд шалтгаан ЗААВАЛ
       reason: Joi.string().trim().min(3).max(500).required(),
     }).or('loyaltyTier', 'loyaltyPoints'),

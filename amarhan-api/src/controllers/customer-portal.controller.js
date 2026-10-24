@@ -146,3 +146,30 @@ exports.confirmDeliveryReceived = async (req, res, next) => {
     next(error);
   }
 };
+
+// ── Урамшуулал (§4, BR-48) ──────────────────────────────────────────────
+
+exports.loyalty = async (req, res, next) => {
+  try {
+    return success(res, await customerPortalService.loyalty(req.customer));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.loyaltyBalance = async (req, res, next) => {
+  try {
+    return success(res, await customerPortalService.loyaltyBalance(req.customer));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.loyaltyTransactions = async (req, res, next) => {
+  try {
+    const result = await customerPortalService.loyaltyTransactions(req.customer._id, req.query);
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+};

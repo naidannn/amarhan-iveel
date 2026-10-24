@@ -6,7 +6,13 @@ const notificationReadRepository = require('../repositories/notification-read.re
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
 const logger = require('../utils/logger');
-const { AUDIT_ACTION, AUDIT_ENTITY, NOTIFICATION_AUDIENCE, PACKAGE_STATUS, ROLES } = require('../config/constants');
+const {
+  AUDIT_ACTION,
+  AUDIT_ENTITY,
+  NOTIFICATION_AUDIENCE,
+  PACKAGE_STATUS,
+  ROLES,
+} = require('../config/constants');
 
 /** "12,000" — алдааны мессежид ашигладаг мянгатын тусгаарлалттай ижил хэлбэр. */
 function formatAmount(value) {
@@ -32,10 +38,7 @@ class NotificationService {
 
   async sendBroadcast({ title, body, expiresAt }, actor, req) {
     if (!this.isManagement(actor)) {
-      throw new APIError(
-        'Мэдэгдэл илгээх эрх зөвхөн Админ, Менежерт байна',
-        httpStatus.FORBIDDEN
-      );
+      throw new APIError('Мэдэгдэл илгээх эрх зөвхөн Админ, Менежерт байна', httpStatus.FORBIDDEN);
     }
 
     const doc = await notificationRepository.create({
@@ -61,7 +64,10 @@ class NotificationService {
 
   async listSent(query, actor) {
     if (!this.isManagement(actor)) {
-      throw new APIError('Мэдэгдлийн жагсаалт харах эрх зөвхөн Админ, Менежерт байна', httpStatus.FORBIDDEN);
+      throw new APIError(
+        'Мэдэгдлийн жагсаалт харах эрх зөвхөн Админ, Менежерт байна',
+        httpStatus.FORBIDDEN
+      );
     }
 
     const result = await notificationRepository.listSent(query);
@@ -136,6 +142,32 @@ class NotificationService {
     }
   }
 
+  /**
+   * §4 — урамшууллын хувийн мэдэгдэл (кредит олгогдсон, түвшин ахисан).
+   * `notifyPackageEvent`-ийн ижил "хэзээ ч шидэхгүй" зарчим — мэдэгдэл бол
+   * мэдээлэл, кредитийн ledger бичилтийг (тэр нь шидэх ёстой) блоклохгүй.
+   */
+  async notifyLoyaltyEvent(customerId, { title, body, entityLabel = null }) {
+    try {
+      if (!customerId) return null;
+      return await notificationRepository.create({
+        title,
+        body,
+        audience: NOTIFICATION_AUDIENCE.CUSTOMER,
+        customerId,
+        entity: 'loyalty',
+        entityId: null,
+        entityLabel,
+      });
+    } catch (err) {
+      logger.error('Урамшууллын мэдэгдэл үүсгэхэд алдаа гарлаа', {
+        customerId,
+        message: err.message,
+      });
+      return null;
+    }
+  }
+
   packageEventCopy(pkg, event) {
     switch (event) {
       case 'created':
@@ -178,7 +210,9 @@ class NotificationService {
       .map(d => d._id);
     const readIds = broadcastIds.length
       ? new Set(
-          (await notificationReadRepository.readNotificationIds(customerId, broadcastIds)).map(String)
+          (await notificationReadRepository.readNotificationIds(customerId, broadcastIds)).map(
+            String
+          )
         )
       : new Set();
 
@@ -191,7 +225,10 @@ class NotificationService {
         entityId: d.entityId,
         entityLabel: d.entityLabel,
         audience: d.audience,
-        read: d.audience === NOTIFICATION_AUDIENCE.CUSTOMER ? Boolean(d.readAt) : readIds.has(String(d._id)),
+        read:
+          d.audience === NOTIFICATION_AUDIENCE.CUSTOMER
+            ? Boolean(d.readAt)
+            : readIds.has(String(d._id)),
         createdAt: d.createdAt,
       })),
       pagination: {
@@ -240,7 +277,9 @@ class NotificationService {
     await notificationRepository.markAllPersonalRead(customerId);
 
     const activeBroadcastIds = await notificationRepository.findActiveBroadcastIds();
-    await Promise.all(activeBroadcastIds.map(id => notificationReadRepository.upsertRead(id, customerId)));
+    await Promise.all(
+      activeBroadcastIds.map(id => notificationReadRepository.upsertRead(id, customerId))
+    );
 
     return { success: true };
   }

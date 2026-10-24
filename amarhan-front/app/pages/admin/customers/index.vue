@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, RefreshCw, Search, Trash2, X } from 'lucide-vue-next'
+import { Plus, RefreshCw, Search, Trash2, X, Gift } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import type { Column } from '~/components/ui/DataTable.vue'
 import type {
@@ -26,6 +26,14 @@ const deleteOpen = ref(false)
 const deletingCustomer = ref<AdminCustomer | null>(null)
 const deleting = ref(false)
 const isAdmin = computed(() => auth.isAdmin)
+// §4 — урамшууллын модал (кредит, түүх, Админы засвар)
+const loyaltyCustomer = ref<AdminCustomer | null>(null)
+const loyaltyOpen = computed({
+  get: () => loyaltyCustomer.value !== null,
+  set: open => {
+    if (!open) loyaltyCustomer.value = null
+  },
+})
 
 const filters = reactive<CustomerFilters>({
   search: '',
@@ -40,6 +48,7 @@ const tierOptions = [
   { value: 'bronze', label: 'Хүрэл' },
   { value: 'silver', label: 'Мөнгө' },
   { value: 'gold', label: 'Алт' },
+  { value: 'platinum', label: 'Платинум' },
 ]
 
 const statusOptions = [
@@ -56,6 +65,7 @@ const tierLabels: Record<AdminCustomer['loyaltyTier'], string> = {
   bronze: 'Хүрэл',
   silver: 'Мөнгө',
   gold: 'Алт',
+  platinum: 'Платинум',
 }
 
 const columns: Column<AdminCustomer>[] = [
@@ -66,7 +76,7 @@ const columns: Column<AdminCustomer>[] = [
   { key: 'loyaltyTier', label: 'Урамшуулал' },
   { key: 'status', label: 'Төлөв' },
   { key: 'createdAt', label: 'Бүртгэсэн', tabular: true },
-  { key: 'actions', label: '', align: 'right', width: '148px' },
+  { key: 'actions', label: '', align: 'right', width: '184px' },
 ]
 
 const activeFilterCount = computed(
@@ -254,6 +264,14 @@ function formatDate(value: string) {
 
       <template #cell-actions="{ row }">
         <div class="flex justify-end gap-1">
+          <UiBtn
+            size="sm"
+            variant="ghost"
+            :icon="Gift"
+            aria-label="Урамшуулал"
+            title="Урамшуулал, кредит"
+            @click.stop="loyaltyCustomer = row"
+          />
           <UiBtn size="sm" variant="ghost" @click.stop="openEdit(row)">Засах</UiBtn>
           <UiBtn
             v-if="isAdmin"
@@ -299,6 +317,13 @@ function formatDate(value: string) {
         @submit="saveCustomer"
       />
     </UiModal>
+
+    <CustomerLoyaltyModal
+      v-model="loyaltyOpen"
+      :customer="loyaltyCustomer"
+      :can-adjust="isAdmin"
+      @changed="load"
+    />
 
     <UiModal v-model="deleteOpen" title="Харилцагч устгах" size="sm" persistent>
       <div class="space-y-3">

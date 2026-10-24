@@ -137,3 +137,26 @@ export function useDeliveryStatus() {
 
   return { style, label, all: map }
 }
+
+export type LoyaltyTierCode = 'bronze' | 'silver' | 'gold' | 'platinum'
+
+export interface LoyaltyTierStyle extends StatusStyle {
+  from: string
+  to: string
+}
+
+/** §4 — урамшууллын түвшний өнгө/градиент (`design-tokens.js`-ийн `loyaltyTier`) */
+export function useLoyaltyTier() {
+  const map = tokens.loyaltyTier as Record<string, LoyaltyTierStyle>
+
+  function style(code: string | null | undefined): LoyaltyTierStyle {
+    return (code ? map[code] : undefined) ?? map.bronze
+  }
+
+  function gradient(code: string | null | undefined, angle = 135): string {
+    const s = style(code)
+    return `linear-gradient(${angle}deg, ${s.from}, ${s.to})`
+  }
+
+  return { style, gradient, all: map }
+}

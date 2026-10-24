@@ -33,6 +33,10 @@ router.get(
   controller.history
 );
 
+// §4 — харилцагчийн кредит, түвшин, түүх. Ажилтан төлбөр авахдаа кредитийг
+// харж, харилцагчийн хүсэлтээр хэрэглэнэ (BR-48).
+router.get('/:customerId/loyalty', validate(validation.loyalty), controller.loyalty);
+
 // BR-33 — урамшуулал гараар өөрчлөх зөвхөн Админ (service дотор дахин шалгана)
 router.post(
   '/:customerId/loyalty',

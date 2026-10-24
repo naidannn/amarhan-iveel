@@ -8,6 +8,7 @@ const {
   PACKAGE_STATUS,
   PAYMENT_RECORD_STATUS,
   PAYMENT_STATUS,
+  NON_REVENUE_PAYMENT_METHODS,
 } = require('../config/constants');
 
 const ACTIVE_PACKAGE_STATUSES = Object.values(PACKAGE_STATUS).filter(
@@ -35,9 +36,11 @@ class DashboardRepository {
       ...(branchId ? { branchId } : {}),
       status: { $in: ACTIVE_PACKAGE_STATUSES },
     };
+    // BR-48 — кредитийн төлбөр бол хөнгөлөлт, орлого БИШ
     const paymentScope = {
       ...(branchId ? { branchId } : {}),
       status: PAYMENT_RECORD_STATUS.COMPLETED,
+      method: { $nin: NON_REVENUE_PAYMENT_METHODS },
     };
     const deliveryScope = {
       ...(branchId ? { branchId } : {}),

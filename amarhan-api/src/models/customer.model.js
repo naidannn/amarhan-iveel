@@ -73,16 +73,30 @@ const customerSchema = new Schema(
       },
     ],
 
-    // §4 — урамшуулал. Оноо ЗӨВХӨН төлбөр бүрэн төлөгдсөний дараа нэмэгдэнэ (BR-30).
+    // §4 — урамшуулал. Кредит ЗӨВХӨН ачаа бүрэн төлөгдсөний дараа нэмэгдэнэ (BR-30).
+    //
+    // `loyaltyTier` — сүүлийн 12 сарын зарцуулалтаас бодогдсон түвшний КЭШ
+    // (`loyalty.service.js#refreshTier`). Жагсаалт/шүүлтэд л ашиглагдана;
+    // кредит олгох мөчид түвшинг ҮРГЭЛЖ дахин боддог.
     loyaltyTier: {
       type: String,
       enum: Object.values(LOYALTY_TIER),
       default: LOYALTY_TIER.BRONZE,
     },
+    // BR-33 — Админы гараар тавьсан түвшин. `null` = автомат. Тавьсан бол
+    // зарцуулалт буурсан ч үүнээс ДООШ буухгүй (доод хязгаар).
+    loyaltyTierManual: {
+      type: String,
+      enum: [...Object.values(LOYALTY_TIER), null],
+      default: null,
+    },
+    // Кредитийн үлдэгдэл (1 кредит = 1₮) — `loyalty_transactions`-ийн
+    // нийлбэрийн КЭШ, ЗӨВХӨН `loyalty.service.js` атомик `$inc`-ээр бичнэ.
+    // `min: 0` ЗОРИУД БАЙХГҮЙ: зарцуулсан кредитийн эх төлбөр хүчингүй болбол
+    // буцаалт үлдэгдлийг сөрөг болгож болно (дараагийн олголтоор нөхөгдөнө).
     loyaltyPoints: {
       type: Number,
       default: 0,
-      min: 0,
     },
     lifetimeSpent: {
       type: Number,

@@ -51,6 +51,15 @@ exports.create = async (req, res, next) => {
   }
 };
 
+exports.createCredit = async (req, res, next) => {
+  try {
+    const result = await paymentService.createCreditPayment(req.body, req.user, req);
+    return created(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.void = async (req, res, next) => {
   try {
     const result = await paymentService.void(

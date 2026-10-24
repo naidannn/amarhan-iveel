@@ -132,6 +132,8 @@ const paymentMethod = {
   bank: { label: 'Данс', color: '#355DFF', bg: '#EEF2FF' },
   card: { label: 'Карт', color: '#7C3AED', bg: '#F5F3FF' },
   qpay: { label: 'QPay', color: '#0891B2', bg: '#ECFEFF' },
+  // BR-48 — урамшууллын кредит. Бодит мөнгө БИШ (орлогод орохгүй) — алтлаг өнгө
+  credit: { label: 'Кредит', color: '#B45309', bg: '#FEF3C7' },
 };
 
 /** Төлбөрийн бичлэгийн төлөв — BR-14, BR-18 */
@@ -170,6 +172,19 @@ const deliveryStatus = {
   received: { label: 'Харилцагч хүлээж авсан', color: '#0D9488', bg: '#F0FDFA' },
   returned: { label: 'Буцаагдсан', color: '#B45309', bg: '#FFFBEB' },
   cancelled: { label: 'Цуцлагдсан', color: '#DC2626', bg: '#FEF2F2' },
+};
+
+/**
+ * Урамшууллын түвшин — §4. Медаль/картын градиент (`from` → `to`), тод текст
+ * (`color`), цайвар дэвсгэр (`bg`). Түвшин ахих тусам "үнэ цэнэтэй" харагдах
+ * ёстой: Хүрэл (зэс) → Мөнгө (хүйтэн саарал) → Алт → Платинум (индиго).
+ */
+const loyaltyTier = {
+  // `from` нь цагаан текстийн контраст хангалттай бараан байхаар сонгогдсон
+  bronze: { label: 'Хүрэл', color: '#9A5B2E', bg: '#FBF1E8', from: '#C4834F', to: '#7A3F18' },
+  silver: { label: 'Мөнгө', color: '#475569', bg: '#F1F5F9', from: '#94A3B8', to: '#3F4C5F' },
+  gold: { label: 'Алт', color: '#A16207', bg: '#FEF7D6', from: '#E2A92B', to: '#8A5A0B' },
+  platinum: { label: 'Платинум', color: '#4338CA', bg: '#EEF0FF', from: '#7C86F2', to: '#2A256F' },
 };
 
 /** Бүрэлдэхүүн хэсгийн хэмжээ — бүх интерактив элемент 40px өндөр */
@@ -228,6 +243,7 @@ export {
   paymentStatus,
   invoiceStatus,
   deliveryStatus,
+  loyaltyTier,
   sizing,
   radius,
   shadow,
@@ -250,6 +266,7 @@ export default {
   paymentStatus,
   invoiceStatus,
   deliveryStatus,
+  loyaltyTier,
   sizing,
   radius,
   shadow,

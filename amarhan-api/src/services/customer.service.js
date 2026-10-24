@@ -216,6 +216,13 @@ class CustomerService {
   /**
    * BR-33 — урамшууллыг гараар өөрчлөх. Зөвхөн Админ, шалтгаан заавал.
    */
+  /**
+   * BR-33 — Админ кредит/түвшинг гараар засна. Кредитийг ШУУД дарж бичихгүй:
+   * зорилтот үлдэгдэл хүртэлх зөрүүг `adjust` ledger бичлэгээр бичнэ (ledger
+   * бол эх сурвалж, loyalty-readiness §3.1). Түвшин нь ДООД ХЯЗГААР болж
+   * хадгалагдана (`loyaltyTierManual`) — 12 сарын зарцуулалт өсвөл автоматаар
+   * дээш ахина; `null` = гараар тавьсныг цуцалж автомат руу буцаана.
+   */
   async adjustLoyalty(id, { loyaltyTier, loyaltyPoints, reason }, actor, req) {
     if (actor.role !== ROLES.ADMIN) {
       throw new APIError('Урамшуулал өөрчлөх эрх зөвхөн Админд байна', httpStatus.FORBIDDEN);
@@ -224,11 +231,14 @@ class CustomerService {
       throw new APIError('Шалтгаан заавал бичих шаардлагатай', httpStatus.BAD_REQUEST);
     }
 
+    // Lazy — loyalty.service нь notification/setting-ээр дамжин энэ файлыг
+    // ачаалдаг service-үүдтэй холбогддог тул ачааллын тойргоос сэргийлнэ.
+    const loyaltyService = require('./loyalty.service');
     const customer = await this.getById(id);
 
     const changes = {};
-    if (loyaltyTier !== undefined && loyaltyTier !== customer.loyaltyTier) {
-      changes.loyaltyTier = { before: customer.loyaltyTier, after: loyaltyTier };
+    if (loyaltyTier !== undefined && loyaltyTier !== customer.loyaltyTierManual) {
+      changes.loyaltyTierManual = { before: customer.loyaltyTierManual, after: loyaltyTier };
     }
     if (loyaltyPoints !== undefined && loyaltyPoints !== customer.loyaltyPoints) {
       changes.loyaltyPoints = { before: customer.loyaltyPoints, after: loyaltyPoints };
@@ -238,32 +248,18 @@ class CustomerService {
       throw new APIError('Өөрчлөх зүйл алга', httpStatus.BAD_REQUEST);
     }
 
-    return withTransaction(async session => {
-      const updated = await customerRepository.updateByIdWithSession(
-        id,
-        {
-          ...(loyaltyTier !== undefined ? { loyaltyTier } : {}),
-          ...(loyaltyPoints !== undefined ? { loyaltyPoints } : {}),
-        },
-        { session }
-      );
+    const cleanReason = reason.trim();
 
-      await auditService.recordChanges(
-        {
-          actor,
-          action: AUDIT_ACTION.CUSTOMER_LOYALTY_ADJUST,
-          entity: AUDIT_ENTITY.CUSTOMER,
-          entityId: updated._id,
-          entityLabel: updated.phone,
-          reason: reason.trim(),
-          req,
-        },
-        changes,
-        { session }
-      );
+    if (changes.loyaltyPoints) {
+      await loyaltyService.adjustBalance(customer, loyaltyPoints, cleanReason, actor);
+    }
+    if (changes.loyaltyTierManual) {
+      await loyaltyService.setManualTier(customer, loyaltyTier);
+    }
 
-      return updated;
-    });
+    await loyaltyService.recordAdjustAudit({ customer, changes, reason: cleanReason, actor, req });
+
+    return this.getById(id);
   }
 
   normalizeOrThrow(phone) {

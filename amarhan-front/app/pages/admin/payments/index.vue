@@ -223,13 +223,14 @@ async function confirmPayment(payment: Payment) {
     </UiPageHeader>
 
     <!-- §2.2 — өдрийн касс тулгах нийлбэрүүд -->
-    <div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-      <!-- 5 багана нарийн тул нэр КОРОТ байх ёстой — урт нэр мөр тасалж,
-           дүн нь хоёр мөр болж хэлбэр эвдэрдэг. Тиймээс icon ч хэрэглэхгүй. -->
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6">
+      <!-- 6 багана нарийн тул нэр КОРОТ байх ёстой — урт нэр мөр тасалж,
+           дүн нь хоёр мөр болж хэлбэр эвдэрдэг. Тиймээс icon ч хэрэглэхгүй.
+           «Нийт» нь бодит мөнгө — кредит (BR-48) ороогүй, тусдаа картаар. -->
       <UiStatCard
         label="Нийт"
         :value="formatCurrency(summary.total)"
-        :hint="`${summary.count} бүртгэл`"
+        :hint="`${summary.count} бүртгэл · кредитгүй`"
         accent="#16A34A"
       />
       <UiStatCard

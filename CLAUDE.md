@@ -100,7 +100,8 @@
 | **QPay онлайн төлбөр** (roadmap 5.6/5.7, 2026-08-17) — харилцагч хүргэлтийн хураамжаа QPay-ээр төлж болно, webhook автоматаар баталгаажуулна | ✅ |
 | SMS суваг (roadmap 6.5) | ⛔ |
 | **Зарлагын модуль + Өдрийн үр ашгийн тайлан** (BR-47, BR-47a, 2026-08-03) — байгууллагын ерөнхий зарлага (Менежер/Админ л бичнэ), `GET /v1/reports`-д "олох ёстой орлого" (Σ `finalPrice`, төлбөр орсон эсэхээс үл хамааран) vs өдрийн зарлагыг харьцуулсан `efficiency` хэсэг | ✅ |
-| Урамшуулал (§4), Тайлан (§6) | ⛔ Phase 6+ |
+| **Урамшуулал** (§4, Phase 7, 2026-10-24) — 4 түвшин (Хүрэл 1% / Мөнгө 3% / Алт 3.5% / Платинум 5%, сүүлийн 12 сарын төлбөрөөр), кредит (1 = 1₮) ачааны төлбөрт 100% хүртэл, append-only ledger + идемпотент reconcile (BR-30…BR-33, BR-48) | ✅ |
+| Тайлан (§6) | ⛔ Phase 8 |
 
 Домэйны цөм логик `amarhan-api/src/domain/`-д DB-ээс хамааралгүй ЦЭВЭР функц
 хэлбэрээр байна — шинэ дүрэм нэмэхдээ эндээс эхэлж, 100% тестээр хучина:
@@ -108,6 +109,7 @@
 | Файл | Хариуцах дүрэм |
 |---|---|
 | `pricing.js` | BR-01, **BR-01a**, BR-02…BR-04 — жингийн шатлал, эзлэхүүн, гараар заасан үнэ, override хязгаар |
+| `loyalty.js` | BR-31…BR-33, BR-48 — түвшин (12 сарын зарцуулалт, гар доод хязгаар), дараагийн шат, кредит бодох (`rateBps`, floor), кредит ашиглах хязгаар |
 | `allocation.js` | BR-15…BR-17a — төлбөрийг ачаанууд дунд хуваарилах. `Σ allocations === amount` тогтмол |
 | `package-state.js` | BR-07…BR-09a, BR-19, BR-45/BR-46 — төлөвийн шилжилт (замын шат БАЙХГҮЙ), урьдчилсан төлөв (`PRE_ARRIVAL`), байршил эзэмшил |
 | `delivery-state.js` | BR-20…BR-21d — хүргэлтийн шилжилт, **§5.2 төлбөрийн хаалт** (override БАЙХГҮЙ), ачааны төлөв чирэх, харилцагчийн хүргэлтийн хураамжийн хаалт (`unpaidFee`, зөвхөн `createdBy: null`), хоёр тусдаа терминал төлөв `delivered`/`received` (BR-21d) |
@@ -165,6 +167,7 @@ iveel-amarhan/
 | Шинэ endpoint нэмэх | [`docs/api-conventions.md`](docs/api-conventions.md) |
 | Ачаа/төлбөр/үнийн логик хөндөх | [`docs/business-rules.md`](docs/business-rules.md) |
 | Эрх, audit log хөндөх | [`docs/security-and-permissions.md`](docs/security-and-permissions.md) |
+| Урамшууллын модуль (Phase 7) эхлүүлэх | [`docs/loyalty-readiness.md`](docs/loyalty-readiness.md) |
 | Тест бичих | [`docs/testing.md`](docs/testing.md) |
 | Commit / PR хийх | [`docs/git-workflow.md`](docs/git-workflow.md) |
 | Орчин тохируулах, deploy хийх | [`docs/setup-and-deployment.md`](docs/setup-and-deployment.md) |
@@ -248,6 +251,11 @@ mongod                 # эсвэл системийн mongod сервис ал�
    Статик агуулгыг угтвараар БИШ, `PUBLIC_CONTENT_KEYS` **жагсаалтаар** зөвшөөрнө —
    угтварын шүүлт нь хожим нэмэгдэх `content.internal_*` төрлийн түлхүүрийг
    чимээгүй нийтэлнэ.
+16. **Кредит (BR-48) бол хөнгөлөлт, орлого БИШ.** `payments.method: 'credit'`-ийг
+   ЗӨВХӨН `payment.service.js#applyCredit` бичнэ — `PAYMENT_METHOD_LIST`-д
+   (гараар сонгох) ХЭЗЭЭ Ч нэмэхгүй. Шинэ орлогын aggregate бичих бүрд
+   `NON_REVENUE_PAYMENT_METHODS`-ийг хас. Кредитийн ledger/кэшийг ЗӨВХӨН
+   `loyalty.service.js` бичнэ, олголтыг `+=` биш reconcile-оор.
 
 ---
 

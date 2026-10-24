@@ -445,30 +445,38 @@ schema.index(
 
 ---
 
-## 11. `loyalty_tiers`, `loyalty_transactions` (§4)
+## 11. Урамшуулал — `loyalty_transactions` + `settings.loyalty.program` (§4, хэрэгжсэн 2026-10-24)
 
-### `loyalty_tiers` (тохиргоо)
+Анхны төлөвлөгөөний `loyalty_tiers` коллекц ҮҮСЭЭГҮЙ — түвшний тохиргоо
+`settings` → `loyalty.program`-д (`{ enabled, windowDays, maxRedeemPercent, tiers:
+[{ code, name, minSpent, rateBps }] }`). `pointRate: 0.01` float-ийн оронд `rateBps`
+бүхэл тоо (100 = 1%).
 
-| Талбар | Төрөл |
+### `customers` (урамшууллын талбар)
+
+| Талбар | Тайлбар |
 |---|---|
-| `code` | `bronze` \| `silver` \| `gold` |
-| `name` | "Хүрэл" |
-| `minSpent` | Number (₮) — түвшинд орох босго |
-| `pointRate` | Number — 1₮-д ногдох оноо (жишээ 0.01) |
-| `benefits` | String |
+| `loyaltyPoints` | Кредитийн үлдэгдэл — ledger-ийн нийлбэрийн КЭШ, `min: 0` байхгүй (буцаалтаар сөрөг болж болно) |
+| `loyaltyTier` | 12 сарын зарцуулалтаас бодсон түвшний кэш (`bronze`/`silver`/`gold`/`platinum`) |
+| `loyaltyTierManual` | Админы гараар тавьсан доод түвшин, `null` = автомат (BR-33) |
 
-### `loyalty_transactions`
+### `loyalty_transactions` — append-only ledger (эх сурвалж)
 
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
 | `customerId` | ObjectId | |
-| `type` | `earn` \| `redeem` \| `adjust` \| `expire` | |
-| `points` | Number | `redeem` үед сөрөг |
-| `sourcePaymentId` | ObjectId \| null | Аль төлбөрөөс |
-| `reason` | String | `adjust` үед заавал |
-| `balanceAfter` | Number | |
+| `type` | `earn` \| `earn_reversal` \| `redeem` \| `redeem_refund` \| `adjust` | |
+| `amount` | Int ≠ 0 | тэмдэгтэй: олголт +, зарцуулалт − |
+| `balanceAfter` | Number | "4,500 (+350)" харагдацад |
+| `packageId`, `seq` | ObjectId, Number | earn/earn_reversal — `{packageId, seq}` unique (давхар олголтоос) |
+| `tier`, `rateBps`, `baseAmount` | snapshot | олголтын агшины түвшин, хувь, бодит мөнгөн суурь |
+| `paymentId` | ObjectId | redeem/redeem_refund — `{paymentId, type}` unique |
+| `label` | String | ачааны дугаар(ууд) |
+| `reason`, `actorId`, `actorName` | | adjust үед шалтгаан заавал; харилцагчид гарахгүй |
 
-> **§4 дүрэм:** `earn` бичлэг зөвхөн ачааны `balance === 0` болсны дараа үүснэ.
+Индекс: `{customerId, createdAt:-1}`, `{type, createdAt:-1}`.
+
+`payments.method`-д `credit` нэмэгдсэн (BR-48) — орлогын aggregate бүр хасна.
 
 ---
 

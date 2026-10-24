@@ -62,6 +62,14 @@ router
   .get(validate(validation.list), controller.list)
   .post(validate(validation.create), controller.create);
 
+/**
+ * BR-48 — кассанд ирсэн харилцагчийн хүсэлтээр кредитийг нь ачааны төлбөрт
+ * хэрэглэнэ. Тусдаа зам: `POST /`-ийн `method`-д `credit` ЗОРИУД байхгүй
+ * (кредит хасагдахгүйгээр "кредит төлбөр" бүртгэх нүхнээс сэргийлнэ).
+ * `/:paymentId`-аас ӨМНӨ байх ёстой.
+ */
+router.post('/credit', validate(validation.createCredit), controller.createCredit);
+
 router.get('/:paymentId', validate(validation.getOne), controller.get);
 
 // BR-18 — устгахгүй, хүчингүй болгоно. Менежер, Админ.

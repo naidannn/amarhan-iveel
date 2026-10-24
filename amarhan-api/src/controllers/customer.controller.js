@@ -1,6 +1,7 @@
 'use strict';
 
 const customerService = require('../services/customer.service');
+const loyaltyService = require('../services/loyalty.service');
 const auditService = require('../services/audit.service');
 const { success, created } = require('../utils/response');
 const { AUDIT_ENTITY } = require('../config/constants');
@@ -56,6 +57,15 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     const result = await customerService.remove(req.params.customerId, req.user, req);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.loyalty = async (req, res, next) => {
+  try {
+    const result = await loyaltyService.getForStaff(req.params.customerId, req.query);
     return success(res, result);
   } catch (error) {
     next(error);

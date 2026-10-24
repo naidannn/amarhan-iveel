@@ -9,6 +9,7 @@ const packageService = require('./package.service');
 const deliveryService = require('./delivery.service');
 const paymentService = require('./payment.service');
 const settingService = require('./setting.service');
+const loyaltyService = require('./loyalty.service');
 const APIError = require('../utils/APIError');
 const packageState = require('../domain/package-state');
 const {
@@ -149,26 +150,21 @@ class CustomerPortalService {
   }
 
   /**
-   * Төлбөр төлж болох ачаа (үлдэгдэлтэй, ирсэн, хүчингүй биш) —
-   * `deliverableForCustomer`-ийн ижил зарчим: харилцагчийн бичлэгийн тоо
-   * бага тул JS-д шүүх аюулгүй (§9.3). Дансны мэдээллийг `deliverableForDelivery`-
+   * Төлбөр төлж болох ачаа (үлдэгдэлтэй, ирсэн, хүчингүй биш) — шүүлт DB-д
+   * (`listByCustomer`). Дансны мэдээллийг `deliverableForDelivery`-
    * ийн адил хамт буцаана — Данс сонговол frontend шууд харуулна.
    */
   async payablePackages(customer) {
     const [packages, bankAccount] = await Promise.all([
-      packageRepository.listByCustomer(customer._id),
+      packageRepository.listByCustomer(customer._id, {
+        excludeStatus: [...packageState.PRE_ARRIVAL, PACKAGE_STATUS.CANCELLED],
+        withBalance: true,
+      }),
       settingService.get(SETTING_KEY.PAYMENT_BANK_ACCOUNT),
     ]);
 
-    const payable = packages.filter(
-      pkg =>
-        pkg.balance > 0 &&
-        !packageState.isPreArrival(pkg.status) &&
-        pkg.status !== PACKAGE_STATUS.CANCELLED
-    );
-
     return {
-      packages: payable.map(pkg => this.toPublicPackage(pkg)),
+      packages: packages.map(pkg => this.toPublicPackage(pkg)),
       bankAccount,
     };
   }
@@ -179,14 +175,35 @@ class CustomerPortalService {
    * зарчим) — энд ЗӨВХӨН цагаан жагсаалт.
    */
   async payPackages(customer, data, req) {
-    const { payment, qpay } = await paymentService.selfPay(customer, data, req);
+    const { payment, qpay, credit } = await paymentService.selfPay(customer, data, req);
+    // Кредит үлдэгдлийг бүтэн хаасан бол Данс/QPay төлбөр ҮҮСЭХГҮЙ (`payment: null`)
     return {
-      id: payment._id,
-      amount: payment.amount,
-      method: payment.method,
-      status: payment.status,
+      id: payment?._id ?? null,
+      amount: payment?.amount ?? 0,
+      method: payment?.method ?? null,
+      status: payment?.status ?? null,
       qpay: qpay ?? null,
+      credit: this.toPublicCredit(credit),
     };
+  }
+
+  // ── Урамшуулал (§4, BR-48) ──────────────────────────────────────────────
+
+  async loyalty(customer) {
+    return loyaltyService.getForCustomer(customer);
+  }
+
+  async loyaltyBalance(customer) {
+    return loyaltyService.getBalance(customer);
+  }
+
+  async loyaltyTransactions(customerId, { page, limit }) {
+    return loyaltyService.listForCustomer(customerId, { page, limit });
+  }
+
+  /** `paymentId` нь дотоод холбоос — харилцагчид зөвхөн дүн, үлдэгдэл */
+  toPublicCredit(credit) {
+    return credit ? { amount: credit.amount, creditsLeft: credit.creditsLeft } : null;
   }
 
   async listPayments(customerId, { page, limit }) {
@@ -274,7 +291,11 @@ class CustomerPortalService {
   }
 
   async createDelivery(customer, data, req) {
-    const { delivery, payment, qpay } = await deliveryService.selfCreate(customer, data, req);
+    const { delivery, payment, qpay, credit } = await deliveryService.selfCreate(
+      customer,
+      data,
+      req
+    );
 
     return {
       id: delivery._id,
@@ -293,6 +314,7 @@ class CustomerPortalService {
         // сонговол `null` (frontend одоо байгаа дансны блокоо харуулсаар байна)
         qpay: qpay ?? null,
       },
+      credit: this.toPublicCredit(credit),
     };
   }
 

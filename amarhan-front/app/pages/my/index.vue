@@ -8,8 +8,11 @@ import {
   Plus,
   Banknote,
   Link2,
+  Coins,
 } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
+import { formatRate, packagesToGo } from '~/utils/loyalty'
+import type { LoyaltyOverview } from '~/composables/useCustomerPortal'
 
 /** Харилцагчийн хяналтын самбар — introduction.md §3 */
 definePageMeta({ middleware: 'customer' })
@@ -23,6 +26,13 @@ const summary = ref<Awaited<ReturnType<typeof portal.summary>> | null>(null)
 const recent = ref<any[]>([])
 const loading = ref(true)
 
+// §4 — урамшууллын карт (түвшин, кредит, дараагийн шат)
+const loyalty = ref<LoyaltyOverview | null>(null)
+const { gradient } = useLoyaltyTier()
+const loyaltyToGo = computed(() =>
+  loyalty.value ? packagesToGo(loyalty.value.remainingToNext, loyalty.value.averagePackageValue) : null
+)
+
 const showYuanModal = ref(false)
 const yuanTransfer = ref<any>(null)
 const linkOrder = ref<any>(null)
@@ -31,9 +41,15 @@ const hasLinkOrder = computed(() => Boolean(linkOrder.value?.facebookUrl))
 
 onMounted(async () => {
   try {
-    const [s, list] = await Promise.all([portal.summary(), portal.packages({ limit: 5 })])
+    const [s, list, l] = await Promise.all([
+      portal.summary(),
+      portal.packages({ limit: 5 }),
+      // Урамшуулал ачаалагдаагүй ч самбар унахгүй
+      portal.loyalty().catch(() => null),
+    ])
     summary.value = s
     recent.value = list.data
+    loyalty.value = l
   } finally {
     loading.value = false
   }
@@ -101,6 +117,13 @@ useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
         <p class="text-h2 font-bold tabular text-content">
           {{ formatCurrency(summary.balance) }}
         </p>
+        <p
+          v-if="loyalty?.enabled && loyalty.credits > 0"
+          class="mt-0.5 flex items-center gap-1 text-body-sm font-medium text-amber-700"
+        >
+          <Coins :size="14" />
+          {{ formatCurrency(loyalty.credits, { showSymbol: false }) }} кредитээрээ хасуулж болно
+        </p>
       </div>
       <div class="flex gap-2">
         <UiBtn to="/my/packages" size="sm" variant="secondary" :icon-right="ArrowRight">
@@ -109,6 +132,54 @@ useHead({ title: 'Хяналтын самбар — Ивээлт Карго' })
         <UiBtn to="/my/pay" size="sm" :icon="Wallet">Одоо төлөх</UiBtn>
       </div>
     </div>
+
+    <!-- §4 — Урамшуулал -->
+    <NuxtLink
+      v-if="loyalty?.enabled"
+      to="/my/loyalty"
+      class="group relative block overflow-hidden rounded-card p-5 text-white shadow-raised transition-transform duration-200 hover:scale-[1.005]"
+      :style="{ background: gradient(loyalty.tier.code) }"
+    >
+      <span class="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-white/10" />
+      <div class="relative flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <LoyaltyTierEmblem :code="loyalty.tier.code" :size="48" />
+          <div>
+            <p class="text-body-sm text-white/80">Урамшууллын түвшин</p>
+            <p class="text-h4 font-bold leading-tight">
+              {{ loyalty.tier.name }}
+              <span class="text-body font-medium text-white/85">· {{ formatRate(loyalty.tier.rateBps) }} кредит</span>
+            </p>
+          </div>
+        </div>
+        <LoyaltyCreditBadge
+          size="lg"
+          inverse
+          :credits="loyalty.credits"
+          :delta="loyalty.lastTransaction?.amount ?? null"
+        />
+      </div>
+
+      <div v-if="loyalty.nextTier" class="relative mt-4">
+        <div class="h-2 overflow-hidden rounded-full bg-white/25">
+          <div
+            class="h-full rounded-full bg-white transition-[width] duration-700"
+            :style="{ width: `${Math.max(loyalty.progressBps / 100, 2)}%` }"
+          />
+        </div>
+        <p class="mt-1.5 flex items-center justify-between gap-2 text-body-sm text-white/90">
+          <span>
+            {{ loyalty.nextTier.name }} хүртэл
+            <strong class="tabular">{{ formatCurrency(loyalty.remainingToNext) }}</strong>
+            <template v-if="loyaltyToGo"> · ≈ {{ loyaltyToGo }} ачаа</template>
+          </span>
+          <span class="inline-flex items-center gap-1 font-medium">
+            Дэлгэрэнгүй
+            <ArrowRight :size="14" class="transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </p>
+      </div>
+    </NuxtLink>
 
     <!-- Тоонууд -->
     <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

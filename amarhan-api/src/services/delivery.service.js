@@ -142,9 +142,9 @@ class DeliveryService {
    */
   async deliverableByPhone(phone) {
     const customer = await customerService.getByPhone(phone);
-    const packages = await packageRepository.listByCustomer(customer._id);
-
-    const eligible = packages.filter(p => this.isDeliverableStatus(p.status));
+    const eligible = await packageRepository.listByCustomer(customer._id, {
+      status: packageState.OCCUPIES_LOCATION,
+    });
 
     const active = await deliveryRepository.findActiveContainingPackages(eligible.map(p => p._id));
     const taken = new Set(active.flatMap(d => d.packageIds.map(String)));
@@ -172,9 +172,9 @@ class DeliveryService {
    * дүрэм 14), утас/өөр харилцагчийн ID дамжуулах зам ОГТ байхгүй.
    */
   async deliverableForCustomer(customer) {
-    const packages = await packageRepository.listByCustomer(customer._id);
-
-    const eligible = packages.filter(p => this.isDeliverableStatus(p.status));
+    const eligible = await packageRepository.listByCustomer(customer._id, {
+      status: packageState.OCCUPIES_LOCATION,
+    });
 
     const active = await deliveryRepository.findActiveContainingPackages(eligible.map(p => p._id));
     const taken = new Set(active.flatMap(d => d.packageIds.map(String)));
@@ -195,8 +195,9 @@ class DeliveryService {
    *      ачааны үлдэгдэл БА хүргэлтийн хураамж хамт барагдана.
    */
   async selfCreate(customer, data, req) {
-    const { packageIds, address, phone, note, method } = data;
-    const paymentMethod = method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
+    const { packageIds, address, phone, note, method, creditAmount = 0 } = data;
+    const paymentMethod =
+      method === PAYMENT_METHOD.QPAY ? PAYMENT_METHOD.QPAY : PAYMENT_METHOD.BANK;
 
     if (!Array.isArray(packageIds) || packageIds.length === 0) {
       throw new APIError('Ачаа сонгоно уу', httpStatus.BAD_REQUEST);
@@ -219,7 +220,7 @@ class DeliveryService {
         }
       }
 
-      const packages = await this.loadDeliverablePackages(unique, { session });
+      let packages = await this.loadDeliverablePackages(unique, { session });
 
       await this.assertNotInActiveDelivery(
         packages.map(p => p._id),
@@ -227,8 +228,36 @@ class DeliveryService {
       );
 
       const branch = await branchResolver.resolveBranch(packages[0].branchId);
-      const deliveryNumber = await this.nextDeliveryNumber({ session });
       const actorName = this.describeCustomer(customer);
+
+      // BR-48 — кредит ЗӨВХӨН ачааны үлдэгдэлд, хүргэлтийн хураамж үргэлж
+      // Данс/QPay-ээр. Кредитийг хүргэлт үүсгэхээс ӨМНӨ хэрэглэнэ: хязгаар
+      // хэтэрвэл хүргэлтийн бичлэг орфан үлдэхгүй.
+      let credit = null;
+      if (creditAmount > 0) {
+        const applied = await paymentService.applyCredit(
+          {
+            customerId: customer._id,
+            customerPhone: customer.phone,
+            packages,
+            amount: creditAmount,
+            branchId: branch._id,
+            actorName,
+            req,
+          },
+          { session }
+        );
+        credit = {
+          paymentId: applied.payment._id,
+          amount: creditAmount,
+          creditsLeft: applied.creditsLeft,
+        };
+        packages = (await this.reloadPackages(unique, { session })).sort((a, b) =>
+          a.trackingNumber.localeCompare(b.trackingNumber)
+        );
+      }
+
+      const deliveryNumber = await this.nextDeliveryNumber({ session });
 
       const delivery = await deliveryRepository.createWithSession(
         {
@@ -321,7 +350,7 @@ class DeliveryService {
         { session }
       );
 
-      return { delivery, payment, qpay };
+      return { delivery, payment, qpay, credit };
     });
   }
 

@@ -9,7 +9,9 @@ const tariffService = require('./tariff.service');
 const settingService = require('./setting.service');
 const auditService = require('./audit.service');
 const notificationService = require('./notification.service');
+const loyaltyService = require('./loyalty.service');
 const APIError = require('../utils/APIError');
+const logger = require('../utils/logger');
 const { withTransaction } = require('../utils/transaction');
 const {
   calculatePrice,
@@ -957,6 +959,12 @@ class PackageService {
         );
       }
 
+      // §4 — харилцагч солигдсон/үнэ өөрчлөгдсөн бол кредитийг шинэ эзэнд нь
+      // шилжүүлж, дүнг тэнцүүлнэ (loyalty-readiness §4)
+      if (link.changed || patch.paymentStatus !== undefined) {
+        await this.reconcileLoyalty(updated._id);
+      }
+
       return updated;
     });
   }
@@ -991,10 +999,8 @@ class PackageService {
       );
     }
 
-    const paymentStatus = packageState.resolvePaymentStatus(price, pkg.paidAmount);
-
     return withTransaction(async session => {
-      const updated = await packageRepository.updateByIdWithSession(
+      await packageRepository.updateByIdWithSession(
         id,
         {
           finalPrice: price,
@@ -1006,11 +1012,22 @@ class PackageService {
           // тэнцүү байх ёстой — эс тэгвээс "хэдээс хэд болов" гэсэн хуурамч
           // харьцуулалт үүснэ.
           ...(pkg.pricingSnapshot ? {} : { computedPrice: price }),
-          balance: price - pkg.paidAmount,
-          paymentStatus,
         },
         { session }
       );
+
+      /**
+       * Мөнгөн талбарыг (`balance`, `paymentStatus`) ЭНД бичихгүй — дүрэм #10,
+       * BR-14: зөвхөн `payment.service` эх сурвалжаас дахин бодно. Мөн үнэ
+       * буурч төлсөн дүнд хүрвэл `paid`, нэмэгдэж үлдэгдэл үүсвэл
+       * `awaiting_payment` руу төлөв автоматаар шилжинэ (BR-09) — өмнө нь
+       * зөвхөн `paymentStatus` өөрчлөгдөж төлөв хуучнаараа үлддэг байсан.
+       *
+       * `require` функц дотор: payment.service нь package.service-г ачаалдаг
+       * тул модулийн түвшинд ачаалвал тойрог хамаарал үүснэ.
+       */
+      const paymentService = require('./payment.service');
+      const updated = await paymentService.recalculatePackage(id, { actor, req, session });
 
       await auditService.record(
         {
@@ -1214,8 +1231,26 @@ class PackageService {
         { session }
       );
 
+      // §4 — цуцлагдсан ачаанаас олгосон кредит буцаагдана
+      await this.reconcileLoyalty(updated._id);
+
       return updated;
     });
+  }
+
+  /**
+   * `payment.service.js#reconcileLoyalty`-ийн ижил: ачаа аль хэдийн
+   * хадгалагдсан тул алдааг шидэхгүй, ERROR лог + reconcile скрипт.
+   */
+  async reconcileLoyalty(packageId) {
+    try {
+      await loyaltyService.reconcilePackage(packageId);
+    } catch (err) {
+      logger.error('Кредитийн reconcile амжилтгүй — loyalty-reconcile скриптээр нөхнө', {
+        packageId: String(packageId),
+        message: err.message,
+      });
+    }
   }
 
   /**

@@ -2,7 +2,7 @@
 
 const BaseRepository = require('./base.repository');
 const Payment = require('../models/payment.model');
-const { PAYMENT_RECORD_STATUS } = require('../config/constants');
+const { PAYMENT_RECORD_STATUS, NON_REVENUE_PAYMENT_METHODS } = require('../config/constants');
 
 class PaymentRepository extends BaseRepository {
   constructor() {
@@ -31,7 +31,12 @@ class PaymentRepository extends BaseRepository {
    * `payment.service.js`-ийг үзнэ үү) — хоёр дахь удаагийн дуудлага мөрийг
    * ОЛОХГҮЙ (аль хэдийн `completed` тул нөхцөлд таарахгүй), race үүсэхгүй.
    */
-  async completeByProviderInvoice(provider, providerInvoiceId, providerPaymentId, { session } = {}) {
+  async completeByProviderInvoice(
+    provider,
+    providerInvoiceId,
+    providerPaymentId,
+    { session } = {}
+  ) {
     return this.model.findOneAndUpdate(
       { provider, providerInvoiceId, status: PAYMENT_RECORD_STATUS.PENDING },
       { status: PAYMENT_RECORD_STATUS.COMPLETED, providerPaymentId },
@@ -168,6 +173,60 @@ class PaymentRepository extends BaseRepository {
   }
 
   /**
+   * BR-31 — кредит бодох суурь: ачаанд БОДИТ МӨНГӨӨР (кредитээс бусад
+   * хэлбэрээр) орсон дүн. Кредитээр төлсөн хэсгээс дахин кредит олгохгүй —
+   * эс тэгвээс кредит өөрөө өөрийгөө үржүүлнэ.
+   */
+  async sumCashCompletedForPackage(packageId) {
+    const result = await this.model.aggregate([
+      {
+        $match: {
+          'allocations.packageId': packageId,
+          status: PAYMENT_RECORD_STATUS.COMPLETED,
+          method: { $nin: NON_REVENUE_PAYMENT_METHODS },
+        },
+      },
+      { $unwind: '$allocations' },
+      { $match: { 'allocations.packageId': packageId } },
+      { $group: { _id: null, total: { $sum: '$allocations.amount' } } },
+    ]);
+    return result[0]?.total ?? 0;
+  }
+
+  /**
+   * BR-32 — түвшин тодорхойлох зарцуулалт: `since`-ээс хойш харилцагчийн
+   * БОДИТ МӨНГӨӨР ачаандаа төлсөн дүн. Хүргэлтийн хураамж (`deliveryId`-той
+   * хуваарилалт) болон кредит ОРОХГҮЙ (эзэмшигчийн 2026-10-24-ний шийдвэр).
+   * `{ customerId, createdAt }` индексээр нэг харилцагчийн мөрүүдийг л уншина.
+   *
+   * @returns {{ total: number, packages: number }} — `packages` нь
+   *   "дахиад ≈ N ачаа" тооцоолоход дундаж ачааны дүн гаргахад.
+   */
+  async sumCustomerSpend(customerId, since) {
+    const [row] = await this.model.aggregate([
+      {
+        $match: {
+          customerId,
+          createdAt: { $gte: since },
+          status: PAYMENT_RECORD_STATUS.COMPLETED,
+          method: { $nin: NON_REVENUE_PAYMENT_METHODS },
+        },
+      },
+      { $unwind: '$allocations' },
+      { $match: { 'allocations.packageId': { $type: 'objectId' } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$allocations.amount' },
+          packages: { $addToSet: '$allocations.packageId' },
+        },
+      },
+      { $project: { total: 1, packages: { $size: '$packages' } } },
+    ]);
+    return { total: row?.total ?? 0, packages: row?.packages ?? 0 };
+  }
+
+  /**
    * Roadmap 5.8 — `deliveries.feePaidAmount`-ыг ЭХ СУРВАЛЖААС эргэн тооцоолох.
    * `sumCompletedForPackage`-ийн ижил зарчим: тухайн `deliveryId`-той
    * элементийн дүнг л нэмнэ (payment.amount БИШ — нэг payment дотор ачааны
@@ -230,6 +289,9 @@ class PaymentRepository extends BaseRepository {
     let count = 0;
     for (const row of rows) {
       byMethod[row._id] = { total: row.total, count: row.count };
+      // BR-48 — кредит бол бодит мөнгө биш: касс тулгах нийлбэрт орохгүй,
+      // гэхдээ `byMethod.credit`-ээр тусад нь харагдана.
+      if (NON_REVENUE_PAYMENT_METHODS.includes(row._id)) continue;
       total += row.total;
       count += row.count;
     }

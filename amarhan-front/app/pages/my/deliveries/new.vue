@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { Truck, Landmark, Smartphone, AlertTriangle, ArrowLeft, Copy, Check } from 'lucide-vue-next'
+import { Truck, Landmark, Smartphone, AlertTriangle, ArrowLeft, Copy, Check, Coins } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
-import type { DeliverableForDelivery, CreatedDelivery } from '~/composables/useCustomerPortal'
+import type {
+  DeliverableForDelivery,
+  CreatedDelivery,
+  LoyaltyBalance,
+} from '~/composables/useCustomerPortal'
 
 /**
  * Харилцагч өөрөө хүргэлт захиалах — introduction.md §5, roadmap 5.8
@@ -30,6 +34,11 @@ const data = ref<DeliverableForDelivery | null>(null)
 const selected = ref<string[]>([])
 const copied = ref(false)
 const method = ref<'bank' | 'qpay'>('qpay')
+
+// BR-48 — кредит ЗӨВХӨН ачааны үлдэгдэлд, хүргэлтийн хураамжид БИШ
+const loyalty = ref<LoyaltyBalance | null>(null)
+const creditAmount = ref(0)
+const { refresh: refreshBadge } = useLoyaltyBadge()
 
 const form = reactive({
   address: '',
@@ -79,7 +88,12 @@ onBeforeUnmount(stopPolling)
 async function load() {
   loading.value = true
   try {
-    data.value = await portal.deliverableForDelivery()
+    const [deliverable, balance] = await Promise.all([
+      portal.deliverableForDelivery(),
+      portal.loyaltyBalance().catch(() => null),
+    ])
+    data.value = deliverable
+    loyalty.value = balance
 
     /**
      * Ачааны дэлгэрэнгүй хуудаснаас `?packageId=`-аар ирвэл ЗӨВХӨН тэр ачааг
@@ -119,7 +133,7 @@ const packagesTotal = computed(() =>
 )
 
 const feeAmount = computed(() => data.value?.feeAmount ?? 0)
-const grandTotal = computed(() => packagesTotal.value + feeAmount.value)
+const grandTotal = computed(() => packagesTotal.value - creditAmount.value + feeAmount.value)
 
 const bankAccount = computed(() => data.value?.bankAccount ?? null)
 const bankAccountText = computed(() => {
@@ -154,8 +168,10 @@ async function submit() {
       phone: form.phone.trim() || undefined,
       note: form.note.trim() || undefined,
       method: method.value,
+      creditAmount: creditAmount.value,
     })
     result.value = delivery
+    if (delivery.credit) refreshBadge()
     if (delivery.payment.method === 'qpay') {
       startPolling(delivery.payment.id)
     }
@@ -199,6 +215,13 @@ async function submit() {
       <div>
         <p class="text-h3 font-semibold text-content">
           Хүсэлт {{ result.deliveryNumber }} бүртгэгдлээ
+        </p>
+        <p
+          v-if="result.credit"
+          class="mx-auto mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-body-sm font-medium text-amber-800"
+        >
+          <Coins :size="14" />
+          {{ formatCurrency(result.credit.amount, { showSymbol: false }) }} кредит ачааны төлбөрт хэрэглэгдлээ
         </p>
         <p v-if="result.payment.method === 'bank'" class="mx-auto mt-2 max-w-md text-body text-content-secondary">
           Доорх дансанд <strong class="tabular text-content">{{
@@ -360,6 +383,9 @@ async function submit() {
           </UiField>
         </div>
 
+        <!-- BR-48 — кредит (ачааны үлдэгдэлд) -->
+        <LoyaltyCreditApply v-model="creditAmount" :balance="loyalty" :payable="packagesTotal" />
+
         <!-- Төлбөрийн хэлбэр — Данс эсвэл QPay (roadmap 5.6/5.7) -->
         <div class="card space-y-3">
           <p class="text-body-sm font-medium text-content-secondary">Төлбөрийн хэлбэр</p>
@@ -444,6 +470,10 @@ async function submit() {
           <div class="flex items-center justify-between text-body">
             <span class="text-content-secondary">Сонгосон ачааны үлдэгдэл</span>
             <span class="tabular font-medium text-content">{{ formatCurrency(packagesTotal) }}</span>
+          </div>
+          <div v-if="creditAmount > 0" class="flex items-center justify-between text-body">
+            <span class="text-amber-700">Кредит</span>
+            <span class="tabular font-medium text-amber-700">−{{ formatCurrency(creditAmount) }}</span>
           </div>
           <div class="flex items-center justify-between text-body">
             <span class="text-content-secondary">Хүргэлтийн хураамж</span>

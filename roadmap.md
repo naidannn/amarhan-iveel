@@ -571,8 +571,25 @@ v2 REST). Хамрах хүрээ: зөвхөн харилцагчийн хүр�
 
 ### Дуусгах шалгуур
 
-- [ ] Төлбөр дутуу ачаанаас оноо бодогдохгүй
-- [ ] Босго тохиргоо өөрчлөхөд өмнөх оноо алдагдахгүй
+- [x] Төлбөр дутуу ачаанаас оноо бодогдохгүй
+- [x] Босго тохиргоо өөрчлөхөд өмнөх оноо алдагдахгүй
+
+### 7.7 Хэрэгжүүлэлт (2026-10-24) ✅
+
+Эзэмшигчийн тодруулгаар: 4 түвшин (Платинум нэмэгдсэн), "оноо" → **кредит**
+(1 = 1₮), ачааны төлбөрт 100% хүртэл хэрэглэнэ (BR-48), түвшин сүүлийн 12 сарын
+бодит мөнгөн төлбөрөөр (BR-32 шинэчлэгдсэн — буурч болно), хугацаа дуусахгүй.
+
+- Backend: `domain/loyalty.js`, `loyalty_transactions` ledger, идемпотент reconcile
+  (`payment.service.js#recalculatePackage`, ачааны засвар/цуцлалт), `applyCredit`,
+  `POST /payments/credit`, `/customer/loyalty[/balance|/transactions]`,
+  `GET /customers/:id/loyalty`, `GET /loyalty/stats`, `npm run loyalty:reconcile`.
+- Frontend: `/my/loyalty` (hero, прогресс, түвшний шат, түүх), header/sidebar-ын
+  "4,500 +350" кредитийн тэмдэг, `/my/pay` ба `/my/deliveries/new`-д кредит хэрэглэх
+  (`LoyaltyCreditApply`), ажилтны `PayModal`, `/admin/loyalty`, харилцагчийн
+  урамшууллын модал.
+- **Deploy-ийн дараа:** өмнө төлөгдсөн ачаанд кредит олгох эсэхийг эзэмшигч
+  шийднэ — тийм бол `npm run loyalty:reconcile -- --backfill`.
 
 ---
 

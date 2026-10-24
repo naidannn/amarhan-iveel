@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Landmark, Smartphone, Copy, Check, ArrowLeft, Wallet } from 'lucide-vue-next'
+import { Landmark, Smartphone, Copy, Check, ArrowLeft, Wallet, Coins } from 'lucide-vue-next'
 import { formatCurrency } from '~/utils/currency'
-import type { CreatedPackagePayment } from '~/composables/useCustomerPortal'
+import type { CreatedPackagePayment, LoyaltyBalance } from '~/composables/useCustomerPortal'
 
 /**
  * Ачааны үлдэгдлийг шууд төлөх — хүргэлт захиалахгүйгээр.
@@ -25,6 +25,11 @@ const bankAccount = ref<Awaited<ReturnType<typeof portal.payablePackages>>['bank
 const selected = ref<string[]>([])
 const copied = ref(false)
 const method = ref<'bank' | 'qpay'>('qpay')
+
+// BR-48 — кредит. `LoyaltyCreditApply` боломжит дээд дүнг автоматаар санал болгоно.
+const loyalty = ref<LoyaltyBalance | null>(null)
+const creditAmount = ref(0)
+const { refresh: refreshBadge } = useLoyaltyBadge()
 
 const result = ref<CreatedPackagePayment | null>(null)
 
@@ -68,9 +73,14 @@ onBeforeUnmount(stopPolling)
 async function load() {
   loading.value = true
   try {
-    const data = await portal.payablePackages()
+    const [data, balance] = await Promise.all([
+      portal.payablePackages(),
+      // Кредит ачаалагдаагүй ч төлбөр төлөхөд саад болохгүй
+      portal.loyaltyBalance().catch(() => null),
+    ])
     packages.value = data.packages
     bankAccount.value = data.bankAccount
+    loyalty.value = balance
 
     const preselect = String(route.query.packageId ?? '')
     const hasPreselect = preselect && data.packages.some(p => p.id === preselect)
@@ -94,6 +104,8 @@ function toggle(id: string) {
 
 const selectedPackages = computed(() => packages.value.filter(p => selected.value.includes(p.id)))
 const total = computed(() => selectedPackages.value.reduce((sum, p) => sum + Math.max(p.balance, 0), 0))
+const toPay = computed(() => Math.max(total.value - creditAmount.value, 0))
+const paidByCredit = computed(() => creditAmount.value > 0 && toPay.value === 0)
 
 const bankAccountText = computed(() => {
   const b = bankAccount.value
@@ -122,9 +134,11 @@ async function submit() {
     const payment = await portal.payPackages({
       packageIds: selected.value,
       method: method.value,
+      creditAmount: creditAmount.value,
     })
     result.value = payment
-    if (payment.method === 'qpay') {
+    if (payment.credit) refreshBadge()
+    if (payment.method === 'qpay' && payment.id) {
       startPolling(payment.id)
     }
   } catch (e: any) {
@@ -150,13 +164,39 @@ async function submit() {
       <div>
         <h1 class="text-h1 font-bold text-content">Төлбөр төлөх</h1>
         <p class="mt-0.5 text-body text-content-secondary">
-          Үлдэгдэлтэй ачаагаа сонгоод Данс эсвэл QPay-ээр төлнө
+          Үлдэгдэлтэй ачаагаа сонгоод кредит, QPay эсвэл Дансаар төлнө
         </p>
       </div>
     </div>
 
     <!-- ── Үүсгэсний дараах баталгаажуулах дэлгэц ────────────────────────── -->
-    <div v-if="result" class="card space-y-4 text-center">
+    <!-- Кредитээр БҮТЭН төлөгдсөн — Данс/QPay алхам байхгүй -->
+    <div v-if="result && !result.id" class="card space-y-4 text-center">
+      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+        <Coins :size="28" :stroke-width="1.8" />
+      </span>
+      <div>
+        <p class="text-h4 font-bold text-success">Кредитээр бүтэн төлөгдлөө!</p>
+        <p v-if="result.credit" class="mx-auto mt-1 max-w-md text-body text-content-secondary">
+          <strong class="tabular text-content">{{ formatCurrency(result.credit.amount, { showSymbol: false }) }}</strong>
+          кредит хэрэглэгдлээ · Үлдэх кредит
+          <strong class="tabular text-content">{{ formatCurrency(result.credit.creditsLeft, { showSymbol: false }) }}</strong>
+        </p>
+      </div>
+      <div class="flex flex-wrap justify-center gap-2">
+        <UiBtn variant="secondary" to="/my/loyalty">Урамшуулал харах</UiBtn>
+        <UiBtn to="/my/packages">Ачааны жагсаалт руу очих</UiBtn>
+      </div>
+    </div>
+
+    <div v-else-if="result" class="card space-y-4 text-center">
+      <p
+        v-if="result.credit"
+        class="mx-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-body-sm font-medium text-amber-800"
+      >
+        <Coins :size="14" />
+        {{ formatCurrency(result.credit.amount, { showSymbol: false }) }} кредит хэрэглэгдлээ
+      </p>
       <Wallet
         v-if="result.method === 'bank' || qpayStatus === 'completed'"
         :size="40"
@@ -291,8 +331,11 @@ async function submit() {
           </ul>
         </div>
 
-        <!-- Төлбөрийн хэлбэр -->
-        <div class="card space-y-3">
+        <!-- BR-48 — кредит -->
+        <LoyaltyCreditApply v-model="creditAmount" :balance="loyalty" :payable="total" />
+
+        <!-- Төлбөрийн хэлбэр — кредитээр бүтэн хаагдвал хэрэггүй -->
+        <div v-if="!paidByCredit" class="card space-y-3">
           <p class="text-body-sm font-medium text-content-secondary">Төлбөрийн хэлбэр</p>
           <div class="grid grid-cols-2 gap-2">
             <button
@@ -358,13 +401,34 @@ async function submit() {
           </p>
         </div>
 
-        <div class="card flex items-center justify-between text-h4 font-bold">
-          <span class="text-content">Нийт төлөх</span>
-          <span class="tabular text-content">{{ formatCurrency(total) }}</span>
+        <div class="card space-y-2">
+          <template v-if="creditAmount > 0">
+            <div class="flex justify-between text-body text-content-secondary">
+              <span>Ачааны үлдэгдэл</span>
+              <span class="tabular">{{ formatCurrency(total) }}</span>
+            </div>
+            <div class="flex justify-between text-body text-amber-700">
+              <span>Кредит</span>
+              <span class="tabular">−{{ formatCurrency(creditAmount) }}</span>
+            </div>
+          </template>
+          <div
+            class="flex items-center justify-between text-h4 font-bold"
+            :class="creditAmount > 0 ? 'border-t border-surface-border pt-2' : ''"
+          >
+            <span class="text-content">Нийт төлөх</span>
+            <span class="tabular text-content">{{ formatCurrency(toPay) }}</span>
+          </div>
         </div>
 
-        <UiBtn class="w-full" :loading="submitting" :disabled="!canSubmit" :icon="Wallet" @click="submit">
-          Төлбөр төлөх
+        <UiBtn
+          class="w-full"
+          :loading="submitting"
+          :disabled="!canSubmit"
+          :icon="paidByCredit ? Coins : Wallet"
+          @click="submit"
+        >
+          {{ paidByCredit ? 'Кредитээр төлөх' : 'Төлбөр төлөх' }}
         </UiBtn>
       </template>
     </template>

@@ -3,6 +3,7 @@
 const Joi = require('joi');
 const {
   PAYMENT_METHOD_LIST,
+  PAYMENT_RECORD_METHOD_LIST,
   PAYMENT_RECORD_STATUS_LIST,
   INVOICE_STATUS_LIST,
 } = require('../config/constants');
@@ -29,10 +30,11 @@ module.exports = {
       invoiceId: objectId.optional(),
       receivedBy: objectId.optional(),
       branchId: objectId.optional(),
+      // Шүүлтэд `credit` (BR-48) ч орно — бүртгэхэд л хориотой
       method: Joi.alternatives()
         .try(
-          Joi.string().valid(...PAYMENT_METHOD_LIST),
-          Joi.array().items(Joi.string().valid(...PAYMENT_METHOD_LIST))
+          Joi.string().valid(...PAYMENT_RECORD_METHOD_LIST),
+          Joi.array().items(Joi.string().valid(...PAYMENT_RECORD_METHOD_LIST))
         )
         .optional(),
       status: Joi.alternatives()
@@ -104,6 +106,17 @@ module.exports = {
       .messages({
         'object.missing': 'Нэхэмжлэх, ачаа эсвэл хуваарилалтын ядаж нэгийг заана уу',
       }),
+  },
+
+  // BR-48 — кредитээр төлөх (ажилтан). Хуваарилалт ҮРГЭЛЖ пропорциональ.
+  createCredit: {
+    body: Joi.object({
+      amount: money.required(),
+      invoiceId: objectId.optional(),
+      packageIds: Joi.array().items(objectId.required()).min(1).max(200).optional(),
+    })
+      .or('invoiceId', 'packageIds')
+      .messages({ 'object.missing': 'Нэхэмжлэх эсвэл ачааг заана уу' }),
   },
 
   void: {

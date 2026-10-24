@@ -27,7 +27,7 @@ export interface Customer {
   hasGoogle: boolean
   hasPassword: boolean
   addresses: CustomerAddress[]
-  loyaltyTier: 'bronze' | 'silver' | 'gold'
+  loyaltyTier: 'bronze' | 'silver' | 'gold' | 'platinum'
   loyaltyPoints: number
   status: 'active' | 'blocked'
   createdAt: string

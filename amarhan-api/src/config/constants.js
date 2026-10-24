@@ -98,6 +98,10 @@ exports.AUDIT_ACTION = {
   CUSTOMER_UPDATE: 'customer.update',
   CUSTOMER_DELETE: 'customer.delete',
   CUSTOMER_LOYALTY_ADJUST: 'customer.loyalty_adjust',
+  // BR-48 — кредитээр ачааны төлбөр хийсэн (харилцагч өөрөө эсвэл ажилтан
+  // харилцагчийн хүсэлтээр). Төлбөрийн бичлэг нь `PAYMENT_CREATE`-ээр тусад
+  // нь бичигдэнэ — энэ нь "кредит хэн, хэдийг зарцуулсан" гэдгийг шүүхэд.
+  LOYALTY_REDEEM: 'loyalty.redeem',
   // Phase 5 — харилцагч ӨӨРӨӨ хийсэн үйлдэл. `actor` нь ажилтан БИШ тул
   // audit-д `actorId: null`, `actorName: 'Харилцагч'` гэж бичигдэнэ.
   CUSTOMER_REGISTER: 'customer.register',
@@ -221,9 +225,29 @@ exports.PAYMENT_METHOD = {
   BANK: 'bank',
   CARD: 'card',
   QPAY: 'qpay',
+  // BR-48 — урамшууллын кредитээр төлсөн хэсэг. БОДИТ МӨНГӨ БИШ: орлогын
+  // тайлан, кассын нийлбэрт ТООЦОГДОХГҮЙ (`NON_REVENUE_PAYMENT_METHODS`).
+  CREDIT: 'credit',
 };
 
-exports.PAYMENT_METHOD_LIST = Object.values(exports.PAYMENT_METHOD);
+/**
+ * Ажилтан/харилцагч ГАРААР сонгож болох хэлбэрүүд — `credit` ЗОРИУД ОРОХГҮЙ.
+ * Кредитийн төлбөр ЗӨВХӨН `payment.service.js#redeemCredit`-ээр (кредитийн
+ * үлдэгдлийг атомикоор хасаж) үүснэ; энэ жагсаалтад нэмбэл ажилтан
+ * кредитгүйгээр "кредит төлбөр" бүртгэх нүх нээгдэнэ (loyalty-readiness §4).
+ */
+exports.PAYMENT_METHOD_LIST = Object.values(exports.PAYMENT_METHOD).filter(
+  m => m !== exports.PAYMENT_METHOD.CREDIT
+);
+
+/** `payments.method`-ийн схемийн enum — бүх хэлбэр, `credit`-ийг оруулаад */
+exports.PAYMENT_RECORD_METHOD_LIST = Object.values(exports.PAYMENT_METHOD);
+
+/**
+ * Орлогод тооцогдохгүй хэлбэрүүд — тайлан/dashboard/кассын нийлбэр эдгээрийг
+ * хасна. Кредит бол компанийн өмнөөс олгосон хөнгөлөлт, мөнгөний урсгал биш.
+ */
+exports.NON_REVENUE_PAYMENT_METHODS = [exports.PAYMENT_METHOD.CREDIT];
 
 /**
  * `payments` бичлэгийн төлөв — BR-14, BR-18.
@@ -353,6 +377,10 @@ exports.ERROR_CODE = {
   INVALID_RESET_TOKEN: 'INVALID_RESET_TOKEN',
   // BR-47 — зарлага
   EXPENSE_ALREADY_VOIDED: 'EXPENSE_ALREADY_VOIDED',
+  // BR-48 — урамшууллын кредит
+  INSUFFICIENT_CREDIT: 'INSUFFICIENT_CREDIT',
+  CREDIT_LIMIT_EXCEEDED: 'CREDIT_LIMIT_EXCEEDED',
+  LOYALTY_DISABLED: 'LOYALTY_DISABLED',
 };
 
 /**
@@ -380,13 +408,39 @@ exports.PRICE_SOURCE = {
 };
 
 /**
- * Урамшууллын түвшин — §4
+ * Урамшууллын түвшин — §4, BR-30…BR-33a.
+ *
+ * Кодууд ТОГТМОЛ (схемийн enum) — Админ нэр/босго/хувийг `loyalty.program`
+ * тохиргооноос өөрчилнө, гэхдээ шинэ код нэмэхгүй. Дараалал = зэрэглэл.
  */
 exports.LOYALTY_TIER = {
   BRONZE: 'bronze',
   SILVER: 'silver',
   GOLD: 'gold',
+  PLATINUM: 'platinum',
 };
+
+exports.LOYALTY_TIER_LIST = Object.values(exports.LOYALTY_TIER);
+
+/**
+ * Кредитийн ledger-ийн бичлэгийн төрөл — `loyalty_transactions`.
+ *
+ * `earn`          — ачаа бүрэн төлөгдсөнөөр олгосон (BR-30, BR-31)
+ * `earn_reversal` — төлбөр хүчингүй/ачаа цуцлагдсан/өөр харилцагч руу
+ *                   шилжсэнээр өмнө олгосныг буцаасан (reconcile, сөрөг дүн)
+ * `redeem`        — кредитээр ачааны төлбөр хийсэн (BR-48, сөрөг дүн)
+ * `redeem_refund` — кредитийн төлбөр хүчингүй болж буцаагдсан
+ * `adjust`        — Админ гараар засварласан (BR-33, шалтгаан заавал)
+ */
+exports.LOYALTY_TX_TYPE = {
+  EARN: 'earn',
+  EARN_REVERSAL: 'earn_reversal',
+  REDEEM: 'redeem',
+  REDEEM_REFUND: 'redeem_refund',
+  ADJUST: 'adjust',
+};
+
+exports.LOYALTY_TX_TYPE_LIST = Object.values(exports.LOYALTY_TX_TYPE);
 
 /**
  * Тохиргооны түлхүүрүүд (`settings` коллекц).
@@ -412,6 +466,11 @@ exports.SETTING_KEY = {
   // Хятадын онлайн дэлгүүр тус бүрт хаяг холбох зааварчилгаа (thumbnail +
   // зураг/текст блок). Нээлттэй — нүүр хуудас, `/address`-д харагдана.
   CONTENT_ADDRESS_GUIDES: 'content.address_guides',
+
+  // §4 — урамшууллын хөтөлбөр (түвшний босго, кредитийн хувь, ашиглах
+  // хязгаар). Харилцагчид ЗӨВХӨН `loyalty.service.js#getForCustomer`-ээр
+  // (нэвтэрсэн үед) харагдана — `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ.
+  LOYALTY_PROGRAM: 'loyalty.program',
 
   // Дотоод тохиргоо — зөвхөн ажилтанд (§9.1). `content.*`-аас ялгаатай: энэ
   // `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ, `/v1/public/*`-аар нээлттэй уншигдахгүй.
@@ -512,6 +571,27 @@ exports.SETTING_DEFAULTS = {
     accountNumber: '',
     accountHolder: '',
     note: '',
+  },
+
+  /**
+   * §4 — урамшууллын хөтөлбөр (эзэмшигчийн 2026-10-24-ний шийдвэр).
+   *
+   * `minSpent` — сүүлийн `windowDays` хоногт БОДИТ МӨНГӨӨР (кредит, хүргэлтийн
+   * хураамж ОРОХГҮЙ) ачаандаа төлсөн дүн (₮). `rateBps` — 1/10000 нэгжээр
+   * (100 = 1%) — float хувь `floor()`-д алдаа өгдөг (loyalty-readiness §3.3).
+   * 1 кредит = 1₮. `maxRedeemPercent` — ачааны үлдэгдлийн хэдэн хувийг
+   * кредитээр хааж болох (100 = бүтэн).
+   */
+  [exports.SETTING_KEY.LOYALTY_PROGRAM]: {
+    enabled: true,
+    windowDays: 365,
+    maxRedeemPercent: 100,
+    tiers: [
+      { code: 'bronze', name: 'Хүрэл', minSpent: 0, rateBps: 100 },
+      { code: 'silver', name: 'Мөнгө', minSpent: 150000, rateBps: 300 },
+      { code: 'gold', name: 'Алт', minSpent: 500000, rateBps: 350 },
+      { code: 'platinum', name: 'Платинум', minSpent: 1500000, rateBps: 500 },
+    ],
   },
 };
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Plus, Trash2, ShieldCheck, Info } from 'lucide-vue-next'
+import { Plus, Trash2, ShieldCheck, Info, ChevronRight } from 'lucide-vue-next'
+import { formatCurrency } from '~/utils/currency'
 
 /**
  * Профайл — introduction.md §3
@@ -25,11 +26,7 @@ const savingAddresses = ref(false)
 const savingPassword = ref(false)
 const passwordError = ref<string | null>(null)
 
-const TIER_LABELS: Record<string, string> = {
-  bronze: 'Хүрэл',
-  silver: 'Мөнгө',
-  gold: 'Алт',
-}
+const { style: tierStyle } = useLoyaltyTier()
 
 onMounted(() => {
   const data = customer.customer
@@ -117,24 +114,21 @@ useHead({ title: 'Профайл — Ивээлт Карго' })
       </div>
     </section>
 
-    <!-- Урамшуулал (§4) -->
-    <section class="rounded-card border border-surface-border bg-surface-card p-5">
-      <h2 class="font-semibold text-content">Урамшуулал</h2>
-      <dl class="mt-3 grid grid-cols-2 gap-3">
-        <div>
-          <dt class="text-body-sm text-content-secondary">Түвшин</dt>
-          <dd class="font-semibold text-content">
-            {{ TIER_LABELS[customer.customer?.loyaltyTier ?? 'bronze'] }}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-body-sm text-content-secondary">Оноо</dt>
-          <dd class="font-semibold tabular text-content">
-            {{ customer.customer?.loyaltyPoints ?? 0 }}
-          </dd>
-        </div>
-      </dl>
-    </section>
+    <!-- Урамшуулал (§4) — дэлгэрэнгүй нь `/my/loyalty` -->
+    <NuxtLink
+      to="/my/loyalty"
+      class="flex items-center gap-3 rounded-card border border-surface-border bg-surface-card p-5 transition-colors hover:bg-surface-hover"
+    >
+      <LoyaltyTierEmblem :code="customer.customer?.loyaltyTier ?? 'bronze'" :size="40" />
+      <div class="min-w-0 flex-1">
+        <p class="font-semibold text-content">Урамшуулал</p>
+        <p class="text-body-sm text-content-secondary">
+          {{ tierStyle(customer.customer?.loyaltyTier).label }} ·
+          {{ formatCurrency(customer.customer?.loyaltyPoints ?? 0, { showSymbol: false }) }} кредит
+        </p>
+      </div>
+      <ChevronRight :size="18" class="text-content-secondary" />
+    </NuxtLink>
 
     <!-- Хүргэлтийн хаяг (§5) -->
     <section class="rounded-card border border-surface-border bg-surface-card p-5">

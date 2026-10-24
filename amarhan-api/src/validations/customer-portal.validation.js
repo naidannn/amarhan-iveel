@@ -109,6 +109,9 @@ module.exports = {
       method: Joi.string()
         .valid(PAYMENT_METHOD.BANK, PAYMENT_METHOD.QPAY)
         .default(PAYMENT_METHOD.BANK),
+      // BR-48 — эхлээд хэрэглэх кредит (1 кредит = 1₮). Хязгаарыг service
+      // шалгана (үлдэгдэл, `maxRedeemPercent`).
+      creditAmount: Joi.number().integer().min(0).max(1000000000).default(0),
     }),
   },
 
@@ -154,7 +157,15 @@ module.exports = {
       method: Joi.string()
         .valid(PAYMENT_METHOD.BANK, PAYMENT_METHOD.QPAY)
         .default(PAYMENT_METHOD.BANK),
+      // BR-48 — ачааны үлдэгдэлд хэрэглэх кредит. Хүргэлтийн хураамжид
+      // кредит хэрэглэгдэхгүй ("ачааны төлбөрт" — эзэмшигчийн шийдвэр).
+      creditAmount: Joi.number().integer().min(0).max(1000000000).default(0),
     }),
+  },
+
+  /** BR-48 — кредитийн түүх */
+  listLoyaltyTransactions: {
+    query: Joi.object({ ...pagination }),
   },
 
   /** Roadmap 5.6/5.7 — QPay QR харуулсны дараах polling */

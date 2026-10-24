@@ -1,7 +1,8 @@
 'use strict';
 
 const Joi = require('joi');
-const { SETTING_KEY } = require('../config/constants');
+const { SETTING_KEY, LOYALTY_TIER_LIST } = require('../config/constants');
+const { normalizeTiers } = require('../domain/loyalty');
 
 /**
  * Тохиргооны утгын хэлбэр — түлхүүр тус бүрээр.
@@ -86,6 +87,38 @@ const VALUE_SCHEMAS = {
           .default([]),
       })
     ),
+
+  /**
+   * §4 — урамшууллын хөтөлбөр. Дөрвөн түвшин БҮГД заавал (код нь схемийн
+   * enum, `customers.loyaltyTier`), босго/хувь нь домэйн дүрмээр шалгагдана —
+   * Joi дээр хуулбарлавал `domain/loyalty.js`-тэй зөрнө.
+   */
+  [SETTING_KEY.LOYALTY_PROGRAM]: Joi.object({
+    enabled: Joi.boolean().required(),
+    windowDays: Joi.number().integer().min(30).max(730).required(),
+    maxRedeemPercent: Joi.number().integer().min(1).max(100).required(),
+    tiers: Joi.array()
+      .length(LOYALTY_TIER_LIST.length)
+      .items(
+        Joi.object({
+          code: Joi.string()
+            .valid(...LOYALTY_TIER_LIST)
+            .required(),
+          name: Joi.string().trim().min(1).max(50).required(),
+          minSpent: Joi.number().integer().min(0).max(1000000000).required(),
+          rateBps: Joi.number().integer().min(0).max(5000).required(),
+        })
+      )
+      .unique('code')
+      .required()
+      .custom((tiers, helpers) => {
+        try {
+          return normalizeTiers(tiers);
+        } catch (err) {
+          return helpers.message(err.message);
+        }
+      }),
+  }),
 
   // Дотоод — ажилтан төлбөр авахдаа ("Данс" хэлбэр) харилцагчид өгөх дансны мэдээлэл.
   [SETTING_KEY.PAYMENT_BANK_ACCOUNT]: Joi.object({

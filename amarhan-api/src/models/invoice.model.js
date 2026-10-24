@@ -108,6 +108,8 @@ const invoiceSchema = new Schema(
 invoiceSchema.index({ customerId: 1, createdAt: -1 });
 invoiceSchema.index({ status: 1, createdAt: -1 });
 invoiceSchema.index({ createdAt: -1 });
+invoiceSchema.index({ customerPhone: 1, createdAt: -1 });
+invoiceSchema.index({ branchId: 1, createdAt: -1 });
 // Ачаа хэдэн нэхэмжлэхэд орсныг шалгахад (BR-16a)
 invoiceSchema.index({ 'items.packageId': 1 });
 

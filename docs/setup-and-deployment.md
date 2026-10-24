@@ -40,6 +40,17 @@ Node 22 (`~/.nvm/versions/node/v22.22.2`) ашиглана.
 
 Хоёулаа deploy дараа `HEALTH_URL`-ээр амьд эсэхийг шалгаж, амжилтгүй бол зогсоно (rollback-ыг гараар дуудна).
 
+### 3.1 MongoDB индекс ба proxy (2026-10-18)
+
+- **Индекс.** Апп эхлэхэд схемийн шинэ индексийг автоматаар үүсгэнэ
+  (`MONGO_AUTO_INDEX`, default `true`). Өгөгдөл маш том болоход
+  `MONGO_AUTO_INDEX=false` болгож, deploy бүрд серверт
+  `npm run db:indexes -- --dry` → `npm run db:indexes` ажиллуулна. Скрипт байгаа
+  индексийг ХЭЗЭЭ Ч устгахгүй — схемээс хасагдсан индексийг зөвхөн тайлагнана.
+- **`TRUST_PROXY`.** Production-д default `1` (nginx нэг шат). nginx-д
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` байх ёстой —
+  эс тэгвээс rate-limit бүх хэрэглэгчийг нэг IP гэж тоолно.
+
 ## 4. Nginx маршрутлалт (iweeltcargo.com)
 
 > ⚠️ **Энэ тохиргоо репод БАЙХГҮЙ** — зөвхөн серверт гараар засварлагдсан

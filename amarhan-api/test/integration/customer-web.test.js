@@ -962,6 +962,50 @@ describe('Харилцагчийн вэб (§3)', () => {
           expect(payment.status).to.equal('pending');
         });
 
+        it('дутуу дүн төлөгдсөн бол completed БОЛГОХГҮЙ (pending хэвээр)', async () => {
+          const { booked } = await createQpayDelivery();
+          sandbox.stub(qpayService, 'checkInvoice').resolves({
+            paid: true,
+            paidAmount: booked.body.data.payment.amount - 1000,
+            providerPaymentId: 'qpay-payment-short',
+          });
+
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(res.status).to.equal(200);
+          const payment = await Payment.findById(booked.body.data.payment.id);
+          expect(payment.status).to.equal('pending');
+        });
+
+        it('QPay шалгалт алдаа өгвөл 500 буцааж (QPay дахин илгээнэ) pending үлдээнэ', async () => {
+          const { booked } = await createQpayDelivery();
+          sandbox.stub(qpayService, 'request').rejects(new Error('ECONNRESET'));
+
+          const res = await chai
+            .request(app)
+            .post(`${QPAY}/callback`)
+            .query({ paymentId: booked.body.data.payment.id });
+
+          expect(res.status).to.equal(500);
+          const payment = await Payment.findById(booked.body.data.payment.id);
+          expect(payment.status).to.equal('pending');
+        });
+
+        it('checkInvoice зөвхөн PAID мөрийг тоолно', async () => {
+          sandbox.stub(qpayService, 'request').resolves({
+            rows: [
+              { payment_id: 'p-new', payment_status: 'NEW', payment_amount: 5000 },
+              { payment_id: 'p-paid', payment_status: 'PAID', payment_amount: 3000 },
+            ],
+          });
+
+          const result = await qpayService.checkInvoice('inv-1');
+          expect(result).to.deep.equal({ paid: true, paidAmount: 3000, providerPaymentId: 'p-paid' });
+        });
+
         it('QPay-ээс илүү дүн ирвэл ledger дүнгээр л completed болно (Σ allocations хэвээр)', async () => {
           const { booked } = await createQpayDelivery();
           sandbox.stub(qpayService, 'checkInvoice').resolves({

@@ -5,6 +5,9 @@ const config = require('../config');
 const logger = require('../utils/logger');
 const APIError = require('../utils/APIError');
 
+// QPay хариу өгөхгүй бол хүсэлт (мөн webhook) хязгааргүй өлгөөтэй үлдэхээс сэргийлнэ
+const REQUEST_TIMEOUT_MS = 15_000;
+
 /**
  * QPay REST адаптер — roadmap 5.6/5.7. `email.service.js`-ийн ижил
  * singleton загвар, `config.qpay.enabled`-ээр хаагдана.
@@ -15,9 +18,9 @@ const APIError = require('../utils/APIError');
  *
  * `createInvoice` алдаа гарвал ШИДНЭ (`email.service.js`-ийн чимээгүй `null`-
  * аас ЗОРИУДААР ЗӨРЖ) — дуудагч тал (`delivery.service.js`) алдааг
- * харилцагчид харуулах ёстой. `checkInvoice` нь webhook-оос л дуудагддаг тул
- * алдааг ЗӨӨЛӨН барина — лог бичээд `pending` хэвээр үлдээнэ, дараагийн
- * webhook эсвэл гар аргаар нийцүүлэлт дараа нь дахин оролдоно.
+ * харилцагчид харуулах ёстой. `checkInvoice` ч мөн ШИДНЭ — webhook `500`
+ * буцааж QPay дахин илгээх ёстой (чимээгүй `paid: false` нь төлөгдсөн
+ * нэхэмжлэхийг үүрд `pending` үлдээдэг байсан).
  */
 class QPayService {
   constructor() {
@@ -37,6 +40,7 @@ class QPayService {
     const res = await fetch(`${config.qpay.baseURL}/auth/token`, {
       method: 'POST',
       headers: { Authorization: `Basic ${basic}` },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!res.ok) {
@@ -71,6 +75,7 @@ class QPayService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     const data = await res.json().catch(() => null);
@@ -124,25 +129,27 @@ class QPayService {
    * баталгаажсан үр дүнд л мөнгө бичигдэнэ).
    */
   async checkInvoice(invoiceId) {
-    try {
-      const data = await this.request('/payment/check', {
-        object_type: 'INVOICE',
-        object_id: invoiceId,
-        offset: { page_number: 1, page_limit: 100 },
-      });
+    /**
+     * Алдааг ЭНД залгихгүй: сүлжээ/QPay түр унасан үед `paid: false` буцаавал
+     * callback `200` хариулж, QPay дахин илгээхгүй — бодит төлөгдсөн нэхэмжлэх
+     * үүрд `pending` үлдэнэ. Алдаа дээш шидэгдвэл controller `500` буцааж,
+     * QPay дахин оролдоно.
+     */
+    const data = await this.request('/payment/check', {
+      object_type: 'INVOICE',
+      object_id: invoiceId,
+      offset: { page_number: 1, page_limit: 100 },
+    });
 
-      const rows = data.rows ?? [];
-      const paidAmount = rows.reduce((sum, r) => sum + (r.payment_amount ?? 0), 0);
+    // Зөвхөн `PAID` мөр л мөнгө — `NEW`/`FAILED`/`REFUNDED` мөрийг тоолохгүй
+    const paidRows = (data?.rows ?? []).filter(r => r.payment_status === 'PAID');
+    const paidAmount = paidRows.reduce((sum, r) => sum + Number(r.payment_amount ?? 0), 0);
 
-      return {
-        paid: rows.length > 0,
-        paidAmount,
-        providerPaymentId: rows[0]?.payment_id ?? null,
-      };
-    } catch (error) {
-      logger.error('QPay нэхэмжлэх шалгахад алдаа гарлаа', { invoiceId, error: error.message });
-      return { paid: false, paidAmount: 0, providerPaymentId: null };
-    }
+    return {
+      paid: paidRows.length > 0,
+      paidAmount,
+      providerPaymentId: paidRows[0]?.payment_id ?? null,
+    };
   }
 }
 

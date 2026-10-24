@@ -190,6 +190,13 @@ deliverySchema.index({ packageIds: 1 });
 deliverySchema.index({ branchId: 1, createdAt: -1 });
 deliverySchema.index({ createdAt: -1 });
 deliverySchema.index({ driverId: 1, scheduledDate: -1 });
+deliverySchema.index({ driverId: 1, createdAt: -1 });
+// Утсаар хайх `$or` — салаа БҮР өөрийн индекстэй байж л индекс ашиглана
+deliverySchema.index({ customerPhone: 1, createdAt: -1 });
+deliverySchema.index({ phone: 1, createdAt: -1 });
+// Өдрийн маршрутын нэгтгэл (`summary`) төлөвгүйгээр огноогоор шүүдэг
+deliverySchema.index({ scheduledDate: 1 });
+deliverySchema.index({ branchId: 1, scheduledDate: 1 });
 
 deliverySchema.set('toJSON', {
   virtuals: true,

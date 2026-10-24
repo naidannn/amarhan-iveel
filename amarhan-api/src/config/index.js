@@ -10,6 +10,14 @@ if (missing.length > 0) {
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
 }
 
+function parseTrustProxy(value, env) {
+  if (value === undefined || value === '') return env === 'production' ? 1 : false;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  const hops = Number(value);
+  return Number.isInteger(hops) ? hops : value;
+}
+
 module.exports = {
   port: process.env.PORT || 4000,
   app: process.env.APP || 'amarhan-api',
@@ -89,6 +97,23 @@ module.exports = {
      */
     pendingAudience: 'customer_pending',
     pendingExpiresIn: '15m',
+  },
+  /**
+   * Express `trust proxy`. Production-д API nginx-ийн АРД (нэг шат) ажилладаг
+   * тул `1` — эс тэгвээс `req.ip` бүх хүсэлтэд nginx-ийн хаяг болж, бүх
+   * хэрэглэгч НЭГ rate-limit сагс хуваалцана (нэг халдагч бүх хүний нэвтрэлтийг
+   * хаах боломжтой), audit-ийн IP ч утгагүй болно. Proxy-гүй орчинд `false`
+   * (эс тэгвээс `X-Forwarded-For`-ыг хуурч хязгаараас зугтах боломжтой).
+   */
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY, process.env.NODE_ENV),
+  mongoOptions: {
+    // Эхлэх бүрд схемийн шинэ индексийг үүсгэнэ (default). Өгөгдөл маш том
+    // болоход `MONGO_AUTO_INDEX=false` болгож, индексийг deploy-ийн үед
+    // `npm run db:indexes`-ээр тусад нь үүсгэнэ.
+    autoIndex: process.env.MONGO_AUTO_INDEX !== 'false',
+    maxPoolSize: parseInt(process.env.MONGO_MAX_POOL_SIZE) || 20,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
   },
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,

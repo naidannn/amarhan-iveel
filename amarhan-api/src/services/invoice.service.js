@@ -325,9 +325,10 @@ class InvoiceService {
    */
   async payableByPhone(phone) {
     const customer = await customerService.getByPhone(phone);
-    const packages = await packageRepository.listByCustomer(customer._id);
-
-    const payable = packages.filter(p => p.status !== PACKAGE_STATUS.CANCELLED && p.balance > 0);
+    const payable = await packageRepository.listByCustomer(customer._id, {
+      excludeStatus: [PACKAGE_STATUS.CANCELLED],
+      withBalance: true,
+    });
 
     return {
       customer,

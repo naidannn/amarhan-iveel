@@ -32,11 +32,8 @@ const handleJWT = (req, res, next, roles) => async (err, user, info) => {
 const authorize =
   (roles = User.roles) =>
   (req, res, next) => {
-    // Support token in query parameter (for file downloads)
-    if (req.query.token && !req.headers.authorization) {
-      req.headers.authorization = `Bearer ${req.query.token}`;
-    }
-
+    // Токеныг ЗӨВХӨН `Authorization` header-ээс авна. `?token=` нь morgan-ийн
+    // access log, браузерын түүх, Referer-д бүтэн JWT-г үлдээдэг байсан.
     return passport.authenticate('jwt', { session: false }, handleJWT(req, res, next, roles))(
       req,
       res,

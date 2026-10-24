@@ -69,6 +69,8 @@ const notificationSchema = new Schema(
 
 // Харилцагчийн вэб: хувийн мэдэгдлийн жагсаалт
 notificationSchema.index({ customerId: 1, createdAt: -1 });
+// Уншаагүй тоо (`countUnreadPersonal`) — баримт татахгүйгээр индексээр тоолно
+notificationSchema.index({ customerId: 1, readAt: 1 });
 // Админ панел: нийтийн зарлалын түүх, идэвхтэй эсэхийг шалгах
 notificationSchema.index({ audience: 1, createdAt: -1 });
 notificationSchema.index({ audience: 1, expiresAt: 1 });

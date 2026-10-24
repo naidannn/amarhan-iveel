@@ -27,9 +27,12 @@ exports.handleError = (err, req, res, _next) => {
     });
   }
 
+  // Production-д хүлээгдээгүй (APIError биш) 5xx алдааны дотоод мессежийг
+  // (Mongo/драйверын текст, файлын зам) клиентэд ил гаргахгүй — лог-д бүтнээр бий.
+  const hideInternal = status >= 500 && err.name !== 'APIError' && config.env === 'production';
   const response = {
     success: false,
-    message: err.message || 'Дотоод алдаа гарлаа',
+    message: hideInternal ? 'Дотоод алдаа гарлаа' : err.message || 'Дотоод алдаа гарлаа',
   };
 
   // APIError-ийн машинд уншигдах код ба нэмэлт өгөгдөл (жишээ: давхардсан ачаа)

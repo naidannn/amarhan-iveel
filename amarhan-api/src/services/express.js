@@ -15,9 +15,14 @@ const apiRouter = require('../routes/api');
 const passport = require('passport');
 const passportJwt = require('../services/passport');
 const logger = require('../utils/logger');
+const APIError = require('../utils/APIError');
+const httpStatus = require('http-status');
 require('./passport-setup');
 
 const app = express();
+
+// nginx-ийн ард `req.ip` бодит клиент байх (rate-limit, audit) — config/index.js
+app.set('trust proxy', config.trustProxy);
 
 // Request ID for tracing
 app.use(requestId);
@@ -25,9 +30,11 @@ app.use(requestId);
 // Compression
 app.use(compression());
 
-// Body parsing (express built-in)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Body parsing (express built-in). Зураг multipart-аар (multer) ирдэг тул JSON-д
+// 1mb хангалттай (200 ачааны бөөн бүртгэл ч ~100kb) — 10mb нь нээлттэй
+// endpoint-уудад санах ой дүүргэх гадаргуу байсан.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // NoSQL injection sanitization
 app.use(sanitize);
@@ -37,7 +44,8 @@ const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (config.corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+    // 500 биш 403 — зөвшөөрөгдөөгүй origin бол серверийн алдаа биш
+    return callback(new APIError('Not allowed by CORS', httpStatus.FORBIDDEN));
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
@@ -92,12 +100,13 @@ app.use(errorHandler.handleError);
 let server;
 
 exports.start = () => {
-  server = app.listen(config.port, err => {
-    if (err) {
-      logger.error('Failed to start server', { error: err.message });
-      process.exit(-1);
-    }
+  // Express 4-ийн `listen` callback алдаа ХҮЛЭЭН АВДАГГҮЙ — `error` эвентээр барина
+  server = app.listen(config.port, () => {
     logger.info(`${config.app} is running on port ${config.port}`);
+  });
+  server.on('error', err => {
+    logger.error('Failed to start server', { error: err.message });
+    process.exit(1);
   });
   return server;
 };

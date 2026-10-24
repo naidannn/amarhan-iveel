@@ -107,11 +107,25 @@ class PackageRepository extends BaseRepository {
   }
 
   /**
-   * §1.9 — нэг харилцагчийн бүх ачааг нэг дор авах (20–40 хүртэл байдаг).
+   * §1.9 — нэг харилцагчийн ачаа.
+   *
+   * Шүүлтийг (төлөв, үлдэгдэл) DB-д хийнэ: тогтмол харилцагчийн ачаа жилээр
+   * хуримтлагдаж хэдэн зуу, мянгад хүрнэ — бүгдийг татаж JS-д шүүх нь
+   * хүргэгдсэн/хүчингүй түүхийг дэмий ачаална (§9.3).
+   *
+   * @param {object} [opts]
+   * @param {string|string[]} [opts.status]        — зөвхөн эдгээр төлөв
+   * @param {string[]}        [opts.excludeStatus] — эдгээр төлвийг хасна
+   * @param {boolean}         [opts.withBalance]   — зөвхөн `balance > 0`
    */
-  async listByCustomer(customerId, { status } = {}) {
+  async listByCustomer(customerId, { status, excludeStatus, withBalance } = {}) {
     const filter = { customerId };
-    if (status) filter.status = Array.isArray(status) ? { $in: status } : status;
+    if (status) {
+      filter.status = Array.isArray(status) ? { $in: status } : status;
+    } else if (Array.isArray(excludeStatus) && excludeStatus.length > 0) {
+      filter.status = { $nin: excludeStatus };
+    }
+    if (withBalance) filter.balance = { $gt: 0 };
     return this.model.find(filter).sort({ createdAt: -1 });
   }
 

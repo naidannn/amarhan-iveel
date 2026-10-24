@@ -623,6 +623,42 @@ describe('Төлбөрийн модуль (§1.8, §2)', () => {
       expect(res.body.data.allowedTransitions).to.not.include(PACKAGE_STATUS.CANCELLED);
       expect(res.body.data.allowedTransitions).to.include(PACKAGE_STATUS.NOTIFIED);
     });
+
+    function overridePrice(price) {
+      return id =>
+        chai
+          .request(app)
+          .put(`${PACKAGES}/${id}/price`)
+          .set('Authorization', `Bearer ${manager.token}`)
+          .send({ price, reason: 'Харилцагчтай тохиролцсон' });
+    }
+
+    it('үнэ буурч төлсөн дүнд хүрвэл төлөв автоматаар `paid` болно (BR-09)', async () => {
+      const pkg = await register({ price: 10000 });
+      await pay(staff, { amount: 6000, method: PAYMENT_METHOD.CASH, packageIds: [pkg.id] });
+
+      const res = await overridePrice(6000)(pkg.id);
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+
+      const reloaded = await reload(pkg.id);
+      expect(reloaded.finalPrice).to.equal(6000);
+      expect(reloaded.balance).to.equal(0);
+      expect(reloaded.paymentStatus).to.equal(PAYMENT_STATUS.PAID);
+      expect(reloaded.status).to.equal(PACKAGE_STATUS.PAID);
+    });
+
+    it('бүрэн төлөгдсөн ачааны үнэ өсвөл `awaiting_payment` руу буцна (§5.2)', async () => {
+      const pkg = await register({ price: 10000 });
+      await pay(staff, { amount: 10000, method: PAYMENT_METHOD.CASH, packageIds: [pkg.id] });
+
+      const res = await overridePrice(12000)(pkg.id);
+      expect(res.status, JSON.stringify(res.body)).to.equal(200);
+
+      const reloaded = await reload(pkg.id);
+      expect(reloaded.balance).to.equal(2000);
+      expect(reloaded.paymentStatus).to.equal(PAYMENT_STATUS.PARTIAL);
+      expect(reloaded.status).to.equal(PACKAGE_STATUS.AWAITING_PAYMENT);
+    });
   });
 
   // ── §2.2 — жагсаалт ба audit ───────────────────────────────────────────

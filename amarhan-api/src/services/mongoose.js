@@ -8,18 +8,24 @@ mongoose.connection.on('connected', () => {
   logger.info('MongoDB is connected');
 });
 
+// Ажиллаж байх үеийн түр зуурын сүлжээний алдаанд процессыг УНТРААХГҮЙ —
+// драйвер өөрөө дахин холбогдоно. Анхны холболт амжилтгүй бол `connect()`
+// reject хийж, `src/index.js` процессыг зогсооно.
 mongoose.connection.on('error', err => {
-  logger.error('Could not connect to MongoDB', { error: err.message });
-  process.exit(-1);
+  logger.error('MongoDB connection error', { error: err.message });
+});
+
+mongoose.connection.on('disconnected', () => {
+  logger.warn('MongoDB disconnected');
 });
 
 if (config.env === 'development') {
   mongoose.set('debug', true);
 }
 
-exports.connect = () => {
+exports.connect = async () => {
   const mongoURI = config.env === 'test' ? config.mongo.testURI : config.mongo.uri;
-  mongoose.connect(mongoURI);
+  await mongoose.connect(mongoURI, config.mongoOptions);
   return mongoose.connection;
 };
 

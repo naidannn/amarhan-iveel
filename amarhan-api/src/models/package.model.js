@@ -365,7 +365,8 @@ packageSchema.index({ status: 1, createdAt: -1 });
 packageSchema.index({ locationCode: 1 });
 packageSchema.index({ branchId: 1, status: 1, createdAt: -1 });
 packageSchema.index({ createdAt: -1 });
-packageSchema.index({ paymentStatus: 1, status: 1 });
+// `createdAt` нь жагсаалтын sort-ыг индексээр хангана (санах ойн sort биш)
+packageSchema.index({ paymentStatus: 1, status: 1, createdAt: -1 });
 // Dashboard-ын 30 хоногийн «Монголд ирсэн ачаа» график — ирсэн огноогоор range scan.
 packageSchema.index({ branchId: 1, arrivedAt: -1 });
 packageSchema.index({ arrivedAt: -1 });

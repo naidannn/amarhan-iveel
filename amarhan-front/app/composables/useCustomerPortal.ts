@@ -397,6 +397,11 @@ export function usePublicContent() {
     return $fetch<{ data: any }>(`${base}/api/v1/public/pricing`).then(r => r.data)
   }
 
+  /** §4 — нүүр хуудасны "Урамшуулал" хэсэг. Хөтөлбөр унтраалттай бол `null` */
+  async function loyalty() {
+    return $fetch<{ data: PublicLoyalty | null }>(`${base}/api/v1/public/loyalty`).then(r => r.data)
+  }
+
   async function track(trackingNumber: string) {
     const res = await $fetch<{ data: any }>(
       `${base}/api/v1/public/track/${encodeURIComponent(trackingNumber)}`
@@ -425,7 +430,14 @@ export function usePublicContent() {
     return res
   }
 
-  return { content, pricing, track, trackByPhone, notifications }
+  return { content, pricing, loyalty, track, trackByPhone, notifications }
+}
+
+/** §4 — зочинд харагдах урамшууллын нийтэлсэн нөхцөл (хувийн өгөгдөлгүй) */
+export interface PublicLoyalty {
+  windowDays: number
+  maxRedeemPercent: number
+  tiers: LoyaltyTier[]
 }
 
 /** §7 — зочинд харагдах цагаан жагсаалттай мэдэгдэл (уншсан төлөвгүй, зөвхөн текст) */

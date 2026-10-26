@@ -468,8 +468,8 @@ exports.SETTING_KEY = {
   CONTENT_ADDRESS_GUIDES: 'content.address_guides',
 
   // §4 — урамшууллын хөтөлбөр (түвшний босго, кредитийн хувь, ашиглах
-  // хязгаар). Харилцагчид ЗӨВХӨН `loyalty.service.js#getForCustomer`-ээр
-  // (нэвтэрсэн үед) харагдана — `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ.
+  // хязгаар). `PUBLIC_CONTENT_KEYS`-д ОРОХГҮЙ — нэвтрээгүй зочинд зөвхөн
+  // `public.service.js#loyalty`-ийн цагаан жагсаалтаар (нүүр хуудас) гарна.
   LOYALTY_PROGRAM: 'loyalty.program',
 
   // Дотоод тохиргоо — зөвхөн ажилтанд (§9.1). `content.*`-аас ялгаатай: энэ

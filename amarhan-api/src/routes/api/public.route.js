@@ -30,6 +30,9 @@ router.get('/track-by-phone/:phone', validate(validation.trackByPhone), controll
 // §3, roadmap 5.10 — нүүр хуудасны нийтэлсэн үнийн жагсаалт (rate card)
 router.get('/pricing', controller.pricing);
 
+// §4 — урамшууллын хөтөлбөрийн нийтэлсэн нөхцөл (түвшин, босго, хувь)
+router.get('/loyalty', controller.loyalty);
+
 // §3, roadmap 5.9/5.10 — Эрээний хаяг, холбоо барих, түгээмэл асуулт
 router.get('/content', controller.content);
 

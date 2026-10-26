@@ -28,6 +28,14 @@ exports.pricing = async (req, res, next) => {
   }
 };
 
+exports.loyalty = async (req, res, next) => {
+  try {
+    return success(res, await publicService.loyalty());
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.content = async (req, res, next) => {
   try {
     return success(res, await publicService.content());

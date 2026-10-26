@@ -19,7 +19,12 @@ const {
   createCargoTypeWithTariff,
   createLocation,
 } = require('../factories/domain.factory');
-const { ROLES, AUDIT_ACTION, SETTING_KEY } = require('../../src/config/constants');
+const {
+  ROLES,
+  AUDIT_ACTION,
+  SETTING_KEY,
+  SETTING_DEFAULTS,
+} = require('../../src/config/constants');
 
 chai.use(chaiHttp);
 
@@ -1566,6 +1571,41 @@ describe('Харилцагчийн вэб (§3)', () => {
       await CargoType.deleteMany({ code: 'standard' });
 
       const res = await chai.request(app).get(`${PUBLIC}/pricing`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.equal(null);
+    });
+  });
+
+  describe('Урамшууллын нийтэлсэн нөхцөл (§4)', () => {
+    it('нэвтрэхгүйгээр түвшний нэр, босго, хувийг цагаан жагсаалтаар буцаана', async () => {
+      const res = await chai.request(app).get(`${PUBLIC}/loyalty`);
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.all.keys('windowDays', 'maxRedeemPercent', 'tiers');
+      expect(res.body.data.tiers.map(t => t.code)).to.deep.equal([
+        'bronze',
+        'silver',
+        'gold',
+        'platinum',
+      ]);
+      for (const tier of res.body.data.tiers) {
+        expect(tier).to.have.all.keys('code', 'name', 'minSpent', 'rateBps');
+      }
+    });
+
+    it('хөтөлбөр унтраалттай бол null буцаана', async () => {
+      const admin = await createUserWithToken({ role: ROLES.ADMIN, branchId: branch._id });
+      const program = structuredClone(SETTING_DEFAULTS[SETTING_KEY.LOYALTY_PROGRAM]);
+      program.enabled = false;
+      const update = await chai
+        .request(app)
+        .put(`${SETTINGS}/${SETTING_KEY.LOYALTY_PROGRAM}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ value: program });
+      expect(update.status, JSON.stringify(update.body)).to.equal(200);
+
+      const res = await chai.request(app).get(`${PUBLIC}/loyalty`);
 
       expect(res.status).to.equal(200);
       expect(res.body.data).to.equal(null);

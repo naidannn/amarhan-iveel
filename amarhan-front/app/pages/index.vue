@@ -21,7 +21,7 @@ onMounted(async () => {
   if (await customer.checkAuth()) await navigateTo('/my')
 })
 
-const { content, pricing, notifications } = usePublicContent()
+const { content, pricing, loyalty, notifications } = usePublicContent()
 
 const { data: site } = await useAsyncData('public-content', () => content(), {
   // Backend унтарсан үед нүүр хуудас БҮХЭЛДЭЭ унах ёсгүй
@@ -29,6 +29,11 @@ const { data: site } = await useAsyncData('public-content', () => content(), {
 })
 
 const { data: tariff } = await useAsyncData('public-pricing', () => pricing(), {
+  default: () => null,
+})
+
+// §4 — урамшууллын түвшин/хувь. Хөтөлбөр унтарсан/backend хариугүй бол хэсэг нуугдана
+const { data: loyaltyProgram } = await useAsyncData('public-loyalty', () => loyalty(), {
   default: () => null,
 })
 
@@ -71,6 +76,7 @@ useHead({
     <LandingFeatures />
     <LandingHelperServices :yuan-transfer="yuanTransfer" :link-order="linkOrder" />
     <LandingPricing :tariff="tariff" />
+    <LandingLoyalty :program="loyaltyProgram" />
     <LandingChinaAddress :address="address" />
     <LandingAddressGuides :guides="addressGuides" />
     <LandingHowItWorks />

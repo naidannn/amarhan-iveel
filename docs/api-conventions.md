@@ -301,6 +301,9 @@ GET    /api/v1/customer/deliveries
 ```
 GET    /api/v1/public/track/:trackingNumber    # төлөв + масклагдсан утас
 GET    /api/v1/public/content                  # Эрээний хаяг, холбоо барих, FAQ
+GET    /api/v1/public/loyalty                  # §4 (2026-10-26) — нүүр хуудасны урамшууллын
+                                                # нөхцөл: windowDays/maxRedeemPercent/tiers
+                                                # (code/name/minSpent/rateBps). Унтраалттай бол null.
 GET    /api/v1/public/notifications            # §7, roadmap 6.3 (2026-08-02) — идэвхтэй
                                                 # нийтийн зарлал. Хариу цагаан жагсаалттай:
                                                 # зөвхөн id/title/body/createdAt.

@@ -5,6 +5,7 @@ const packageRepository = require('../repositories/package.repository');
 const cargoTypeRepository = require('../repositories/cargo-type.repository');
 const tariffVersionRepository = require('../repositories/tariff-version.repository');
 const settingService = require('./setting.service');
+const loyaltyService = require('./loyalty.service');
 const APIError = require('../utils/APIError');
 const { maskPhone, normalizePhone } = require('../domain/phone');
 const { PUBLIC_CONTENT_KEYS, SETTING_DEFAULTS, PACKAGE_STATUS } = require('../config/constants');
@@ -116,6 +117,31 @@ class PublicService {
       weightBrackets: (tariff.weightBrackets ?? []).map(b => ({
         maxGrams: b.maxGrams,
         price: b.price,
+      })),
+    };
+  }
+
+  /**
+   * §4 — нүүр хуудасны "Урамшуулал" хэсэг.
+   *
+   * `pricing()`-ийн адил компанийн НИЙТ нийтэлсэн нөхцөл (түвшний нэр, босго,
+   * буцаан олголтын хувь) — аль ч харилцагчтай холбоогүй. `loyalty.program`
+   * тохиргоог БҮТНЭЭР нь буцаахгүй: зөвхөн доорх цагаан жагсаалт гарна, хожим
+   * тохиргоонд нэмэгдэх дотоод талбар чимээгүй нийтлэгдэхгүй. Хөтөлбөр
+   * унтраалттай бол `null` — frontend хэсгийг бүхэлд нь нууна.
+   */
+  async loyalty() {
+    const program = await loyaltyService.getProgram();
+    if (!program.enabled) return null;
+
+    return {
+      windowDays: program.windowDays,
+      maxRedeemPercent: program.maxRedeemPercent,
+      tiers: program.tiers.map(t => ({
+        code: t.code,
+        name: t.name,
+        minSpent: t.minSpent,
+        rateBps: t.rateBps,
       })),
     };
   }

@@ -78,6 +78,7 @@ const socialLinks = computed(() =>
               <p class="text-body-sm font-semibold text-slate-900">Үйлчилгээ</p>
               <ul class="mt-3 space-y-2 text-body-sm text-slate-500">
                 <li><a href="/#pricing" class="hover:text-slate-900">Тариф</a></li>
+                <li><a href="/#loyalty" class="hover:text-slate-900">Урамшуулал</a></li>
                 <li><NuxtLink to="/track" class="hover:text-slate-900">Ачаа хайх</NuxtLink></li>
                 <li><NuxtLink to="/address" class="hover:text-slate-900">Хүлээн авах хаяг</NuxtLink></li>
               </ul>

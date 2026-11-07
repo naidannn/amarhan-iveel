@@ -30,6 +30,21 @@ const customerSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Verify.MN-ээр баталгаажсан мөч (roadmap 5.2). Ажилтан гараар
+    // `phoneVerified` тавьсан бол `null` хэвээр — хэн баталгаажуулснаар ялгана.
+    phoneVerifiedAt: {
+      type: Date,
+      default: null,
+    },
+    /**
+     * Үүнээс ӨМНӨ олгосон (`iat`) харилцагчийн токен хүчингүй (`passport.js`).
+     * Утсаар нууц үг сэргээхэд тавигдана — баталгаажаагүй бүртгэлийг утасны
+     * жинхэнэ эзэн буцааж авахад өмнөх хүний нээлттэй сесс хаагдах ёстой.
+     */
+    tokensValidAfter: {
+      type: Date,
+      default: null,
+    },
 
     name: {
       type: String,

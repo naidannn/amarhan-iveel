@@ -66,6 +66,11 @@ const customerJwtStrategy = new JwtStrategy(customerJwtOptions, async (jwtPayloa
       return done(null, false);
     }
 
+    // Утсаар нууц үг сэргээсний өмнө олгогдсон токен (roadmap 5.2)
+    if (customer.tokensValidAfter && jwtPayload.iat * 1000 < customer.tokensValidAfter.getTime()) {
+      return done(null, false);
+    }
+
     return done(null, customer);
   } catch (err) {
     return done(err, null);

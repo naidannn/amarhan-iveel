@@ -17,4 +17,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
       return navigateTo(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
     }
   }
+
+  // BR-28 — баталгаажаагүй хуучин бүртгэл НЭГ УДАА утсаа баталгаажуулна.
+  // Профайл нээлттэй (backend-д ч хаалтын гадна).
+  const exempt = ['/my/verify-phone', '/my/profile']
+  if (customer.customer?.phoneVerificationRequired && !exempt.includes(to.path)) {
+    return navigateTo(`/my/verify-phone?redirect=${encodeURIComponent(to.fullPath)}`)
+  }
 })

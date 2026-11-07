@@ -20,6 +20,12 @@ process.env.APP_SECRET = process.env.APP_SECRET || 'test-secret-do-not-use-in-pr
 // бодит холболтыг beforeAll доторх санах ойн MongoDB рүү хийнэ.
 process.env.MONGOURI = process.env.MONGOURI || 'mongodb://127.0.0.1:27017/iveel-test-placeholder';
 
+// Локал `.env`-д Verify.MN түлхүүр байсан ч тест гадаад API руу ХЭЗЭЭ Ч
+// хандахгүй. dotenv байгаа хувьсагчийг дарж бичдэггүй тул хоосон утга
+// тавьснаар `config.verify.enabled` false болно; баталгаажуулалтын тест
+// түлхүүрийг өөрөө түр тавьж `verify.service`-ийг stub хийнэ.
+process.env.VERIFY_API_KEY = '';
+
 const chai = require('chai');
 const chaiAsPromised = require('chai-as-promised');
 const mongoose = require('mongoose');

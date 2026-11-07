@@ -84,6 +84,57 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
+// ── Утас баталгаажуулалт (roadmap 5.2, Verify.MN) ───────────────────────
+
+exports.startPhoneVerification = async (req, res, next) => {
+  try {
+    const verification = await customerAuthService.startPhoneVerification(req.body);
+    return created(res, { verification });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.checkPhoneVerification = async (req, res, next) => {
+  try {
+    const verification = await customerAuthService.checkPhoneVerification(req.body.token);
+    return success(res, { verification });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.resetPasswordWithPhone = async (req, res, next) => {
+  try {
+    const result = await customerAuthService.resetPasswordWithPhone(req.body, req);
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.startSelfVerification = async (req, res, next) => {
+  try {
+    const verification = await customerAuthService.startSelfVerification(req.customer._id);
+    return created(res, { verification });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.checkSelfVerification = async (req, res, next) => {
+  try {
+    const result = await customerAuthService.checkSelfVerification(
+      req.customer._id,
+      req.body.token,
+      req
+    );
+    return success(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Токеныг сервер талд хадгалдаггүй (JWT) тул гарах нь клиент талын үйлдэл.
  * Endpoint нь клиент нэг л замаар гардаг байхын тулд үлдэнэ.

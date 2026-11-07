@@ -70,7 +70,9 @@ notifications, settings  (бие даасан)
 | Талбар | Төрөл | Тайлбар |
 |---|---|---|
 | `phone` | String, **unique** | Нормчлогдсон, системийн гол түлхүүр (§3) |
-| `phoneVerified` | Boolean | OTP-оор баталгаажсан эсэх |
+| `phoneVerified` | Boolean | Утас баталгаажсан эсэх (Verify.MN эсвэл ажилтан гараар) |
+| `phoneVerifiedAt` | Date \| null | Verify.MN-ээр баталгаажсан мөч (ажилтан гараар тавьсан бол null) |
+| `tokensValidAfter` | Date \| null | Үүнээс өмнө олгосон харилцагчийн токен хүчингүй (утсаар нууц үг сэргээхэд) |
 | `name` | String | Сонголтоор |
 | `email` | String, sparse unique | |
 | `password` | String \| null | Зөвхөн өөрөө бүртгүүлсэн бол |
@@ -95,11 +97,26 @@ notifications, settings  (бие даасан)
 > дараа `findOrCreateByPhone`-оор үүсгэнэ. Утасгүй бичлэг зөвшөөрвөл ямар ч
 > ачаатай холбогдохгүй "хоосон" бүртгэл хуримтлагдана.
 
-> **`phoneVerified` нь Phase 5-д `false` хэвээр үлдэнэ.** OTP хараахан
-> хэрэгжээгүй (roadmap 5.2) тул систем баталгаажаагүйг баталгаажсан гэж
-> БИЧИХГҮЙ. Phase 6-д зөвхөн BR-28-ийн хаалтыг асаана — өгөгдөл засах
-> шаардлагагүй. Хариуд нь харилцагч утсаа өөрөө солих зам байхгүй
-> (CLAUDE.md §5 дүрэм 13).
+> **`phoneVerified` нь ЗӨВХӨН зарцуулсан баталгаажуулалтын дараа `true`** (roadmap
+> 5.2, 2026-11-08). Өмнөх бүх бүртгэл `false` хэвээр байсан тул migration
+> шаардлагагүй — BR-28-ийн хаалт асахад тэд нэг удаа баталгаажуулна. Харилцагч
+> утсаа өөрөө солих зам байхгүй (CLAUDE.md §5 дүрэм 13).
+
+### 3a. `phone_verifications` — утас баталгаажуулалтын сесс (roadmap 5.2)
+
+| Талбар | Төрөл | Тайлбар |
+|---|---|---|
+| `phone` | String | Нормчлогдсон 8 оронтой |
+| `purpose` | Enum: `register` \| `reset_password` \| `verify_phone` | Сесс нэг зорилгод уягдана |
+| `customerId` | ObjectId \| null | Зөвхөн `verify_phone` (нэвтэрсэн харилцагч) |
+| `tokenHash` | String, unique, `select: false` | Клиентийн `token`-ы sha256 |
+| `providerSessionId` | String | Verify.MN `sessionId` |
+| `text`, `shortcode`, `smsUri`, `displayInstruction` | String | Харилцагчид харуулах заавар (нууц биш) |
+| `status` | Enum: `pending` \| `verified` \| `consumed` \| `expired` | |
+| `expiresAt`, `verifiedAt`, `consumedAt` | Date | |
+
+**Индекс:** `{ phone, purpose, createdAt: -1 }`, `createdAt` TTL 7 хоног (MongoDB
+өөрөө устгана — давтамжийн хязгаарт л хэрэгтэй).
 
 ---
 

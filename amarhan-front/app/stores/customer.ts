@@ -18,10 +18,30 @@ export interface CustomerAddress {
   note?: string
 }
 
+/**
+ * Утас баталгаажуулалтын сесс — roadmap 5.2 (Verify.MN, MO загвар).
+ * Харилцагч `shortcode` руу `text`-ийг ӨӨРИЙН утаснаас SMS-ээр илгээнэ.
+ */
+export interface PhoneVerification {
+  token?: string
+  status: 'pending' | 'verified' | 'consumed' | 'expired'
+  phone: string
+  shortcode: string | null
+  text: string
+  smsUri: string | null
+  displayInstruction: string | null
+  expiresAt: string
+  verifiedAt: string | null
+}
+
+export type PhoneVerificationPurpose = 'register' | 'reset_password'
+
 export interface Customer {
   id: string
   phone: string
   phoneVerified: boolean
+  /** true бол `/my/*` нь `/my/verify-phone` руу чиглэнэ (BR-28) */
+  phoneVerificationRequired: boolean
   name: string | null
   email: string | null
   hasGoogle: boolean
@@ -51,7 +71,13 @@ export const useCustomerStore = defineStore('customer', {
   },
 
   actions: {
-    async register(payload: { phone: string; password: string; name?: string; email?: string }) {
+    async register(payload: {
+      phone: string
+      password: string
+      name?: string
+      email?: string
+      verificationToken?: string
+    }) {
       this.loading = true
       try {
         const { $axios } = useNuxtApp()
@@ -79,7 +105,12 @@ export const useCustomerStore = defineStore('customer', {
     },
 
     /** Google-ээр орсон шинэ хэрэглэгч утсаа өгч бүртгэлээ дуусгана */
-    async completeGoogle(pendingToken: string, phone: string, name?: string) {
+    async completeGoogle(
+      pendingToken: string,
+      phone: string,
+      name?: string,
+      verificationToken?: string
+    ) {
       this.loading = true
       try {
         const { $axios } = useNuxtApp()
@@ -87,6 +118,7 @@ export const useCustomerStore = defineStore('customer', {
           pendingToken,
           phone,
           ...(name ? { name } : {}),
+          ...(verificationToken ? { verificationToken } : {}),
         })
         this.apply(data.data.token, data.data.customer)
         return data.data
@@ -195,6 +227,62 @@ export const useCustomerStore = defineStore('customer', {
         token,
         newPassword,
       })
+      return data.data
+    },
+
+    // ── Утас баталгаажуулалт (roadmap 5.2) ─────────────────────────────
+
+    /** Нэвтрээгүй: бүртгүүлэх / нууц үг сэргээх */
+    async startVerification(
+      phone: string,
+      purpose: PhoneVerificationPurpose
+    ): Promise<PhoneVerification> {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/auth/phone-verifications', {
+        phone,
+        purpose,
+      })
+      return data.data.verification
+    },
+
+    async checkVerification(token: string): Promise<PhoneVerification> {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/auth/phone-verifications/check', {
+        token,
+      })
+      return data.data.verification
+    },
+
+    /** Нэвтэрсэн, утас нь баталгаажаагүй харилцагч — утас нь токеноос */
+    async startSelfVerification(): Promise<PhoneVerification> {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/me/phone-verification')
+      return data.data.verification
+    },
+
+    /** Баталгаажмагц backend шууд `phoneVerified: true` болгож харилцагчийг буцаана */
+    async checkSelfVerification(token: string): Promise<PhoneVerification> {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/me/phone-verification/check', {
+        token,
+      })
+      if (data.data.customer) {
+        this.customer = data.data.customer
+        if (import.meta.client) {
+          localStorage.setItem(CUSTOMER_USER_KEY, JSON.stringify(this.customer))
+        }
+      }
+      return data.data.verification
+    },
+
+    async resetPasswordWithPhone(phone: string, verificationToken: string, newPassword: string) {
+      const { $axios } = useNuxtApp()
+      const { data } = await $axios.post('/api/v1/customer/auth/reset-password/phone', {
+        phone,
+        verificationToken,
+        newPassword,
+      })
+      this.apply(data.data.token, data.data.customer)
       return data.data
     },
 

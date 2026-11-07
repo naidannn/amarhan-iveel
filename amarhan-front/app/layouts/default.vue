@@ -73,6 +73,8 @@ const unreadCount = ref(0)
 
 async function loadUnreadCount() {
   if (!customer.isAuthenticated) return
+  // BR-28 — баталгаажаагүй утастай бол мэдэгдэл хаалттай (403), асуухгүй
+  if (customer.customer?.phoneVerificationRequired) return
   try {
     unreadCount.value = await useCustomerPortal().unreadNotificationCount()
   } catch {

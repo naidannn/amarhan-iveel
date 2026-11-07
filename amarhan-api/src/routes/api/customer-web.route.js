@@ -6,11 +6,17 @@ const authController = require('../../controllers/customer-auth.controller');
 const portalController = require('../../controllers/customer-portal.controller');
 const notificationController = require('../../controllers/notification.controller');
 const authorizeCustomer = require('../../middlewares/authorize-customer');
+const requireVerifiedPhone = require('../../middlewares/require-verified-phone');
 const validate = require('../../middlewares/validate');
 const authValidation = require('../../validations/customer-auth.validation');
 const portalValidation = require('../../validations/customer-portal.validation');
 const notificationValidation = require('../../validations/notification.validation');
-const { authLimiter, selfRegisterLimiter } = require('../../middlewares/rate-limit');
+const {
+  authLimiter,
+  selfRegisterLimiter,
+  phoneVerificationLimiter,
+  phoneVerificationCheckLimiter,
+} = require('../../middlewares/rate-limit');
 
 /**
  * Харилцагчийн вэб — introduction.md §3 (Phase 5)
@@ -34,8 +40,34 @@ router.post(
 );
 router.post('/auth/login', authLimiter, validate(authValidation.login), authController.login);
 
-// Нууц үг сэргээх — танилтгүй, имэйлээр (Resend). Утсаар БИШ: SMS суваг
-// хараахан хэрэгжээгүй (roadmap 6.5).
+/**
+ * Roadmap 5.2 — утас баталгаажуулалт (Verify.MN, MO загвар). Харилцагч
+ * 144773 руу код ИЛГЭЭНЭ; `/check`-ийг 3 секунд тутам асууна. Үр дүнгийн
+ * `token`-ыг `/auth/register`, `/auth/google/complete`,
+ * `/auth/reset-password/phone`-д `verificationToken` болгон дамжуулна.
+ */
+router.post(
+  '/auth/phone-verifications',
+  phoneVerificationLimiter,
+  validate(authValidation.startPhoneVerification),
+  authController.startPhoneVerification
+);
+router.post(
+  '/auth/phone-verifications/check',
+  phoneVerificationCheckLimiter,
+  validate(authValidation.checkPhoneVerification),
+  authController.checkPhoneVerification
+);
+
+// Нууц үг мартсан — утсаар (Verify.MN, үндсэн зам)
+router.post(
+  '/auth/reset-password/phone',
+  authLimiter,
+  validate(authValidation.resetPasswordWithPhone),
+  authController.resetPasswordWithPhone
+);
+
+// Нууц үг сэргээх — имэйлээр (Resend). Имэйл бүртгүүлсэн хэрэглэгчийн нөөц зам.
 router.post(
   '/auth/forgot-password',
   authLimiter,
@@ -78,6 +110,27 @@ router.put(
   validate(authValidation.updateAddresses),
   authController.updateAddresses
 );
+
+// BR-28 — баталгаажаагүй хуучин бүртгэл НЭГ УДАА баталгаажуулна. Утас нь
+// токены харилцагчийнх (дүрэм 14), body-д утас авахгүй.
+router.post(
+  '/me/phone-verification',
+  phoneVerificationLimiter,
+  authController.startSelfVerification
+);
+router.post(
+  '/me/phone-verification/check',
+  phoneVerificationCheckLimiter,
+  validate(authValidation.checkPhoneVerification),
+  authController.checkSelfVerification
+);
+
+/**
+ * ⚠ ЭНЭ МӨРӨӨС ДООШХИ БҮХ ЗАМ баталгаажсан утас шаардана (BR-28): ачаа,
+ * төлбөр, хүргэлт, кредит, мэдэгдэл. Дээрх профайл/нууц үг/баталгаажуулалт
+ * нь ЗОРИУД хаалтын гадна — эс тэгвээс баталгаажуулах зам өөрөө хаагдана.
+ */
+router.use(requireVerifiedPhone());
 
 // §3 — өөрийн ачаа, төлбөр, хүргэлт
 router.get('/summary', portalController.summary);

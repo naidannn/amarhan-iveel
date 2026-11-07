@@ -109,6 +109,8 @@ exports.AUDIT_ACTION = {
   // Имэйлээр нууц үг сэргээх — `actorId: null`, `actorName: 'Харилцагч'`
   CUSTOMER_PASSWORD_RESET_REQUEST: 'customer.password_reset_request',
   CUSTOMER_PASSWORD_RESET: 'customer.password_reset',
+  // Roadmap 5.2 — Verify.MN-ээр утсаа баталгаажуулсан (`phoneVerified: true`)
+  CUSTOMER_PHONE_VERIFY: 'customer.phone_verify',
 
   // Ажилтан
   USER_CREATE: 'user.create',
@@ -352,6 +354,28 @@ exports.DELIVERY_FEE_AMOUNT = 7000;
  * Мессежийн ТЕКСТЭД frontend хамаарах ёсгүй (текст өөрчлөгдөж болно) —
  * ийм тохиолдолд кодоор ялгана.
  */
+/**
+ * Утас баталгаажуулалтын зорилго — roadmap 5.2.
+ *
+ * Баталгаажуулалт бүр НЭГ зорилгод, НЭГ утсанд уягдана: бүртгүүлэхэд
+ * баталгаажуулсан сессийг нууц үг сэргээхэд (эсрэгээр нь ч) ашиглах боломжгүй.
+ */
+exports.PHONE_VERIFICATION_PURPOSE = {
+  REGISTER: 'register',
+  RESET_PASSWORD: 'reset_password',
+  // Аль хэдийн нэвтэрсэн, утас нь баталгаажаагүй харилцагч НЭГ УДАА баталгаажуулна
+  VERIFY_PHONE: 'verify_phone',
+};
+exports.PHONE_VERIFICATION_PURPOSE_LIST = Object.values(exports.PHONE_VERIFICATION_PURPOSE);
+
+exports.PHONE_VERIFICATION_STATUS = {
+  PENDING: 'pending',
+  VERIFIED: 'verified',
+  // Бүртгэл/сэргээлтэд аль хэдийн ашиглагдсан — дахин хэрэглэх боломжгүй
+  CONSUMED: 'consumed',
+  EXPIRED: 'expired',
+};
+
 exports.ERROR_CODE = {
   DUPLICATE_TRACKING_NUMBER: 'DUPLICATE_TRACKING_NUMBER',
   OVERRIDE_LIMIT_EXCEEDED: 'OVERRIDE_LIMIT_EXCEEDED',
@@ -377,6 +401,12 @@ exports.ERROR_CODE = {
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   // Нууц үг сэргээх — токен олдсонгүй/хугацаа дууссан
   INVALID_RESET_TOKEN: 'INVALID_RESET_TOKEN',
+  // Roadmap 5.2 — утас баталгаажуулалт (Verify.MN)
+  PHONE_NOT_VERIFIED: 'PHONE_NOT_VERIFIED',
+  PHONE_VERIFICATION_REQUIRED: 'PHONE_VERIFICATION_REQUIRED',
+  PHONE_VERIFICATION_LIMIT: 'PHONE_VERIFICATION_LIMIT',
+  PHONE_VERIFICATION_DISABLED: 'PHONE_VERIFICATION_DISABLED',
+  ACCOUNT_NOT_FOUND: 'ACCOUNT_NOT_FOUND',
   // BR-47 — зарлага
   EXPENSE_ALREADY_VOIDED: 'EXPENSE_ALREADY_VOIDED',
   // BR-48 — урамшууллын кредит

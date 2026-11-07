@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Info } from 'lucide-vue-next'
+import type { PhoneVerification } from '~/stores/customer'
 
 /**
  * Харилцагч бүртгүүлэх — introduction.md §3
@@ -7,6 +8,10 @@ import { Info } from 'lucide-vue-next'
  * Утас ЗААВАЛ: ачаа зөвхөн утасны дугаараар харилцагчтай холбогддог (BR-26).
  * Бүртгүүлмэгц тухайн дугаараар өмнө бүртгэгдсэн БҮХ ачаа шууд харагдана
  * (BR-29) — үүнийг хэрэглэгчид тайлбарлаж өгнө.
+ *
+ * Тиймээс бүртгэл нь утас баталгаажуулалттай (roadmap 5.2, Verify.MN):
+ * форм → өөрийн утаснаас SMS илгээх → бүртгэл. Verify.MN тохируулаагүй
+ * орчинд (`PHONE_VERIFICATION_DISABLED`) шууд бүртгэнэ.
  */
 const customer = useCustomerStore()
 
@@ -20,28 +25,66 @@ const form = reactive({
 const error = ref<string | null>(null)
 const fieldErrors = ref<Record<string, string>>({})
 
+const step = ref<'form' | 'verify'>('form')
+const checking = ref(false)
+// Форм илгээхэд үүсгэсэн эхний сессийг компонент дахин ашиглана
+let firstSession: PhoneVerification | null = null
+
 const canSubmit = computed(() => form.phone.trim().length >= 8 && form.password.length >= 8)
 
 async function submit() {
   error.value = null
   fieldErrors.value = {}
+  checking.value = true
 
+  // Дугаар бүртгэлтэй эсэх зэргийг SMS илгээхээс ӨМНӨ шалгана (150₮ дэмий
+  // төлөгдөхгүй) — эхний сессийг энд үүсгэж компонентод дамжуулна
+  try {
+    firstSession = await customer.startVerification(form.phone.trim(), 'register')
+    step.value = 'verify'
+  } catch (e: any) {
+    if (e?.response?.data?.code === 'PHONE_VERIFICATION_DISABLED') {
+      await finish()
+    } else {
+      showError(e)
+    }
+  } finally {
+    checking.value = false
+  }
+}
+
+async function startSession() {
+  if (firstSession) {
+    const session = firstSession
+    firstSession = null
+    return session
+  }
+  return customer.startVerification(form.phone.trim(), 'register')
+}
+
+async function finish(verificationToken?: string) {
   try {
     await customer.register({
       phone: form.phone.trim(),
       password: form.password,
       ...(form.name.trim() ? { name: form.name.trim() } : {}),
       ...(form.email.trim() ? { email: form.email.trim() } : {}),
+      ...(verificationToken ? { verificationToken } : {}),
     })
     await navigateTo('/my')
   } catch (e: any) {
-    const data = e?.response?.data
-    // Backend-ийн Joi алдааг талбар тус бүрт нь буулгана
-    if (Array.isArray(data?.errors)) {
-      for (const item of data.errors) fieldErrors.value[item.field] = item.message
-    }
-    error.value = data?.message ?? 'Бүртгүүлж чадсангүй. Дахин оролдоно уу'
+    step.value = 'form'
+    showError(e)
   }
+}
+
+function showError(e: any) {
+  const data = e?.response?.data
+  // Backend-ийн Joi алдааг талбар тус бүрт нь буулгана
+  if (Array.isArray(data?.errors)) {
+    for (const item of data.errors) fieldErrors.value[item.field] = item.message
+  }
+  error.value = data?.message ?? 'Бүртгүүлж чадсангүй. Дахин оролдоно уу'
 }
 
 useHead({
@@ -71,7 +114,22 @@ useHead({
       </p>
     </div>
 
-    <form class="mt-6 space-y-4" @submit.prevent="submit">
+    <div v-if="step === 'verify'" class="mt-6">
+      <CustomerPhoneVerification
+        :start="startSession"
+        :check="customer.checkVerification"
+        @verified="finish"
+      />
+      <button
+        type="button"
+        class="mt-4 w-full text-center text-body-sm font-medium text-content-secondary hover:text-content"
+        @click="step = 'form'"
+      >
+        ← Дугаар засах
+      </button>
+    </div>
+
+    <form v-else class="mt-6 space-y-4" @submit.prevent="submit">
       <UiField
         label="Утасны дугаар"
         for="phone"
@@ -118,8 +176,8 @@ useHead({
         {{ error }}
       </p>
 
-      <UiBtn type="submit" block :loading="customer.loading" :disabled="!canSubmit">
-        Бүртгүүлэх
+      <UiBtn type="submit" block :loading="checking || customer.loading" :disabled="!canSubmit">
+        Үргэлжлүүлэх
       </UiBtn>
     </form>
 

@@ -81,6 +81,23 @@ module.exports = {
     },
   },
   /**
+   * Verify.MN — харилцагчийн утас баталгаажуулалт (roadmap 5.2, §3).
+   *
+   * Уламжлалт "бид SMS-ээр код илгээнэ" OTP БИШ — mobile-originated (MO)
+   * загвар: харилцагч өөрийн утаснаас 144773 руу кодыг SMS-ээр ИЛГЭЭНЭ
+   * (SMS-ийн төлбөрийг хэрэглэгч төлнө). Ирсэн SMS-ийн илгээгч дугаар нь
+   * утас эзэмшлийн нотолгоо болно. `VERIFY_API_KEY` тохируулаагүй орчинд
+   * `enabled` false — бүртгэл баталгаажуулалтгүйгээр явж, портал хаагдахгүй
+   * (`google.enabled`-тэй адил "тохируулаагүй бол чимээгүй унтарна").
+   */
+  verify: {
+    apiKey: process.env.VERIFY_API_KEY,
+    baseURL: process.env.VERIFY_BASE_URL || 'https://api.verify.mn',
+    get enabled() {
+      return Boolean(this.apiKey);
+    },
+  },
+  /**
    * Cloudinary — мэдэгдлийн (зарлал/popup) зураг (`notifications.imageUrl`).
    *
    * Popup зураг 2–3 хоног тутам солигддог тул сервер дээр (`uploads/`)

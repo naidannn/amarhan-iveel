@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Loader2, AlertCircle } from 'lucide-vue-next'
+import type { PhoneVerification } from '~/stores/customer'
 
 /**
  * Google OAuth-ийн буцах хуудас — introduction.md §3
@@ -17,7 +18,7 @@ definePageMeta({ layout: 'default' })
 
 const customer = useCustomerStore()
 
-const state = ref<'loading' | 'needPhone' | 'error'>('loading')
+const state = ref<'loading' | 'needPhone' | 'verify' | 'error'>('loading')
 const pendingToken = ref('')
 const errorMessage = ref('')
 
@@ -63,12 +64,50 @@ onMounted(async () => {
   state.value = 'needPhone'
 })
 
+const checking = ref(false)
+let firstSession: PhoneVerification | null = null
+
+/**
+ * Roadmap 5.2 — утсаа баталгаажуулсны дараа л бүртгэл дуусна. Verify.MN
+ * тохируулаагүй орчинд (`PHONE_VERIFICATION_DISABLED`) шууд дуусгана.
+ */
 async function complete() {
   formError.value = null
+  checking.value = true
   try {
-    await customer.completeGoogle(pendingToken.value, phone.value.trim(), name.value.trim())
+    firstSession = await customer.startVerification(phone.value.trim(), 'register')
+    state.value = 'verify'
+  } catch (e: any) {
+    if (e?.response?.data?.code === 'PHONE_VERIFICATION_DISABLED') {
+      await finish()
+    } else {
+      formError.value = e?.response?.data?.message ?? 'Бүртгэлээ дуусгаж чадсангүй'
+    }
+  } finally {
+    checking.value = false
+  }
+}
+
+async function startSession() {
+  if (firstSession) {
+    const session = firstSession
+    firstSession = null
+    return session
+  }
+  return customer.startVerification(phone.value.trim(), 'register')
+}
+
+async function finish(verificationToken?: string) {
+  try {
+    await customer.completeGoogle(
+      pendingToken.value,
+      phone.value.trim(),
+      name.value.trim(),
+      verificationToken
+    )
     await navigateTo('/my')
   } catch (e: any) {
+    state.value = 'needPhone'
     formError.value = e?.response?.data?.message ?? 'Бүртгэлээ дуусгаж чадсангүй'
   }
 }
@@ -112,12 +151,31 @@ useHead({ title: 'Google-ээр нэвтрэх — Ивээлт Карго' })
         <UiBtn
           type="submit"
           block
-          :loading="customer.loading"
+          :loading="checking || customer.loading"
           :disabled="phone.trim().length < 8"
         >
-          Бүртгэлээ дуусгах
+          Үргэлжлүүлэх
         </UiBtn>
       </form>
+    </div>
+
+    <!-- Утас баталгаажуулах (roadmap 5.2) -->
+    <div v-else-if="state === 'verify'">
+      <h1 class="text-h1 font-bold text-content">Утсаа баталгаажуулна уу</h1>
+      <div class="mt-6">
+        <CustomerPhoneVerification
+          :start="startSession"
+          :check="customer.checkVerification"
+          @verified="finish"
+        />
+      </div>
+      <button
+        type="button"
+        class="mt-4 w-full text-center text-body-sm font-medium text-content-secondary hover:text-content"
+        @click="state = 'needPhone'"
+      >
+        ← Дугаар засах
+      </button>
     </div>
 
     <!-- Алдаа -->

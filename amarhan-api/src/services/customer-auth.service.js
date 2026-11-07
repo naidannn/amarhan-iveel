@@ -6,30 +6,41 @@ const config = require('../config');
 const customerRepository = require('../repositories/customer.repository');
 const auditService = require('./audit.service');
 const emailService = require('./email.service');
+const phoneVerificationService = require('./phone-verification.service');
 const APIError = require('../utils/APIError');
 const resetToken = require('../utils/reset-token');
 const { passwordResetEmail } = require('../utils/email-templates');
 const { withTransaction } = require('../utils/transaction');
 const { normalizePhone, maskPhone } = require('../domain/phone');
-const { AUDIT_ACTION, AUDIT_ENTITY, ERROR_CODE } = require('../config/constants');
+const {
+  AUDIT_ACTION,
+  AUDIT_ENTITY,
+  ERROR_CODE,
+  PHONE_VERIFICATION_PURPOSE,
+  PHONE_VERIFICATION_STATUS,
+} = require('../config/constants');
 
 /**
  * Харилцагчийн танилт — introduction.md §3
  *
- * ⚠ УТАС БАТАЛГААЖУУЛАЛТ (OTP) ХАРААХАН ХЭРЭГЖЭЭГҮЙ (roadmap 5.2).
+ * УТАС БАТАЛГААЖУУЛАЛТ (roadmap 5.2, Verify.MN — 2026-11-08).
  *
  * Утас бол ачааг харилцагчтай холбох ГОЛ ТҮЛХҮҮР (BR-26): бүртгүүлэхэд тухайн
- * утсаар бүртгэгдсэн БҮХ ачаа шууд харагдана. Тиймээс баталгаажуулалтгүй
- * үед хэн нэгэн ӨӨРИЙН БИШ утас бичээд өөр хүний ачааг харах боломжтой.
- * Эзэмшигчийн шийдвэрээр энэ эрсдэлийг түр хүлээн зөвшөөрөв.
+ * утсаар бүртгэгдсэн БҮХ ачаа шууд харагдана. Тиймээс `config.verify.enabled`
+ * үед бүртгэл (утас+нууц үг, Google) нь Verify.MN-ээр баталгаажсан сессийг
+ * ЗААВАЛ зарцуулна, баталгаажаагүй хуучин бүртгэл порталын өгөгдөл рүү
+ * НЭГ УДАА баталгаажуулах хүртэл хандахгүй (`require-verified-phone.js`, BR-28).
  *
- * Үүнээс үүдэн энэ файлд хоёр хамгаалалт БАРИМТЛАГДАНА:
- *   1. `phoneVerified` нь бүртгүүлэхэд `false` хэвээр — систем хэзээ ч
- *      баталгаажаагүйг баталгаажсан гэж БИЧИХГҮЙ. Phase 6-д OTP нэмэхэд
- *      зөвхөн энэ талбарын хаалтыг асаана, өгөгдөл засах шаардлагагүй.
+ * Энэ файлд баримтлагдах хамгаалалт:
+ *   1. `phoneVerified`-ыг ЗӨВХӨН зарцуулсан баталгаажуулалтын дараа `true`
+ *      болгоно — систем баталгаажаагүйг баталгаажсан гэж БИЧИХГҮЙ.
  *   2. Харилцагч өөрийн утсыг ӨӨРЧЛӨХ зам БАЙХГҮЙ. Байсан бол нэг бүртгэлээр
  *      дараалан утас сольж бүх хүний ачааг харах боломж үүснэ. Утас солих
- *      нь ажилтны үйлдэл (`PUT /customers/:id`, audit-д бичигдэнэ).
+ *      нь ажилтны үйлдэл (`PUT /customers/:id`, audit-д бичигдэнэ) бөгөөд
+ *      `phoneVerified`-ыг буцааж `false` болгоно.
+ *   3. Баталгаажуулалтыг зарцуулахаас ӨМНӨ бусад бүх шалгалтыг хийнэ —
+ *      хэрэглэгч SMS-дээ (150₮) мөнгө төлдөг тул имэйл давхардсан гэх мэт
+ *      алдаагаар баталгаажуулалт нь дэмий шатахгүй.
  */
 class CustomerAuthService {
   /**
@@ -80,13 +91,22 @@ class CustomerAuthService {
    * байгаа нь `hasAccount: true` болно. Ингэснээр өмнөх бүх ачаа шууд
    * харагдана (§3-ын гол шаардлага).
    */
-  async register({ phone, password, name, email }, req) {
+  async register({ phone, password, name, email, verificationToken }, req) {
     const normalized = this.normalizeOrThrow(phone);
     const normalizedEmail = email ? String(email).toLowerCase().trim() : null;
 
     if (normalizedEmail) {
       await this.assertEmailFree(normalizedEmail);
     }
+
+    const existing = await customerRepository.findByPhone(normalized);
+    if (existing) this.assertNoAccount(existing);
+
+    const verification = await this.consumeVerification({
+      token: verificationToken,
+      phone: normalized,
+      purpose: PHONE_VERIFICATION_PURPOSE.REGISTER,
+    });
 
     return withTransaction(async session => {
       const { customer } = await customerRepository.findOrCreateByPhone(
@@ -103,13 +123,18 @@ class CustomerAuthService {
       customer.hasAccount = true;
       if (name) customer.name = name;
       if (normalizedEmail) customer.email = normalizedEmail;
+      this.markVerified(customer, verification);
       await customer.save({ session });
 
       await this.recordSelfAction(
         {
           customer,
           action: AUDIT_ACTION.CUSTOMER_REGISTER,
-          after: { method: 'password', hasEmail: Boolean(normalizedEmail) },
+          after: {
+            method: 'password',
+            hasEmail: Boolean(normalizedEmail),
+            phoneVerified: customer.phoneVerified,
+          },
           req,
         },
         { session }
@@ -178,7 +203,7 @@ class CustomerAuthService {
    * `register()`-ийн адил BR-29 үйлчилнэ: тухайн утсаар ачаа бүртгэгдсэн
    * байсан бол байгаа бичлэг рүү холбогдоно.
    */
-  async completeGoogleRegistration({ pendingToken, phone, name }, req) {
+  async completeGoogleRegistration({ pendingToken, phone, name, verificationToken }, req) {
     const payload = this.verifyPendingToken(pendingToken);
     const normalized = this.normalizeOrThrow(phone);
 
@@ -195,6 +220,15 @@ class CustomerAuthService {
       await this.assertEmailFree(payload.email, { allowPhone: normalized });
     }
 
+    const existing = await customerRepository.findByPhone(normalized);
+    if (existing) this.assertNoAccount(existing);
+
+    const verification = await this.consumeVerification({
+      token: verificationToken,
+      phone: normalized,
+      purpose: PHONE_VERIFICATION_PURPOSE.REGISTER,
+    });
+
     return withTransaction(async session => {
       const { customer } = await customerRepository.findOrCreateByPhone(
         normalized,
@@ -208,13 +242,14 @@ class CustomerAuthService {
       customer.hasAccount = true;
       if (payload.email) customer.email = payload.email;
       if (name || payload.name) customer.name = name || payload.name;
+      this.markVerified(customer, verification);
       await customer.save({ session });
 
       await this.recordSelfAction(
         {
           customer,
           action: AUDIT_ACTION.CUSTOMER_REGISTER,
-          after: { method: 'google' },
+          after: { method: 'google', phoneVerified: customer.phoneVerified },
           req,
         },
         { session }
@@ -382,6 +417,203 @@ class CustomerAuthService {
     return true;
   }
 
+  // ── Утас баталгаажуулалт (roadmap 5.2, Verify.MN) ─────────────────────
+
+  /**
+   * Нэвтрээгүй хэрэглэгчийн баталгаажуулалт эхлүүлэх — бүртгүүлэх эсвэл
+   * нууц үг сэргээх.
+   *
+   * Урьдчилсан шалгалтыг SMS илгээхээс ӨМНӨ хийнэ (хэрэглэгч SMS-дээ мөнгө
+   * төлдөг): бүртгэлтэй дугаараар бүртгүүлэх, бүртгэлгүй дугаарын нууц үг
+   * сэргээх нь дэмий SMS болно. Бүртгэл байгаа эсэхийг ил болгох нь
+   * шинэ зүйл БИШ — `register` аль хэдийн `PHONE_TAKEN` буцаадаг.
+   */
+  async startPhoneVerification({ phone, purpose }) {
+    const normalized = this.normalizeOrThrow(phone);
+    const customer = await customerRepository.findByPhone(normalized);
+
+    if (purpose === PHONE_VERIFICATION_PURPOSE.REGISTER && customer) {
+      this.assertNoAccount(customer);
+    }
+
+    if (purpose === PHONE_VERIFICATION_PURPOSE.RESET_PASSWORD) {
+      this.assertResettable(customer);
+    }
+
+    return phoneVerificationService.start({ phone: normalized, purpose });
+  }
+
+  async checkPhoneVerification(token) {
+    return phoneVerificationService.check(token);
+  }
+
+  /**
+   * Нууц үг мартсан — утсаар (Verify.MN).
+   *
+   * Утас эзэмшлийг нотолсон тул `phoneVerified` мөн `true` болно. Өмнө нь
+   * баталгаажаагүй бүртгэл байсан бол түүнд холбогдсон имэйл/Google нь утас
+   * эзэмшлийг нотлоогүй хүнийх байж болзошгүй (BR-26 — өөрийн бус дугаараар
+   * бүртгүүлсэн) тул САЛГАНА, бүх хуучин токеныг хүчингүй болгоно
+   * (`tokensValidAfter`). Эс тэгвээс тэр хүн Google-ээрээ орсоор байна.
+   */
+  async resetPasswordWithPhone({ phone, verificationToken, newPassword }, req) {
+    const normalized = this.normalizeOrThrow(phone);
+    const found = await customerRepository.findByPhone(normalized);
+    this.assertResettable(found);
+
+    const verification = await this.consumeVerification({
+      token: verificationToken,
+      phone: normalized,
+      purpose: PHONE_VERIFICATION_PURPOSE.RESET_PASSWORD,
+      required: true,
+    });
+
+    const customer = await this.loadFull(found._id);
+    const wasVerified = customer.phoneVerified;
+    const detached = {};
+
+    if (!wasVerified) {
+      if (customer.email) detached.email = customer.email;
+      if (customer.googleId) detached.google = true;
+      customer.email = null;
+      customer.googleId = null;
+    }
+
+    customer.password = newPassword;
+    customer.tokensValidAfter = this.nowInTokenPrecision();
+    this.markVerified(customer, verification);
+    await customer.save();
+
+    await this.recordSelfAction({
+      customer,
+      action: AUDIT_ACTION.CUSTOMER_PASSWORD_RESET,
+      after: { method: 'phone', ...(Object.keys(detached).length ? { detached } : {}) },
+      req,
+    });
+    if (!wasVerified) {
+      await this.recordSelfAction({
+        customer,
+        action: AUDIT_ACTION.CUSTOMER_PHONE_VERIFY,
+        after: { phoneVerified: true, via: 'reset_password' },
+        req,
+      });
+    }
+
+    return { token: this.generateToken(customer), customer: this.toPublic(customer) };
+  }
+
+  /**
+   * Нэвтэрсэн, утас нь баталгаажаагүй харилцагч НЭГ УДАА баталгаажуулна
+   * (BR-28). Утас ҮРГЭЛЖ токены харилцагчаас — клиентээс авахгүй (дүрэм 14).
+   */
+  async startSelfVerification(customerId) {
+    const customer = await this.loadVerifiableOrThrow(customerId);
+    return phoneVerificationService.start({
+      phone: customer.phone,
+      purpose: PHONE_VERIFICATION_PURPOSE.VERIFY_PHONE,
+      customerId: customer._id,
+    });
+  }
+
+  /**
+   * Polling. Verify.MN баталгаажуулмагц ЭНД шууд зарцуулж `phoneVerified`
+   * болгоно — тусдаа "дуусгах" алхам шаардахгүй.
+   */
+  async checkSelfVerification(customerId, token, req) {
+    const customer = await customerRepository.findById(customerId);
+    if (!customer) {
+      throw new APIError('Бүртгэл олдсонгүй', httpStatus.NOT_FOUND);
+    }
+
+    const verification = await phoneVerificationService.check(token, {
+      customerId: customer._id,
+    });
+
+    if (customer.phoneVerified || verification.status !== PHONE_VERIFICATION_STATUS.VERIFIED) {
+      return { verification, customer: await this.getMe(customerId) };
+    }
+
+    const consumed = await phoneVerificationService.consume({
+      token,
+      phone: customer.phone,
+      purpose: PHONE_VERIFICATION_PURPOSE.VERIFY_PHONE,
+      customerId: customer._id,
+    });
+
+    const updated = await customerRepository.updateById(customerId, {
+      phoneVerified: true,
+      phoneVerifiedAt: consumed.verifiedAt,
+    });
+
+    await this.recordSelfAction({
+      customer: updated,
+      action: AUDIT_ACTION.CUSTOMER_PHONE_VERIFY,
+      after: { phoneVerified: true, via: 'verify_phone' },
+      req,
+    });
+
+    return {
+      verification: { ...verification, status: consumed.status },
+      customer: await this.getMe(customerId),
+    };
+  }
+
+  /**
+   * `config.verify.enabled` үед ЗААВАЛ (бүртгэл); тохируулаагүй орчинд
+   * баталгаажуулалтгүйгээр явна (`phoneVerified: false` хэвээр — худал
+   * бичихгүй). `required` нь нууц үг сэргээх мэт баталгаажуулалтгүйгээр
+   * УТГАГҮЙ урсгалд.
+   */
+  async consumeVerification({ token, phone, purpose, required = false }) {
+    if (!config.verify.enabled) {
+      if (required) {
+        throw new APIError(
+          'Утас баталгаажуулалт тохируулагдаагүй байна',
+          httpStatus.SERVICE_UNAVAILABLE,
+          { code: ERROR_CODE.PHONE_VERIFICATION_DISABLED }
+        );
+      }
+      return null;
+    }
+    return phoneVerificationService.consume({ token, phone, purpose });
+  }
+
+  markVerified(customer, verification) {
+    if (!verification) return;
+    customer.phoneVerified = true;
+    customer.phoneVerifiedAt = verification.verifiedAt || new Date();
+  }
+
+  async loadVerifiableOrThrow(customerId) {
+    const customer = await customerRepository.findById(customerId);
+    if (!customer) {
+      throw new APIError('Бүртгэл олдсонгүй', httpStatus.NOT_FOUND);
+    }
+    if (customer.phoneVerified) {
+      throw new APIError('Таны утасны дугаар аль хэдийн баталгаажсан байна', httpStatus.CONFLICT);
+    }
+    return customer;
+  }
+
+  assertResettable(customer) {
+    if (!customer || !customer.hasAccount) {
+      throw new APIError('Энэ дугаараар бүртгэл олдсонгүй', httpStatus.NOT_FOUND, {
+        code: ERROR_CODE.ACCOUNT_NOT_FOUND,
+      });
+    }
+    if (customer.status !== 'active') {
+      throw new APIError('Таны бүртгэл хаагдсан байна', httpStatus.FORBIDDEN);
+    }
+  }
+
+  /**
+   * JWT-ийн `iat` нь СЕКУНДЭЭР — миллисекундтэй харьцуулбал яг энэ мөчид
+   * олгосон шинэ токен ч "хуучин" гэж унана. Секунд хүртэл тайрна.
+   */
+  nowInTokenPrecision() {
+    return new Date(Math.floor(Date.now() / 1000) * 1000);
+  }
+
   // ── Туслах ────────────────────────────────────────────────────────────
 
   async findByIdentifier(identifier) {
@@ -403,7 +635,7 @@ class CustomerAuthService {
   assertNoAccount(customer) {
     if (customer.hasAccount) {
       throw new APIError(
-        'Энэ дугаараар бүртгэл аль хэдийн үүссэн байна. Нэвтэрнэ үү',
+        'Энэ дугаараар бүртгэл аль хэдийн үүссэн байна. Нэвтэрнэ үү эсвэл «Нууц үг мартсан»-аар сэргээнэ үү',
         httpStatus.CONFLICT,
         { code: ERROR_CODE.PHONE_TAKEN }
       );
@@ -456,6 +688,8 @@ class CustomerAuthService {
       id: customer._id,
       phone: customer.phone,
       phoneVerified: customer.phoneVerified,
+      // Frontend `/my/*`-ийг баталгаажуулах хуудас руу чиглүүлэх эсэх (BR-28)
+      phoneVerificationRequired: config.verify.enabled && !customer.phoneVerified,
       name: customer.name,
       email: customer.email,
       hasGoogle: Boolean(customer.googleId),

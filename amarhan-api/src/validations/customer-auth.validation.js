@@ -1,6 +1,7 @@
 'use strict';
 
 const Joi = require('joi');
+const { PHONE_VERIFICATION_PURPOSE } = require('../config/constants');
 
 /**
  * Утсыг ЭНД хатуу форматад оруулахгүй — нормчлолыг `domain/phone.js` хийнэ
@@ -11,6 +12,9 @@ const phoneInput = Joi.string().trim().min(8).max(20);
 // docs/security-and-permissions.md §4 — доод тал нь 8 тэмдэгт
 const password = Joi.string().min(8).max(128);
 
+// `phone-verification.service.js#generateToken` — 24 байт base64url
+const verificationToken = Joi.string().trim().max(100);
+
 module.exports = {
   register: {
     body: Joi.object({
@@ -18,6 +22,8 @@ module.exports = {
       password: password.required(),
       name: Joi.string().trim().max(100).allow(null, '').optional(),
       email: Joi.string().email().allow(null, '').optional(),
+      // Verify.MN тохируулсан орчинд ЗААВАЛ — service шалгана (roadmap 5.2)
+      verificationToken: verificationToken.optional(),
     }),
   },
 
@@ -34,6 +40,7 @@ module.exports = {
       pendingToken: Joi.string().required(),
       phone: phoneInput.required(),
       name: Joi.string().trim().max(100).allow(null, '').optional(),
+      verificationToken: verificationToken.optional(),
     }),
   },
 
@@ -82,6 +89,34 @@ module.exports = {
   resetPassword: {
     body: Joi.object({
       token: Joi.string().required(),
+      newPassword: password.required(),
+    }),
+  },
+
+  /**
+   * Roadmap 5.2 — нэвтрээгүй хэрэглэгчийн баталгаажуулалт. `verify_phone`
+   * ЭНД зөвшөөрөгдөхгүй — тэр нь нэвтэрсэн харилцагчийн `/me/phone-verification`.
+   */
+  startPhoneVerification: {
+    body: Joi.object({
+      phone: phoneInput.required(),
+      purpose: Joi.string()
+        .valid(PHONE_VERIFICATION_PURPOSE.REGISTER, PHONE_VERIFICATION_PURPOSE.RESET_PASSWORD)
+        .required(),
+    }),
+  },
+
+  // Токен URL-д БИШ body-д — access log, referrer-т үлдэхгүй
+  checkPhoneVerification: {
+    body: Joi.object({
+      token: verificationToken.required(),
+    }),
+  },
+
+  resetPasswordWithPhone: {
+    body: Joi.object({
+      phone: phoneInput.required(),
+      verificationToken: verificationToken.required(),
       newPassword: password.required(),
     }),
   },

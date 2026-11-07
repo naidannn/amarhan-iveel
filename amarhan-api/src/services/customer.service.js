@@ -138,6 +138,12 @@ class CustomerService {
         }
       }
       patch.phone = phone;
+      // Шинэ дугаарын эзэмшлийг хэн ч нотлоогүй — ажилтан тусад нь
+      // `phoneVerified: true` илгээгээгүй бол баталгаажуулалт буцна (BR-28)
+      if (phone !== customer.phone && data.phoneVerified === undefined) {
+        patch.phoneVerified = false;
+        patch.phoneVerifiedAt = null;
+      }
     }
 
     // Урамшууллыг энэ замаар өөрчлөхийг хориглоно — тусдаа, эрх шалгасан

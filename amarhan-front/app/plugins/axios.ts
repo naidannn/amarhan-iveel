@@ -85,6 +85,23 @@ export default defineNuxtPlugin({
             // Store бэлэн биш — навигацгүйгээр алдааг дамжуулна
           }
         }
+
+        // BR-28 — баталгаажаагүй утас: middleware алгассан тохиолдлын нөөц зам
+        if (
+          error.response?.status === 403 &&
+          error.response?.data?.code === 'PHONE_NOT_VERIFIED' &&
+          url.startsWith('/api/v1/customer/')
+        ) {
+          try {
+            // Зөвхөн хувийн хэсэгт — нээлттэй хуудаснаас (`/track`) хүчээр шилжүүлэхгүй
+            const path = useRoute().path
+            if (path.startsWith('/my') && path !== '/my/verify-phone') {
+              navigateTo(`/my/verify-phone?redirect=${encodeURIComponent(path)}`)
+            }
+          } catch {
+            // Store/router бэлэн биш — алдааг дамжуулна
+          }
+        }
         return Promise.reject(error)
       }
     )

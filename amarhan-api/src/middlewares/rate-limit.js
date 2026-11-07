@@ -112,8 +112,45 @@ const qpayLimiter = rateLimit({
   skip: () => config.env === 'test',
 });
 
+/**
+ * Утас баталгаажуулалт эхлүүлэх (roadmap 5.2) — IP тус бүрээр.
+ *
+ * Утас тус бүрийн хязгаарыг (1 минутад 1, өдөрт 10) `phone-verification.service.js`
+ * барина; энэ нь нэг IP-аас олон өөр дугаараар Verify.MN сесс спамлахаас
+ * хамгаална (сесс бүр Verify.MN руу гадаад дуудлага).
+ */
+const phoneVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    message: 'Баталгаажуулалтын хүсэлт хэт олон. Хэсэг хугацааны дараа дахин оролдоно уу',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => config.env === 'test',
+});
+
+/**
+ * Баталгаажуулалтын төлөв асуух polling — 3 секунд тутам, 5 минутын сесс
+ * нэг бүрт ~100 хүсэлт. `authLimiter` (20) хэт бага тул тусдаа.
+ */
+const phoneVerificationCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 400,
+  message: {
+    success: false,
+    message: 'Хүсэлт хэт олон. Хэсэг хугацааны дараа дахин оролдоно уу',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => config.env === 'test',
+});
+
 module.exports = {
   globalLimiter,
+  phoneVerificationLimiter,
+  phoneVerificationCheckLimiter,
   authLimiter,
   publicLimiter,
   selfRegisterLimiter,

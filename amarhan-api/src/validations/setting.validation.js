@@ -50,6 +50,27 @@ const VALUE_SCHEMAS = {
 
   [SETTING_KEY.CONTENT_HOME_NOTICE]: Joi.string().trim().max(1000).allow('', null),
 
+  // Зурагтай popup зарлал. URL-ууд ЗӨВХӨН http(s) — `javascript:` төрлийн
+  // холбоос зочны хөтөч дээр ажиллахаас сэргийлнэ (нээлттэй агуулга).
+  [SETTING_KEY.CONTENT_HOME_POPUP]: Joi.object({
+    enabled: Joi.boolean().default(true),
+    imageUrl: Joi.string()
+      .trim()
+      .max(500)
+      .uri({ scheme: ['https'] })
+      .required(),
+    title: Joi.string().trim().max(200).allow('').default(''),
+    body: Joi.string().trim().max(2000).allow('').default(''),
+    linkUrl: Joi.string()
+      .trim()
+      .max(500)
+      .uri({ scheme: ['http', 'https'] })
+      .allow('')
+      .default(''),
+    linkText: Joi.string().trim().max(50).allow('').default(''),
+    endsAt: Joi.date().allow(null).default(null),
+  }).allow(null),
+
   // Туслах үйлчилгээ — Юань шилжүүлэг. Зөвхөн ХАРУУЛАХ мэдээлэл.
   [SETTING_KEY.CONTENT_YUAN_TRANSFER]: Joi.object({
     rate: Joi.number().min(0).allow(null).default(null),

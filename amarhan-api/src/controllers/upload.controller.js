@@ -8,6 +8,7 @@ const httpStatus = require('http-status');
 const APIError = require('../utils/APIError');
 const { success } = require('../utils/response');
 const { GUIDES_DIR, ALLOWED_MIME_TO_EXT } = require('../middlewares/upload');
+const imageHostService = require('../services/image-host.service');
 
 // Зааврын зураг эргэлдэх дэлгэц хамгийн ихдээ ойролцоогоор энэ өргөнөөр л
 // харагддаг тул үүнээс том тал шаардлагагүй — файлын хэмжээг мэдэгдэхүйц багасгана.
@@ -19,15 +20,8 @@ const PNG_COMPRESSION_LEVEL = 9;
  * GIF-ийг sharp-аар дахин кодлохгүй (анимэйшн фрэймүүдийг устгачихдаг) —
  * бусад бүх төрлийг хэмжээгээр нь хязгаарлаж, шахна.
  */
-async function saveCompressedImage(file) {
-  const ext = ALLOWED_MIME_TO_EXT[file.mimetype] || path.extname(file.originalname) || '';
-  const filename = `${crypto.randomUUID()}${ext}`;
-  const destPath = path.join(GUIDES_DIR, filename);
-
-  if (file.mimetype === 'image/gif') {
-    await fs.writeFile(destPath, file.buffer);
-    return filename;
-  }
+async function compressImage(file) {
+  if (file.mimetype === 'image/gif') return file.buffer;
 
   const pipeline = sharp(file.buffer).resize({
     width: MAX_DIMENSION,
@@ -37,13 +31,18 @@ async function saveCompressedImage(file) {
   });
 
   if (file.mimetype === 'image/png') {
-    await pipeline.png({ quality: QUALITY, compressionLevel: PNG_COMPRESSION_LEVEL }).toFile(destPath);
-  } else if (file.mimetype === 'image/webp') {
-    await pipeline.webp({ quality: QUALITY }).toFile(destPath);
-  } else {
-    await pipeline.jpeg({ quality: QUALITY, mozjpeg: true }).toFile(destPath);
+    return pipeline.png({ quality: QUALITY, compressionLevel: PNG_COMPRESSION_LEVEL }).toBuffer();
   }
+  if (file.mimetype === 'image/webp') {
+    return pipeline.webp({ quality: QUALITY }).toBuffer();
+  }
+  return pipeline.jpeg({ quality: QUALITY, mozjpeg: true }).toBuffer();
+}
 
+async function saveCompressedImage(file) {
+  const ext = ALLOWED_MIME_TO_EXT[file.mimetype] || path.extname(file.originalname) || '';
+  const filename = `${crypto.randomUUID()}${ext}`;
+  await fs.writeFile(path.join(GUIDES_DIR, filename), await compressImage(file));
   return filename;
 }
 
@@ -62,5 +61,32 @@ exports.uploadImage = async (req, res, next) => {
     return success(res, { url: `/uploads/guides/${filename}` }, httpStatus.CREATED);
   } catch {
     return next(new APIError('Зураг боловсруулж чадсангүй', httpStatus.BAD_REQUEST));
+  }
+};
+
+/**
+ * Нүүрний popup зарлалын зураг — сервер дээр ХАДГАЛАХГҮЙ, Cloudinary руу.
+ *
+ * Зураг 2–3 хоног тутам солигддог тул `uploads/` дотор хуримтлагдана. Шахалт
+ * нь хаяг холбох зааврынхтай ижил (CDN-ийн хадгалах/татах квотыг хэмнэнэ).
+ * Буцаах URL нь БҮТЭН (`https://res.cloudinary.com/...`).
+ */
+exports.uploadPopupImage = async (req, res, next) => {
+  if (!req.file) {
+    return next(new APIError('Зураг сонгогдоогүй байна', httpStatus.BAD_REQUEST));
+  }
+
+  let buffer;
+  try {
+    buffer = await compressImage(req.file);
+  } catch {
+    return next(new APIError('Зураг боловсруулж чадсангүй', httpStatus.BAD_REQUEST));
+  }
+
+  try {
+    const hosted = await imageHostService.upload(buffer, req.file.mimetype);
+    return success(res, hosted, httpStatus.CREATED);
+  } catch (err) {
+    return next(err);
   }
 };

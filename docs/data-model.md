@@ -587,6 +587,7 @@ Key-value бүтэц, хувилбартай.
 | `content.contact` | `{ phone, email, address, workingHours, facebook }` | Холбоо барих |
 | `content.faq` | `[{ question, answer }]` | Түгээмэл асуулт |
 | `content.home_notice` | `String \| null` | Нүүрийн зарлал. `null` = зарлалгүй |
+| `content.home_popup` | `{ enabled, imageUrl, title, body, linkUrl, linkText, endsAt } \| null` | Вэб рүү ороход гарах зурагтай popup. `imageUrl` ЗААВАЛ (https, Cloudinary — сервер дээр хадгалахгүй). Унтраасан/`endsAt` өнгөрсөн бол `GET /public/content`-д `null` |
 
 > **`content.*` нь НЭЭЛТТЭЙ** — `GET /v1/public/content` нь нэвтрээгүй зочинд
 > уншуулна. Энд дотоод/нууц утга ХЭЗЭЭ Ч хадгалахгүй. Нийтлэгдэх түлхүүрийг

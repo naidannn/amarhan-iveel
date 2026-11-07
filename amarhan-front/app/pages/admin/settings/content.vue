@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   BookOpen,
   Menu,
+  Images,
 } from 'lucide-vue-next'
 
 /**
@@ -38,6 +39,7 @@ const KEYS = {
   contact: 'content.contact',
   faq: 'content.faq',
   notice: 'content.home_notice',
+  popup: 'content.home_popup',
   yuanTransfer: 'content.yuan_transfer',
   linkOrder: 'content.link_order',
   addressGuides: 'content.address_guides',
@@ -50,6 +52,7 @@ const KEYS = {
 const SECTIONS = [
   { id: 'erenhot', label: 'Эрээний хаяг', icon: MapPin },
   { id: 'notice', label: 'Нүүрийн зарлал', icon: Megaphone },
+  { id: 'popup', label: 'Popup зарлал', icon: Images },
   { id: 'contact', label: 'Холбоо барих', icon: Phone },
   { id: 'faq', label: 'Түгээмэл асуулт', icon: HelpCircle },
   { id: 'yuanTransfer', label: 'Юань шилжүүлэг', icon: Banknote },
@@ -92,6 +95,28 @@ const contact = reactive({
 const faq = ref<{ question: string; answer: string }[]>([])
 const notice = ref('')
 
+/**
+ * Вэб рүү ороход гарах зурагтай popup. Зураг Cloudinary-д (сервер дээр
+ * хадгалахгүй — 2–3 хоног тутам солигддог). `endsAt` — сонгосон өдрийн
+ * төгсгөл хүртэл харагдана (хоосон = хугацаагүй).
+ */
+const popup = reactive({
+  enabled: true,
+  imageUrl: '',
+  title: '',
+  body: '',
+  linkUrl: '',
+  linkText: '',
+  endsAt: '',
+})
+
+function toDateInput(iso: string | null | undefined) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 const yuanTransfer = reactive({
   rate: null as number | null,
   bankAccount: '',
@@ -127,6 +152,8 @@ onMounted(async () => {
     Object.assign(contact, data.data[KEYS.contact] ?? {})
     faq.value = data.data[KEYS.faq] ?? []
     notice.value = data.data[KEYS.notice] ?? ''
+    const savedPopup = data.data[KEYS.popup]
+    if (savedPopup) Object.assign(popup, { ...savedPopup, endsAt: toDateInput(savedPopup.endsAt) })
     Object.assign(yuanTransfer, data.data[KEYS.yuanTransfer] ?? {})
     Object.assign(linkOrder, data.data[KEYS.linkOrder] ?? {})
     guides.value = data.data[KEYS.addressGuides] ?? []
@@ -142,8 +169,10 @@ async function save(key: string, value: unknown, successMessage: string) {
   try {
     await $axios.put(`/api/v1/settings/${key}`, { value })
     toast.success(successMessage, { description: 'Хэрэглэгчийн вэбэд шууд тусна' })
+    return true
   } catch (e: any) {
     toast.error(e?.response?.data?.message ?? 'Хадгалж чадсангүй')
+    return false
   } finally {
     saving.value = null
   }
@@ -193,6 +222,59 @@ function onBlockImageChange(guide: Guide, index: number, event: Event) {
     guide.blocks[index].imageUrl = url
   })
   input.value = ''
+}
+
+async function onPopupImageChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  uploading.popup = true
+  try {
+    const formData = new FormData()
+    formData.append('image', file)
+    const { data } = await $axios.post('/api/v1/uploads/popup-image', formData)
+    popup.imageUrl = data.data.url
+  } catch (e: any) {
+    toast.error(e?.response?.data?.message ?? 'Зураг upload хийж чадсангүй')
+  } finally {
+    delete uploading.popup
+  }
+}
+
+function savePopup() {
+  if (!popup.imageUrl.trim()) {
+    toast.error('Popup-д зураг заавал оруулна')
+    return
+  }
+  save(
+    KEYS.popup,
+    {
+      enabled: popup.enabled,
+      imageUrl: popup.imageUrl.trim(),
+      title: popup.title.trim(),
+      body: popup.body.trim(),
+      linkUrl: popup.linkUrl.trim(),
+      linkText: popup.linkText.trim(),
+      // Сонгосон өдрийн ТӨГСГӨЛ хүртэл (локал цагаар) харагдана
+      endsAt: popup.endsAt ? new Date(`${popup.endsAt}T23:59:59`).toISOString() : null,
+    },
+    'Popup зарлал хадгалагдлаа'
+  )
+}
+
+async function removePopup() {
+  if (await save(KEYS.popup, null, 'Popup зарлал устгагдлаа')) {
+    Object.assign(popup, {
+      enabled: true,
+      imageUrl: '',
+      title: '',
+      body: '',
+      linkUrl: '',
+      linkText: '',
+      endsAt: '',
+    })
+  }
 }
 
 function addGuide() {
@@ -370,6 +452,128 @@ function saveGuides() {
           >
             Хадгалах
           </UiBtn>
+        </div>
+      </section>
+
+      <!-- Popup зарлал (зурагтай) -->
+      <section v-if="activeSection === 'popup'" class="rounded-card border border-surface-border bg-surface-card p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="font-semibold text-content">Popup зарлал</h2>
+            <p class="mt-1 text-body-sm text-content-secondary">
+              Вэб рүү ороход гарч ирэх зурагтай зарлал. Зураг заавал. Зочин хаасны
+              дараа тэр зураг дахин гарахгүй, шинэ зураг оруулбал дахин гарна.
+            </p>
+          </div>
+          <label class="flex shrink-0 items-center gap-2 text-body font-medium text-content">
+            <input
+              v-model="popup.enabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-surface-border text-primary"
+              :disabled="!canEdit"
+            />
+            Идэвхтэй
+          </label>
+        </div>
+
+        <div class="mt-4 space-y-4">
+          <div>
+            <div
+              class="flex min-h-40 items-center justify-center overflow-hidden rounded-btn border border-dashed border-surface-border bg-surface-hover"
+            >
+              <img
+                v-if="popup.imageUrl"
+                :src="popup.imageUrl"
+                class="max-h-80 w-full object-contain"
+                alt=""
+              />
+              <ImagePlus v-else :size="24" class="text-content-disabled" />
+            </div>
+            <label
+              class="mt-2 inline-flex cursor-pointer items-center gap-1.5 text-body-sm font-medium text-primary-600 hover:text-primary-700"
+              :class="(!canEdit || uploading.popup) && 'pointer-events-none opacity-50'"
+            >
+              <ImagePlus :size="15" />
+              {{ uploading.popup ? 'Байршуулж байна…' : popup.imageUrl ? 'Зураг солих' : 'Зураг сонгох' }}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                class="hidden"
+                :disabled="!canEdit || uploading.popup"
+                @change="onPopupImageChange"
+              />
+            </label>
+          </div>
+
+          <UiField
+            label="Эсвэл зургийн URL"
+            for="popup-image-url"
+            hint="Cloudinary тохируулаагүй үед өөр газар байршуулсан зургийн https холбоос. Facebook-ийн зургийн холбоосын хугацаа дуусдаг тул ашиглахгүй байх."
+          >
+            <UiTextInput
+              id="popup-image-url"
+              v-model="popup.imageUrl"
+              :disabled="!canEdit"
+              placeholder="https://res.cloudinary.com/..."
+            />
+          </UiField>
+
+          <UiField label="Гарчиг" for="popup-title">
+            <UiTextInput
+              id="popup-title"
+              v-model="popup.title"
+              :disabled="!canEdit"
+              placeholder="Жишээ: Ачаа буулаа"
+            />
+          </UiField>
+
+          <UiField label="Текст" for="popup-body">
+            <UiTextArea
+              id="popup-body"
+              v-model="popup.body"
+              :disabled="!canEdit"
+              :rows="4"
+              :maxlength="2000"
+              placeholder="10/30 хүртэлх ачааны бүртгэл орсон..."
+            />
+          </UiField>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <UiField label="Товчны холбоос" for="popup-link">
+              <UiTextInput
+                id="popup-link"
+                v-model="popup.linkUrl"
+                :disabled="!canEdit"
+                placeholder="https://... эсвэл хоосон"
+              />
+            </UiField>
+            <UiField label="Товчны текст" for="popup-link-text">
+              <UiTextInput
+                id="popup-link-text"
+                v-model="popup.linkText"
+                :disabled="!canEdit"
+                placeholder="Ачаа шалгах"
+              />
+            </UiField>
+          </div>
+
+          <UiField label="Дуусах өдөр" for="popup-ends" hint="Хоосон бол хугацаагүй">
+            <UiTextInput id="popup-ends" v-model="popup.endsAt" type="date" :disabled="!canEdit" />
+          </UiField>
+
+          <div class="flex flex-wrap gap-2">
+            <UiBtn :disabled="!canEdit || uploading.popup" :loading="saving === KEYS.popup" @click="savePopup">
+              Хадгалах
+            </UiBtn>
+            <UiBtn
+              variant="secondary"
+              :icon="Trash2"
+              :disabled="!canEdit || saving === KEYS.popup"
+              @click="removePopup"
+            >
+              Popup устгах
+            </UiBtn>
+          </div>
         </div>
       </section>
 

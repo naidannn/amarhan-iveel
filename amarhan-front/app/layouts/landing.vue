@@ -17,6 +17,8 @@ const { data: footerSite } = await useAsyncData('landing-footer-content', () => 
 })
 const footerContact = computed(() => footerSite.value?.contact ?? null)
 const yuanTransfer = computed(() => footerSite.value?.yuan_transfer ?? null)
+// Вэб рүү ороход гарах зурагтай зарлал (`content.home_popup`)
+const homePopup = computed(() => footerSite.value?.home_popup ?? null)
 const socialLinks = computed(() =>
   [
     { label: 'Facebook', value: footerContact.value?.facebook, icon: Facebook },
@@ -60,6 +62,8 @@ const socialLinks = computed(() =>
     <main class="relative">
       <slot />
     </main>
+
+    <PublicAnnouncementPopup :popup="homePopup" />
 
     <footer class="relative mt-4 border-t border-slate-200/70 px-5 py-12 sm:px-8">
       <div class="mx-auto max-w-7xl">

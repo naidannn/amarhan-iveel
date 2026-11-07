@@ -80,6 +80,22 @@ module.exports = {
       return Boolean(this.apiKey);
     },
   },
+  /**
+   * Cloudinary — нүүрний popup зарлалын зураг (`content.home_popup`).
+   *
+   * Popup зураг 2–3 хоног тутам солигддог тул сервер дээр (`uploads/`)
+   * хуримтлуулахгүй, гадны CDN-д хадгална. Тохируулаагүй орчинд `enabled`
+   * false — upload нь 503 буцаана, Админ зургийн URL-ыг гараар оруулж болно.
+   */
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+    folder: process.env.CLOUDINARY_FOLDER || 'iveel/popups',
+    get enabled() {
+      return Boolean(this.cloudName && this.apiKey && this.apiSecret);
+    },
+  },
   jwt: {
     // Ажилтны токен — ажлын нэг ээлжийн урт
     staffAudience: 'staff',

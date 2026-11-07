@@ -62,6 +62,9 @@ const { data: headerSite } = await useAsyncData('default-layout-content', () => 
   default: () => null,
 })
 const yuanTransfer = computed(() => headerSite.value?.yuan_transfer ?? null)
+// Вэб рүү ороход гарах зурагтай зарлал — нэвтэрсэн харилцагч нүүрээс шууд
+// `/my` руу үсэрдэг тул энэ layout-д ч харагдах ёстой
+const homePopup = computed(() => headerSite.value?.home_popup ?? null)
 
 // §7 (Phase 6) — Bell дэх уншаагүй тоо. Хуудас солигдох бүрт дахин татна
 // (доорх `watch(route.path)`-д аль хэдийн байгаа) — тусдаа polling механизм
@@ -399,6 +402,7 @@ onMounted(() => {
       </NuxtLink>
     </nav>
 
+    <PublicAnnouncementPopup :popup="homePopup" />
     <UiToastHost />
   </div>
 </template>

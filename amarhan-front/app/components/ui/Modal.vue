@@ -17,6 +17,12 @@ const props = withDefaults(
     size?: 'sm' | 'md' | 'lg'
     /** Дэвсгэр товшиход хаагдахгүй — өгөгдөл алдагдах эрсдэлтэй формд */
     persistent?: boolean
+    /**
+     * Гар утсанд ч доороос гарах sheet биш, захаас зайтай ТӨВД гарна, footer
+     * (товчнууд) доод талдаа үргэлж харагдана — зочинд өөрөө гарч ирдэг зарлал
+     * дэлгэц дүүргэж, хаах товч нь харагдахгүй болохоос сэргийлнэ.
+     */
+    centered?: boolean
   }>(),
   { size: 'md' }
 )
@@ -63,8 +69,11 @@ onKeyStroke('Escape', () => {
     >
       <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
-        :class="isDark && 'dark'"
+        class="fixed inset-0 z-50 flex justify-center bg-black/30"
+        :class="[
+          centered ? 'items-center p-5' : 'items-end p-0 sm:items-center sm:p-4',
+          isDark && 'dark',
+        ]"
         @click.self="persistent ? null : close()"
       >
         <div
@@ -73,8 +82,12 @@ onKeyStroke('Escape', () => {
           role="dialog"
           aria-modal="true"
           :aria-label="title"
-          class="max-h-[92vh] w-full overflow-y-auto rounded-t-card bg-surface-card shadow-dropdown outline-none sm:rounded-card"
-          :class="[SIZES[size], isAdminModal && 'admin-density-panel']"
+          class="w-full overflow-y-auto bg-surface-card shadow-dropdown outline-none sm:rounded-card"
+          :class="[
+            SIZES[size],
+            centered ? 'max-h-[85dvh] rounded-card' : 'max-h-[92vh] rounded-t-card',
+            isAdminModal && 'admin-density-panel',
+          ]"
         >
           <header
             v-if="title || $slots.header"
@@ -106,6 +119,7 @@ onKeyStroke('Escape', () => {
           <footer
             v-if="$slots.footer"
             class="flex flex-wrap justify-end gap-2 border-t border-surface-border px-card py-4"
+            :class="centered && 'sticky bottom-0 bg-surface-card'"
           >
             <slot name="footer" />
           </footer>

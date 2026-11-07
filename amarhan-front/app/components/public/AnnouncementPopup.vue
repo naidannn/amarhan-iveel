@@ -64,21 +64,23 @@ const isExternalLink = computed(() => /^https?:\/\//.test(props.popup?.linkUrl ?
     v-if="popup"
     :model-value="open"
     size="sm"
+    centered
     @update:model-value="value => (value ? (open = true) : close())"
   >
     <div class="relative -mx-card -mt-5">
       <img
         :src="imageSrc"
         :alt="popup.title || 'Зарлал'"
-        class="block max-h-[60vh] w-full bg-surface-hover object-contain"
+        class="block max-h-[45dvh] w-full bg-surface-hover object-contain sm:max-h-[55vh]"
       />
+      <!-- Ямар ч зураг дээр тод харагдах цагаан дугуй (хар/бараан зурагт ч алга болохгүй) -->
       <button
         type="button"
-        class="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white transition-colors duration-200 hover:bg-black/70"
+        class="absolute top-2.5 right-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-900 shadow-lg ring-1 ring-black/10 transition-transform duration-200 hover:scale-105"
         aria-label="Хаах"
         @click="close"
       >
-        <X :size="18" />
+        <X :size="20" :stroke-width="2.5" />
       </button>
     </div>
 
@@ -89,17 +91,20 @@ const isExternalLink = computed(() => /^https?:\/\//.test(props.popup?.linkUrl ?
       </p>
     </div>
 
-    <div class="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
-      <UiBtn
-        v-if="popup.linkUrl"
-        :to="popup.linkUrl"
-        :target="isExternalLink ? '_blank' : undefined"
-        block
-        @click="close"
-      >
-        {{ popup.linkText || 'Дэлгэрэнгүй' }}
-      </UiBtn>
-      <UiBtn :variant="popup.linkUrl ? 'secondary' : 'primary'" block @click="close">Хаах</UiBtn>
-    </div>
+    <!-- Footer нь `centered` үед доод талдаа наалттай — текст урт ч «Хаах» үргэлж харагдана -->
+    <template #footer>
+      <div class="flex w-full flex-col gap-2 sm:flex-row-reverse">
+        <UiBtn
+          v-if="popup.linkUrl"
+          :to="popup.linkUrl"
+          :target="isExternalLink ? '_blank' : undefined"
+          block
+          @click="close"
+        >
+          {{ popup.linkText || 'Дэлгэрэнгүй' }}
+        </UiBtn>
+        <UiBtn :variant="popup.linkUrl ? 'secondary' : 'primary'" block @click="close">Хаах</UiBtn>
+      </div>
+    </template>
   </UiModal>
 </template>

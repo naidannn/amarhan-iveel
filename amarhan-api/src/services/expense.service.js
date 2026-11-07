@@ -6,7 +6,14 @@ const branchResolver = require('./branch-resolver.service');
 const auditService = require('./audit.service');
 const APIError = require('../utils/APIError');
 const { withTransaction } = require('../utils/transaction');
-const { AUDIT_ACTION, AUDIT_ENTITY, ERROR_CODE, EXPENSE_CATEGORY, EXPENSE_STATUS, ROLES } = require('../config/constants');
+const {
+  AUDIT_ACTION,
+  AUDIT_ENTITY,
+  ERROR_CODE,
+  EXPENSE_CATEGORY,
+  EXPENSE_STATUS,
+  ROLES,
+} = require('../config/constants');
 
 /**
  * Зарлагын модуль — BR-47.
@@ -49,7 +56,8 @@ class ExpenseService {
     const doc = {
       amount: data.amount,
       category: data.category,
-      categoryLabel: data.category === EXPENSE_CATEGORY.OTHER ? String(data.categoryLabel).trim() : null,
+      categoryLabel:
+        data.category === EXPENSE_CATEGORY.OTHER ? String(data.categoryLabel).trim() : null,
       description: String(data.description).trim(),
       date: data.date ? new Date(data.date) : new Date(),
       branchId: branch._id,

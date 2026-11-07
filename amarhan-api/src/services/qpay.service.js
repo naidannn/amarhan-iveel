@@ -33,9 +33,7 @@ class QPayService {
       return this.accessToken;
     }
 
-    const basic = Buffer.from(`${config.qpay.username}:${config.qpay.password}`).toString(
-      'base64'
-    );
+    const basic = Buffer.from(`${config.qpay.username}:${config.qpay.password}`).toString('base64');
 
     const res = await fetch(`${config.qpay.baseURL}/auth/token`, {
       method: 'POST',

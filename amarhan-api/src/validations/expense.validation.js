@@ -1,7 +1,11 @@
 'use strict';
 
 const Joi = require('joi');
-const { EXPENSE_CATEGORY, EXPENSE_CATEGORY_LIST, EXPENSE_STATUS_LIST } = require('../config/constants');
+const {
+  EXPENSE_CATEGORY,
+  EXPENSE_CATEGORY_LIST,
+  EXPENSE_STATUS_LIST,
+} = require('../config/constants');
 
 const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
@@ -53,15 +57,11 @@ module.exports = {
         .valid(...EXPENSE_CATEGORY_LIST)
         .required(),
       // BR-47 — "Бусад" ангилалд нэр заавал, бусад ангилалд бичих боломжгүй
-      categoryLabel: Joi.string()
-        .trim()
-        .min(1)
-        .max(100)
-        .when('category', {
-          is: EXPENSE_CATEGORY.OTHER,
-          then: Joi.required(),
-          otherwise: Joi.forbidden(),
-        }),
+      categoryLabel: Joi.string().trim().min(1).max(100).when('category', {
+        is: EXPENSE_CATEGORY.OTHER,
+        then: Joi.required(),
+        otherwise: Joi.forbidden(),
+      }),
       description: Joi.string().trim().min(3).max(500).required(),
       date: Joi.date().max('now').optional(),
       branchId: objectId.optional(),

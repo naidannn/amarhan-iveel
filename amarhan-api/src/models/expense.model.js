@@ -1,7 +1,12 @@
 'use strict';
 
 const mongoose = require('mongoose');
-const { EXPENSE_CATEGORY, EXPENSE_CATEGORY_LIST, EXPENSE_STATUS, EXPENSE_STATUS_LIST } = require('../config/constants');
+const {
+  EXPENSE_CATEGORY,
+  EXPENSE_CATEGORY_LIST,
+  EXPENSE_STATUS,
+  EXPENSE_STATUS_LIST,
+} = require('../config/constants');
 const Schema = mongoose.Schema;
 
 /**

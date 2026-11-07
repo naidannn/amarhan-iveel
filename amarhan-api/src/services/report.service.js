@@ -49,7 +49,8 @@ class ReportService {
     data.efficiency.profit = {
       total: data.efficiency.packageRevenue.total - data.efficiency.expenses.total,
       daily: series.dailyKeys.reduce((result, key) => {
-        result[key] = data.efficiency.packageRevenue.daily[key] - data.efficiency.expenses.daily[key];
+        result[key] =
+          data.efficiency.packageRevenue.daily[key] - data.efficiency.expenses.daily[key];
         return result;
       }, {}),
     };

@@ -14,6 +14,15 @@ exports.send = async (req, res, next) => {
   }
 };
 
+exports.expire = async (req, res, next) => {
+  try {
+    const doc = await notificationService.expireBroadcast(req.params.id, req.user, req);
+    return success(res, doc);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.list = async (req, res, next) => {
   try {
     const result = await notificationService.listSent(req.query, req.user);

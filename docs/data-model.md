@@ -492,11 +492,21 @@ schema.index(
 | `entity`, `entityId`, `entityLabel` | String/ObjectId/String, null | audit-log-той ижил хэв маяг — жишээ `entity:'package'` |
 | `readAt` | Date, null | зөвхөн `audience: customer` (ганц хүлээн авагч тул шууд талбар) |
 | `expiresAt` | Date, null | зөвхөн `audience: all`, `null` = хугацаагүй |
+| `imageUrl` | String (https), null | зөвхөн `audience: all`. Зураг Cloudinary-д (`image-host.service.js`) — сервер дээр хадгалахгүй |
+| `linkUrl`, `linkText` | String, null | зөвхөн `audience: all`. Товчны холбоос (зөвхөн http/https) |
+| `showAsPopup` | Boolean | `true` + `imageUrl` бол вэб рүү ороход popup-аар гарна (`GET /public/content`-ийн `home_popup`). Олон идэвхтэй байвал хамгийн сүүлийнх |
 | `createdBy` | ObjectId → `users`, null | нийтийн зарлал илгээсэн ажилтан; хувийнд `null` (систем) |
 
 `notification_reads`: `{ notificationId, customerId, readAt }` — `{notificationId, customerId}`
 unique, ЗӨВХӨН `audience: all` бичлэгийн уншсан төлөв (олон харилцагч
 хуваалцдаг тул шууд `readAt`-аар барих боломжгүй).
+
+> **Нэг зарлал → бүх газар (2026-11-08):** нийтийн зарлалыг ЗӨВХӨН энд бичнэ.
+> Нэг бичлэг нүүрний зурвас, `/notifications`, харилцагчийн хонх, (`showAsPopup`)
+> вэбийн popup бүгдэд гарна. Өмнөх `content.home_notice` (тогтмол текст) ба
+> `content.home_popup` тохиргоо хасагдсан — нэг мэдээг хэд хэдэн газар давтан
+> бичих шаардлагатай байсан. Зарлалыг устгахгүй, `POST /notifications/:id/expire`
+> нь `expiresAt`-ыг одоо болгож зогсооно (audit `notification.expire`).
 
 > **Анхны төлөвлөгөөнөөс хялбарчилсан:** `channels`/`segmentFilter`/`isPublic`/
 > `publishedAt`/`deliveryStats` талбарууд ХЭРЭГЛЭГДЭХГҮЙ — SMS суваг (roadmap
@@ -586,8 +596,6 @@ Key-value бүтэц, хувилбартай.
 | `content.erenhot_address` | `{ receiverName, phone, addressCn, addressMn, note }` | Эрээний хаяг (§3) |
 | `content.contact` | `{ phone, email, address, workingHours, facebook }` | Холбоо барих |
 | `content.faq` | `[{ question, answer }]` | Түгээмэл асуулт |
-| `content.home_notice` | `String \| null` | Нүүрийн зарлал. `null` = зарлалгүй |
-| `content.home_popup` | `{ enabled, imageUrl, title, body, linkUrl, linkText, endsAt } \| null` | Вэб рүү ороход гарах зурагтай popup. `imageUrl` ЗААВАЛ (https, Cloudinary — сервер дээр хадгалахгүй). Унтраасан/`endsAt` өнгөрсөн бол `GET /public/content`-д `null` |
 
 > **`content.*` нь НЭЭЛТТЭЙ** — `GET /v1/public/content` нь нэвтрээгүй зочинд
 > уншуулна. Энд дотоод/нууц утга ХЭЗЭЭ Ч хадгалахгүй. Нийтлэгдэх түлхүүрийг

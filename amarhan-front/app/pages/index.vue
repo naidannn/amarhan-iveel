@@ -39,9 +39,8 @@ const { data: loyaltyProgram } = await useAsyncData('public-loyalty', () => loya
 
 /**
  * §7, roadmap 6.3 — хамгийн сүүлийн идэвхтэй нийтийн зарлал (Мэдэгдэл модуль).
- * `home_notice` (доор) нь Тохиргоо > Ерөнхийгээс Админ гараар бичдэг НЭГ
- * ТОГТМОЛ текст — өөр механизм. Мэдэгдэл модулиар илгээсэн зарлал автоматаар
- * энд харагдахын тулд тусдаа дуудлагатай.
+ * Зарлалыг ЗӨВХӨН Мэдэгдэл модулиас бичнэ — нэг зарлал нүүрний зурвас,
+ * `/notifications`, харилцагчийн хонх, popup бүгдэд гарна.
  */
 const { data: latestNotifications } = await useAsyncData(
   'public-notifications-home',
@@ -53,7 +52,6 @@ const latestNotification = computed(() => latestNotifications.value?.data?.[0] ?
 const address = computed(() => site.value?.erenhot_address ?? null)
 const contact = computed(() => site.value?.contact ?? null)
 const faq = computed(() => site.value?.faq ?? [])
-const notice = computed(() => site.value?.home_notice ?? null)
 const yuanTransfer = computed(() => site.value?.yuan_transfer ?? null)
 const linkOrder = computed(() => site.value?.link_order ?? null)
 const addressGuides = computed(() => site.value?.address_guides ?? [])
@@ -72,7 +70,7 @@ useHead({
 
 <template>
   <div>
-    <LandingHero :notice="notice" :latest-notification="latestNotification" />
+    <LandingHero :latest-notification="latestNotification" />
     <LandingFeatures />
     <LandingHelperServices :yuan-transfer="yuanTransfer" :link-order="linkOrder" />
     <LandingPricing :tariff="tariff" />

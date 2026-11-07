@@ -17,7 +17,7 @@ const { data: footerSite } = await useAsyncData('landing-footer-content', () => 
 })
 const footerContact = computed(() => footerSite.value?.contact ?? null)
 const yuanTransfer = computed(() => footerSite.value?.yuan_transfer ?? null)
-// Вэб рүү ороход гарах зурагтай зарлал (`content.home_popup`)
+// Вэб рүү ороход гарах зурагтай зарлал (Мэдэгдэл модулиас, `home_popup`)
 const homePopup = computed(() => footerSite.value?.home_popup ?? null)
 const socialLinks = computed(() =>
   [

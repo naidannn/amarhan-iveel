@@ -81,7 +81,7 @@ module.exports = {
     },
   },
   /**
-   * Cloudinary — нүүрний popup зарлалын зураг (`content.home_popup`).
+   * Cloudinary — мэдэгдлийн (зарлал/popup) зураг (`notifications.imageUrl`).
    *
    * Popup зураг 2–3 хоног тутам солигддог тул сервер дээр (`uploads/`)
    * хуримтлуулахгүй, гадны CDN-д хадгална. Тохируулаагүй орчинд `enabled`

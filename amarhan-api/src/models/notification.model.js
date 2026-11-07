@@ -57,6 +57,15 @@ const notificationSchema = new Schema(
     // Зөвхөн нийтийн зарлалд — `null` бол хугацаагүй
     expiresAt: { type: Date, default: null },
 
+    // ── Зөвхөн нийтийн зарлалд (`audience: 'all'`) ──
+    // Зураг Cloudinary-д (`image-host.service.js`) — сервер дээр хадгалахгүй.
+    imageUrl: { type: String, default: null, maxlength: 500 },
+    linkUrl: { type: String, default: null, maxlength: 500 },
+    linkText: { type: String, default: null, maxlength: 50 },
+    // Вэб рүү ороход popup-аар гарах эсэх. Олон идэвхтэй байвал ХАМГИЙН
+    // СҮҮЛИЙНХ нь л гарна (`notificationRepository.findLatestActivePopup`).
+    showAsPopup: { type: Boolean, default: false },
+
     // Нийтийн зарлал илгээсэн ажилтан. Хувийн (систем үүсгэсэн) мэдэгдэлд `null`.
     createdBy: {
       type: Schema.Types.ObjectId,

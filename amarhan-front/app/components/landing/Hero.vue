@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Check, MapPin, MessageCircle, Megaphone } from 'lucide-vue-next'
+import { Check, MapPin, Megaphone } from 'lucide-vue-next'
 
 defineProps<{
-  notice?: string | null
   /** §7, roadmap 6.3 — Мэдэгдэл модулиар илгээсэн хамгийн сүүлийн нийтийн зарлал */
   latestNotification?: { id: string; title: string; body: string } | null
 }>()
@@ -10,16 +9,6 @@ defineProps<{
 
 <template>
   <section class="relative mx-auto max-w-7xl px-5 pb-14 pt-10 sm:px-8 sm:pt-14 lg:pb-16 lg:pt-16">
-    <!-- Зарлал (Тохиргоо > Ерөнхий, тогтмол текст) -->
-    <div
-      v-if="notice"
-      class="mx-auto flex max-w-xl items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3"
-      :class="latestNotification ? 'mb-3' : 'mb-8'"
-    >
-      <MessageCircle :size="17" class="mt-0.5 shrink-0 text-amber-500" />
-      <p class="text-body-sm text-amber-800">{{ notice }}</p>
-    </div>
-
     <!-- Мэдэгдэл модулиар илгээсэн хамгийн сүүлийн нийтийн зарлал (§7) -->
     <NuxtLink
       v-if="latestNotification"

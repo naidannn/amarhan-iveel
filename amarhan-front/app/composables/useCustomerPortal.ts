@@ -97,6 +97,10 @@ export interface CustomerNotification {
   entityId: string | null
   entityLabel: string | null
   audience: 'customer' | 'all'
+  /** Зөвхөн нийтийн зарлалд (BR-36) — хувийн мэдэгдэлд null */
+  imageUrl: string | null
+  linkUrl: string | null
+  linkText: string | null
   read: boolean
   createdAt: string
 }
@@ -440,11 +444,14 @@ export interface PublicLoyalty {
   tiers: LoyaltyTier[]
 }
 
-/** §7 — зочинд харагдах цагаан жагсаалттай мэдэгдэл (уншсан төлөвгүй, зөвхөн текст) */
+/** §7 — зочинд харагдах цагаан жагсаалттай мэдэгдэл (уншсан төлөвгүй) */
 export interface PublicNotification {
   id: string
   title: string
   body: string
+  imageUrl: string | null
+  linkUrl: string | null
+  linkText: string | null
   createdAt: string
 }
 

@@ -48,6 +48,9 @@ async function openNotification(item: CustomerNotification) {
   }
   if (item.entity === 'package' && item.entityId) {
     await navigateTo(`/my/packages/${item.entityId}`)
+  } else if (item.linkUrl) {
+    // Зарлалын товчны холбоос — backend зөвхөн http(s) зөвшөөрдөг
+    window.open(item.linkUrl, '_blank', 'noopener')
   }
 }
 
@@ -127,7 +130,17 @@ function formatDate(value: string) {
                 {{ item.title }}
                 <span v-if="!item.read" class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
               </p>
-              <p class="mt-0.5 text-body-sm text-content-secondary">{{ item.body }}</p>
+              <p class="mt-0.5 whitespace-pre-line text-body-sm text-content-secondary">{{ item.body }}</p>
+              <img
+                v-if="item.imageUrl"
+                :src="optimizedImage(item.imageUrl, 900)"
+                :alt="item.title"
+                loading="lazy"
+                class="mt-3 w-full max-w-md rounded-btn border border-surface-border"
+              />
+              <p v-if="item.linkUrl" class="mt-2 text-body-sm font-semibold text-primary-600">
+                {{ item.linkText || 'Дэлгэрэнгүй' }} →
+              </p>
               <p class="mt-1 text-body-sm text-content-disabled">{{ formatDate(item.createdAt) }}</p>
             </div>
           </button>

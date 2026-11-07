@@ -14,6 +14,10 @@ export interface AdminNotification {
   body: string
   audience: 'customer' | 'all'
   expiresAt: string | null
+  imageUrl: string | null
+  linkUrl: string | null
+  linkText: string | null
+  showAsPopup: boolean
   createdBy: string | null
   createdAt: string
 }
@@ -29,6 +33,10 @@ export interface SendNotificationPayload {
   title: string
   body: string
   expiresAt?: string | null
+  imageUrl?: string | null
+  linkUrl?: string | null
+  linkText?: string | null
+  showAsPopup?: boolean
 }
 
 const API = '/api/v1/notifications'
@@ -75,5 +83,27 @@ export function useNotifications() {
     }
   }
 
-  return { list, send }
+  /** Хугацаанаас нь өмнө зогсоох — popup, нүүр, зочны хуудаснаас шууд алга болно */
+  async function expire(id: string): Promise<AdminNotification> {
+    try {
+      const res = await $axios.post(`${API}/${id}/expire`)
+      return res.data.data
+    } catch (e: any) {
+      throw toApiError(e)
+    }
+  }
+
+  /** Зарлалын зураг — backend шахаад Cloudinary руу байршуулна, бүтэн URL буцаана */
+  async function uploadImage(file: File): Promise<string> {
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+      const res = await $axios.post('/api/v1/uploads/notification-image', formData)
+      return res.data.data.url as string
+    } catch (e: any) {
+      throw toApiError(e)
+    }
+  }
+
+  return { list, send, expire, uploadImage }
 }

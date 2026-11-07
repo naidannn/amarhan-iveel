@@ -57,6 +57,14 @@ class NotificationRepository extends BaseRepository {
     return this.paginate(this.activeBroadcastFilter(), { page, limit, sort: { createdAt: -1 } });
   }
 
+  /** Вэб рүү ороход гарах popup — зурагтай, хугацаа дуусаагүй хамгийн сүүлийн зарлал */
+  async findLatestActivePopup() {
+    return this.model
+      .findOne({ ...this.activeBroadcastFilter(), showAsPopup: true, imageUrl: { $ne: null } })
+      .sort({ createdAt: -1 })
+      .lean();
+  }
+
   async countUnreadPersonal(customerId) {
     return this.model.countDocuments({
       customerId,

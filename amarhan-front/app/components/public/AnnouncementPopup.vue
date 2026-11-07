@@ -2,17 +2,18 @@
 import { X } from 'lucide-vue-next'
 
 /**
- * Вэб рүү ороход гарч ирэх зурагтай зарлал (`content.home_popup`).
+ * Вэб рүү ороход гарч ирэх зурагтай зарлал (`GET /public/content`-ийн `home_popup`).
  *
- * Админ "Статик агуулга > Popup зарлал"-аас тохируулна. Зураг Cloudinary-д
- * байрладаг (сервер дээр хадгалахгүй). Backend унтраасан/хугацаа дууссан
- * popup-ыг `null` болгож илгээдэг тул энд дахин шүүхгүй.
+ * Эх сурвалж нь Мэдэгдэл модуль: Админ/Менежер зарлал илгээхдээ «Popup-аар
+ * харуулах»-ыг сонгоно — хамгийн сүүлийн идэвхтэй нь гарна. Зураг Cloudinary-д.
+ * Backend зогсоосон/хугацаа дууссан зарлалыг `null` болгож илгээдэг.
  *
- * Хаасны дараа ТЭР ЗУРГИЙГ тухайн browser session-д дахин харуулахгүй — хуудас
- * солих бүрт гарвал залхаана. Админ шинэ зураг оруулбал `imageUrl` өөрчлөгдөж,
- * дахин гарна. Storage ажиллахгүй (private горим) бол зүгээр л дахин гарна.
+ * Хаасны дараа ТЭР ЗАРЛАЛЫГ тухайн browser session-д дахин харуулахгүй — хуудас
+ * солих бүрт гарвал залхаана. Шинэ зарлал илгээвэл `id` өөрчлөгдөж дахин гарна.
+ * Storage ажиллахгүй (private горим) бол зүгээр л дахин гарна.
  */
 export interface AnnouncementPopupData {
+  id: string
   imageUrl: string
   title: string
   body: string
@@ -25,9 +26,9 @@ const props = defineProps<{ popup: AnnouncementPopupData | null }>()
 const STORAGE_KEY = 'iveel:popup-dismissed'
 const open = ref(false)
 
-function wasDismissed(imageUrl: string) {
+function wasDismissed(id: string) {
   try {
-    return sessionStorage.getItem(STORAGE_KEY) === imageUrl
+    return sessionStorage.getItem(STORAGE_KEY) === id
   } catch {
     return false
   }
@@ -36,7 +37,7 @@ function wasDismissed(imageUrl: string) {
 function close() {
   open.value = false
   try {
-    if (props.popup) sessionStorage.setItem(STORAGE_KEY, props.popup.imageUrl)
+    if (props.popup) sessionStorage.setItem(STORAGE_KEY, props.popup.id)
   } catch {
     // Storage хаалттай — дараагийн хуудсанд дахин гарна, урсгалыг блоклохгүй
   }
@@ -45,24 +46,15 @@ function close() {
 // SSR дээр нээхгүй (sessionStorage зөвхөн клиентэд) — hydrate-ийн дараа шийднэ
 onMounted(() => {
   watch(
-    () => props.popup?.imageUrl,
-    imageUrl => {
-      open.value = Boolean(imageUrl && !wasDismissed(imageUrl))
+    () => props.popup?.id,
+    id => {
+      open.value = Boolean(id && !wasDismissed(id))
     },
     { immediate: true }
   )
 })
 
-/**
- * Cloudinary-ийн зургийг хөтөчид тохирох формат (WebP/AVIF), чанар, өргөнөөр
- * авна — гар утсанд эх 1280px PNG-г татуулахгүй. Бусад host-ын URL хэвээр.
- */
-const imageSrc = computed(() => {
-  const url = props.popup?.imageUrl ?? ''
-  return url.includes('res.cloudinary.com/') && url.includes('/image/upload/')
-    ? url.replace('/image/upload/', '/image/upload/f_auto,q_auto,w_900/')
-    : url
-})
+const imageSrc = computed(() => optimizedImage(props.popup?.imageUrl))
 
 const isExternalLink = computed(() => /^https?:\/\//.test(props.popup?.linkUrl ?? ''))
 </script>

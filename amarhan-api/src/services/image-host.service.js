@@ -10,7 +10,7 @@ const { ERROR_CODE } = require('../config/constants');
 const UPLOAD_TIMEOUT_MS = 20000;
 
 /**
- * Cloudinary руу зураг байршуулах цорын ганц цэг (нүүрний popup зарлал).
+ * Cloudinary руу зураг байршуулах цорын ганц цэг (мэдэгдлийн зарлал/popup).
  *
  * SDK-гүй, шууд REST — нэг signed upload л хэрэгтэй тул `cloudinary` пакетын
  * хамаарал нэмэх шаардлагагүй. Гарын үсэг нь `sha1(эрэмбэлсэн параметр + secret)`

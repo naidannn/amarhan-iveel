@@ -65,13 +65,13 @@ exports.uploadImage = async (req, res, next) => {
 };
 
 /**
- * Нүүрний popup зарлалын зураг — сервер дээр ХАДГАЛАХГҮЙ, Cloudinary руу.
+ * Мэдэгдлийн (зарлал/popup) зураг — сервер дээр ХАДГАЛАХГҮЙ, Cloudinary руу.
  *
  * Зураг 2–3 хоног тутам солигддог тул `uploads/` дотор хуримтлагдана. Шахалт
  * нь хаяг холбох зааврынхтай ижил (CDN-ийн хадгалах/татах квотыг хэмнэнэ).
  * Буцаах URL нь БҮТЭН (`https://res.cloudinary.com/...`).
  */
-exports.uploadPopupImage = async (req, res, next) => {
+exports.uploadNotificationImage = async (req, res, next) => {
   if (!req.file) {
     return next(new APIError('Зураг сонгогдоогүй байна', httpStatus.BAD_REQUEST));
   }

@@ -6,6 +6,7 @@ const cargoTypeRepository = require('../repositories/cargo-type.repository');
 const tariffVersionRepository = require('../repositories/tariff-version.repository');
 const settingService = require('./setting.service');
 const loyaltyService = require('./loyalty.service');
+const notificationService = require('./notification.service');
 const APIError = require('../utils/APIError');
 const { maskPhone, normalizePhone } = require('../domain/phone');
 const { PUBLIC_CONTENT_KEYS, SETTING_DEFAULTS, PACKAGE_STATUS } = require('../config/constants');
@@ -19,23 +20,6 @@ const PUBLIC_PRICING_CARGO_TYPE_CODE = 'standard';
  * ⚠ ЭНЭ ФАЙЛЫН БҮХ ХАРИУ ИНТЕРНЭТЭД НЭЭЛТТЭЙ. Ачааны дугаараа мэдэж байгаа
  * ХЭН Ч дуудна — тиймээс аль ч талбарыг "нэмэхэд гэм алга" гэж үзэж болохгүй.
  */
-/**
- * Унтраасан эсвэл хугацаа нь дууссан popup-ыг зочинд огт илгээхгүй —
- * frontend шүүхэд найдвал хуучин кэштэй хуудас дуусгавар болсон зарлалыг
- * үргэлжлүүлэн харуулна.
- */
-function activePopup(popup, now = new Date()) {
-  if (!popup || !popup.enabled || !popup.imageUrl) return null;
-  if (popup.endsAt && new Date(popup.endsAt) <= now) return null;
-  return {
-    imageUrl: popup.imageUrl,
-    title: popup.title || '',
-    body: popup.body || '',
-    linkUrl: popup.linkUrl || '',
-    linkText: popup.linkText || '',
-  };
-}
-
 class PublicService {
   /**
    * §3 — ачаа хайх (`/track/[number]`).
@@ -177,7 +161,9 @@ class PublicService {
       // `content.` угтварыг хассан богино нэрээр буцаана: `erenhot_address`
       out[key.replace(/^content\./, '')] = all[key] ?? SETTING_DEFAULTS[key] ?? null;
     }
-    out.home_popup = activePopup(out.home_popup);
+    // Вэб рүү ороход гарах popup — Мэдэгдэл модулийн зарлалаас (нэг зарлал
+    // бүх газарт). Layout бүр энэ хариуг аль хэдийн татдаг тул тусдаа дуудлагагүй.
+    out.home_popup = await notificationService.activePopup();
     return out;
   }
 }

@@ -67,7 +67,23 @@ function formatDate(value: string) {
             </span>
             <div class="min-w-0 flex-1">
               <p class="font-semibold text-content">{{ item.title }}</p>
-              <p class="mt-0.5 text-body-sm text-content-secondary">{{ item.body }}</p>
+              <p class="mt-0.5 whitespace-pre-line text-body-sm text-content-secondary">{{ item.body }}</p>
+              <img
+                v-if="item.imageUrl"
+                :src="optimizedImage(item.imageUrl, 900)"
+                :alt="item.title"
+                loading="lazy"
+                class="mt-3 w-full max-w-md rounded-btn border border-surface-border"
+              />
+              <a
+                v-if="item.linkUrl"
+                :href="item.linkUrl"
+                target="_blank"
+                rel="noopener"
+                class="mt-2 inline-block text-body-sm font-semibold text-primary-600 hover:text-primary-700"
+              >
+                {{ item.linkText || 'Дэлгэрэнгүй' }} →
+              </a>
               <p class="mt-1 text-body-sm text-content-disabled">{{ formatDate(item.createdAt) }}</p>
             </div>
           </div>

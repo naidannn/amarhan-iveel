@@ -35,11 +35,12 @@ router.post(
   withSingleImage(uploadController.uploadImage)
 );
 
-// Нүүрний popup зарлал — Cloudinary руу (сервер дээр хадгалахгүй)
+// Мэдэгдлийн (зарлал/popup) зураг — Cloudinary руу, сервер дээр хадгалахгүй.
+// Мэдэгдэл илгээх эрхтэй ижил: Админ + Менежер (BR-36).
 router.post(
-  '/popup-image',
-  authorize(Constants.ROLE_GROUP.ADMIN),
-  withSingleImage(uploadController.uploadPopupImage)
+  '/notification-image',
+  authorize(Constants.ROLE_GROUP.MANAGEMENT),
+  withSingleImage(uploadController.uploadNotificationImage)
 );
 
 module.exports = router;

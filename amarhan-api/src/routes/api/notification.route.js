@@ -17,5 +17,6 @@ router.use(authorize(Constants.ROLE_GROUP.MANAGEMENT));
 
 router.post('/', validate(validation.send), controller.send);
 router.get('/', validate(validation.list), controller.list);
+router.post('/:id/expire', validate(validation.expire), controller.expire);
 
 module.exports = router;

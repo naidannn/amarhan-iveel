@@ -36,7 +36,15 @@ class NotificationService {
 
   // ── Ажилтнаас: нийтийн зарлал ───────────────────────────────────────────
 
-  async sendBroadcast({ title, body, expiresAt }, actor, req) {
+  /**
+   * Нэг зарлал → бүх газар: `/notifications` хуудас, харилцагчийн хонх,
+   * нүүрний зурвас, `showAsPopup` бол вэб рүү ороход гарах popup.
+   */
+  async sendBroadcast(
+    { title, body, expiresAt, imageUrl, linkUrl, linkText, showAsPopup },
+    actor,
+    req
+  ) {
     if (!this.isManagement(actor)) {
       throw new APIError('Мэдэгдэл илгээх эрх зөвхөн Админ, Менежерт байна', httpStatus.FORBIDDEN);
     }
@@ -46,6 +54,10 @@ class NotificationService {
       body,
       audience: NOTIFICATION_AUDIENCE.ALL,
       expiresAt: expiresAt ?? null,
+      imageUrl: imageUrl || null,
+      linkUrl: linkUrl || null,
+      linkText: linkText || null,
+      showAsPopup: Boolean(showAsPopup && imageUrl),
       createdBy: actor._id,
     });
 
@@ -55,11 +67,69 @@ class NotificationService {
       entity: AUDIT_ENTITY.NOTIFICATION,
       entityId: doc._id,
       entityLabel: doc.title,
-      after: { title: doc.title, body: doc.body, expiresAt: doc.expiresAt },
+      after: {
+        title: doc.title,
+        body: doc.body,
+        expiresAt: doc.expiresAt,
+        imageUrl: doc.imageUrl,
+        linkUrl: doc.linkUrl,
+        showAsPopup: doc.showAsPopup,
+      },
       req,
     });
 
     return doc;
+  }
+
+  /**
+   * Зарлалыг хугацаанаас нь өмнө зогсоох — устгахгүй (дүрэм 4), `expiresAt`-ыг
+   * одоо болгоно. Ингэснээр popup, нүүрний зурвас, зочны хуудаснаас шууд алга
+   * болно, Админ панелийн түүхэнд хэвээр үлдэнэ.
+   */
+  async expireBroadcast(id, actor, req) {
+    if (!this.isManagement(actor)) {
+      throw new APIError('Мэдэгдэл зогсоох эрх зөвхөн Админ, Менежерт байна', httpStatus.FORBIDDEN);
+    }
+
+    const doc = await notificationRepository.findById(id);
+    if (!doc || doc.audience !== NOTIFICATION_AUDIENCE.ALL) {
+      throw new APIError('Мэдэгдэл олдсонгүй', httpStatus.NOT_FOUND);
+    }
+
+    const now = new Date();
+    if (doc.expiresAt && doc.expiresAt <= now) return doc;
+
+    const updated = await notificationRepository.updateById(id, { expiresAt: now });
+
+    await auditService.record({
+      actor,
+      action: AUDIT_ACTION.NOTIFICATION_EXPIRE,
+      entity: AUDIT_ENTITY.NOTIFICATION,
+      entityId: doc._id,
+      entityLabel: doc.title,
+      before: { expiresAt: doc.expiresAt },
+      after: { expiresAt: updated.expiresAt },
+      req,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Вэб рүү ороход гарах popup (`GET /public/content`-ийн `home_popup`).
+   * Цагаан жагсаалттай — нээлттэй хариу (дүрэм 15).
+   */
+  async activePopup() {
+    const doc = await notificationRepository.findLatestActivePopup();
+    if (!doc) return null;
+    return {
+      id: doc._id,
+      imageUrl: doc.imageUrl,
+      title: doc.title,
+      body: doc.body,
+      linkUrl: doc.linkUrl || '',
+      linkText: doc.linkText || '',
+    };
   }
 
   async listSent(query, actor) {
@@ -96,6 +166,9 @@ class NotificationService {
         id: d._id,
         title: d.title,
         body: d.body,
+        imageUrl: d.imageUrl ?? null,
+        linkUrl: d.linkUrl ?? null,
+        linkText: d.linkText ?? null,
         createdAt: d.createdAt,
       })),
       pagination: {
@@ -225,6 +298,9 @@ class NotificationService {
         entityId: d.entityId,
         entityLabel: d.entityLabel,
         audience: d.audience,
+        imageUrl: d.imageUrl ?? null,
+        linkUrl: d.linkUrl ?? null,
+        linkText: d.linkText ?? null,
         read:
           d.audience === NOTIFICATION_AUDIENCE.CUSTOMER
             ? Boolean(d.readAt)

@@ -135,6 +135,8 @@ exports.AUDIT_ACTION = {
   // бүртгэгдэнэ (BR-36). Ачааны эвентээс автоматаар үүсэх ХУВИЙН мэдэгдэл
   // audit-д БИЧИГДЭХГҮЙ — мөнгө/төлөв өөрчлөгдөөгүй, зөвхөн мэдэгдэл.
   NOTIFICATION_SEND: 'notification.send',
+  // Зарлалыг хугацаанаас нь өмнө зогсоох (popup буруу/хуучирсан үед)
+  NOTIFICATION_EXPIRE: 'notification.expire',
 
   // Зарлага (BR-47) — байгууллагын ерөнхий зардал. Менежер/Админ л бичнэ.
   EXPENSE_CREATE: 'expense.create',
@@ -459,9 +461,6 @@ exports.SETTING_KEY = {
   CONTENT_ERENHOT_ADDRESS: 'content.erenhot_address',
   CONTENT_CONTACT: 'content.contact',
   CONTENT_FAQ: 'content.faq',
-  CONTENT_HOME_NOTICE: 'content.home_notice',
-  // Вэб рүү ороход гарч ирэх зурагтай popup зарлал (зураг заавал, Cloudinary)
-  CONTENT_HOME_POPUP: 'content.home_popup',
 
   // Туслах үйлчилгээ — Юань шилжүүлэг, Линк захиалга. Мөн адил нээлттэй.
   CONTENT_YUAN_TRANSFER: 'content.yuan_transfer',
@@ -492,8 +491,6 @@ exports.PUBLIC_CONTENT_KEYS = [
   exports.SETTING_KEY.CONTENT_ERENHOT_ADDRESS,
   exports.SETTING_KEY.CONTENT_CONTACT,
   exports.SETTING_KEY.CONTENT_FAQ,
-  exports.SETTING_KEY.CONTENT_HOME_NOTICE,
-  exports.SETTING_KEY.CONTENT_HOME_POPUP,
   exports.SETTING_KEY.CONTENT_YUAN_TRANSFER,
   exports.SETTING_KEY.CONTENT_LINK_ORDER,
   exports.SETTING_KEY.CONTENT_ADDRESS_GUIDES,
@@ -532,17 +529,6 @@ exports.SETTING_DEFAULTS = {
 
   // [{ question, answer }]
   [exports.SETTING_KEY.CONTENT_FAQ]: [],
-
-  // Нүүр хуудсанд харагдах зарлал. `null` = зарлал байхгүй.
-  [exports.SETTING_KEY.CONTENT_HOME_NOTICE]: null,
-
-  /**
-   * Вэб рүү ороход гарч ирэх popup зарлал. `null` = popup байхгүй.
-   * `{ enabled, imageUrl, title, body, linkUrl, linkText, endsAt }` — зураг
-   * ЗААВАЛ (текст дангаараа popup болохгүй), бусад нь сонголттой.
-   * `endsAt` өнгөрсөн эсвэл `enabled: false` бол нээлттэй хариунд `null`.
-   */
-  [exports.SETTING_KEY.CONTENT_HOME_POPUP]: null,
 
   /**
    * Туслах үйлчилгээ — Юань шилжүүлэг. Харилцагч өөрөө Хятад руу юань

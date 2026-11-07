@@ -16,6 +16,32 @@ module.exports = {
       title: Joi.string().trim().min(1).max(200).required(),
       body: Joi.string().trim().min(1).max(2000).required(),
       expiresAt: Joi.date().greater('now').allow(null).optional(),
+      // URL-ууд нээлттэй хуудсанд гарна — зөвхөн http(s), `javascript:` хориглоно
+      imageUrl: Joi.string()
+        .trim()
+        .max(500)
+        .uri({ scheme: ['https'] })
+        .allow('', null)
+        .when('showAsPopup', {
+          is: true,
+          then: Joi.required().invalid('', null).messages({
+            'any.required': 'Popup-аар харуулахад зураг заавал',
+            'any.invalid': 'Popup-аар харуулахад зураг заавал',
+          }),
+        }),
+      linkUrl: Joi.string()
+        .trim()
+        .max(500)
+        .uri({ scheme: ['http', 'https'] })
+        .allow('', null),
+      linkText: Joi.string().trim().max(50).allow('', null),
+      showAsPopup: Joi.boolean().default(false),
+    }),
+  },
+
+  expire: {
+    params: Joi.object({
+      id: objectId.required(),
     }),
   },
 
